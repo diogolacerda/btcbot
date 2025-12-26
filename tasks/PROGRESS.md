@@ -9,11 +9,10 @@
 | Metrica | Valor |
 |---------|-------|
 | **Total de Tasks** | 66 |
-| **Concluidas (DONE)** | 1 |
-| **Em Acceptance Testing** | 1 |
-| **Em Review** | 1 |
-| **Pendentes (TODO)** | 63 |
-| **Progresso Geral** | 4.5% |
+| **Concluidas (DONE)** | 2 |
+| **Em Review** | 2 |
+| **Pendentes (TODO)** | 62 |
+| **Progresso Geral** | 6% |
 
 ---
 
@@ -33,12 +32,12 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 1/14 (7%)
+**Progresso:** 2/14 (14%)
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | 👀 REVIEW | staff-devops |
-| DEVOPS-001 | DevOps | Criar Dockerfile | 🧪 ACCEPTANCE_TESTING | staff-devops |
+| DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
@@ -205,10 +204,10 @@
 ## Proximas Acoes
 
 ### Prioridade Imediata (Sprint 0)
-1. **DEVOPS-001** - Em Acceptance Testing (testar build Docker)
+1. **DEVOPS-016** - Aguardando Code Review (PR #9)
 2. **DEVOPS-006** - Aguardando Code Review (Secrets + Workflow)
 3. **DEVOPS-002** - docker-compose.stage.yml (proximo)
-4. **DEVOPS-016** - Setup inicial homeserver
+4. **DEVOPS-002B** - docker-compose.prod.yml
 
 ### Bloqueadores
 *Nenhum bloqueador identificado*
@@ -219,6 +218,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | **DEVOPS-001 DONE** - Dockerfile finalizado e testado |
 | 26/12/2025 | DEVOPS-016 em REVIEW - Documentacao homeserver, scripts backup/restore |
 | 26/12/2025 | DEVOPS-001 em ACCEPTANCE_TESTING - PR #6 merged, testando build |
 | 26/12/2025 | DEVOPS-006 em REVIEW - Secrets docs e workflow de teste criados |
