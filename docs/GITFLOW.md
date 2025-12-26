@@ -1,7 +1,7 @@
 # GitFlow - BTC Grid Bot
 
 **Data:** 26 de Dezembro de 2025
-**Versao:** 1.5
+**Versao:** 1.6
 
 ---
 
@@ -75,17 +75,7 @@ Este documento define o fluxo de trabalho GitFlow para o projeto BTC Grid Bot. O
 |  - Push PR       |
 +--------+---------+
          |
-         | Finaliza desenvolvimento
-         v
-+------------------+
-|      REVIEW      |
-|                  |
-|  - Code Review   |
-|  - Sugestoes     |
-|  - Aprovacao     |
-+--------+---------+
-         |
-         | PR aprovado, merge para main
+         | Finaliza desenvolvimento, merge direto para main
          | CD Stage automatico -> btcbot:stage
          v
 +------------------+
@@ -133,9 +123,7 @@ Este documento define o fluxo de trabalho GitFlow para o projeto BTC Grid Bot. O
 stateDiagram-v2
     [*] --> TODO
     TODO --> IN_PROGRESS: Dev pega task
-    IN_PROGRESS --> REVIEW: Push PR
-    REVIEW --> IN_PROGRESS: Mudancas solicitadas
-    REVIEW --> ACCEPTANCE_TESTING: PR aprovado + merge (CD Stage auto)
+    IN_PROGRESS --> ACCEPTANCE_TESTING: PR mergeado (CD Stage auto)
     ACCEPTANCE_TESTING --> READY_TO_PROD: Testes OK
     ACCEPTANCE_TESTING --> BLOCKED_BY_BUG: Bug encontrado
     BLOCKED_BY_BUG --> ACCEPTANCE_TESTING: Bugfix resolvido
@@ -145,8 +133,7 @@ stateDiagram-v2
     state BLOCKED_BY_BUG {
         [*] --> BugfixCreated: Tester cria BUG-XXX
         BugfixCreated --> BugfixInProgress: Dev corrige
-        BugfixInProgress --> BugfixReview: PR aberto
-        BugfixReview --> BugfixDone: Merge
+        BugfixInProgress --> BugfixDone: PR mergeado
         BugfixDone --> [*]: Task desbloqueada
     }
 ```
@@ -158,7 +145,7 @@ main ─────────────────────────
     \                                      /           \           /
      \  feature/BE-001-trade-repository   /             \ bugfix  /
       \_________________________________ /               \_______ /
-                   PR + Review                           PR + Review
+                   PR Merge                                    PR Merge
                         |                                     |
                         v                                     v
                    CD Stage auto                         CD Stage auto
@@ -209,7 +196,7 @@ main ─────────────────────────
      +--------+---------+                   v
               |                    +------------------+
               v                    | Dev corrige      |
-     +------------------+          | (PR + Review)    |
+     +------------------+          | (PR)             |
      | Watchtower Prod  |          +--------+---------+
      | Auto-update      |                   |
      | port 3000        |                   v
@@ -226,7 +213,6 @@ main ─────────────────────────
 |--------|-----------|-------------|----------|
 | `TODO` | Task disponivel para ser iniciada | - | - |
 | `IN_PROGRESS` | Desenvolvimento em andamento | Dev | Local |
-| `REVIEW` | Aguardando code review | Reviewer | - |
 | `ACCEPTANCE_TESTING` | Em testes no ambiente Stage | Tester | Stage (:3001) |
 | `BLOCKED_BY_BUG` | Aguardando correcao de bug(s) | Dev | Stage (:3001) |
 | `READY_TO_PROD` | Aprovado, aguardando deploy producao | Dev | - |
@@ -251,9 +237,7 @@ Este e um estado especial que indica que a task original esta **bloqueada** ate 
 
 ```
 TODO ──────────────> IN_PROGRESS
-IN_PROGRESS ───────> REVIEW
-REVIEW ────────────> IN_PROGRESS (mudancas solicitadas)
-REVIEW ────────────> ACCEPTANCE_TESTING (aprovado + merge -> CD Stage)
+IN_PROGRESS ───────> ACCEPTANCE_TESTING (PR mergeado -> CD Stage)
 ACCEPTANCE_TESTING ─> READY_TO_PROD (testes OK, sem bugs)
 ACCEPTANCE_TESTING ─> BLOCKED_BY_BUG (bug encontrado -> criar em tasks_bugfixes.md)
 BLOCKED_BY_BUG ────> ACCEPTANCE_TESTING (todos bugfixes resolvidos)
@@ -262,9 +246,7 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 
 ### Transicoes NAO Permitidas
 
-- `REVIEW` -> `TODO` (nao pode voltar para TODO)
 - `DONE` -> qualquer estado (task finalizada)
-- `TODO` -> `REVIEW` (deve passar por IN_PROGRESS)
 - `BLOCKED_BY_BUG` -> `READY_TO_PROD` (deve passar por ACCEPTANCE_TESTING)
 - `BLOCKED_BY_BUG` -> `DONE` (deve passar por ACCEPTANCE_TESTING e READY_TO_PROD)
 - Pular estados (ex: IN_PROGRESS -> DONE)
@@ -276,8 +258,7 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 > **IMPORTANTE - Responsabilidade de Atualizacao:**
 > O agente/dev que **pega a task** e responsavel por atualizar o `PROGRESS.md` e `tasks_<area>.md` em **todas as transicoes de status**:
 > - `TODO` → `IN_PROGRESS` (ao iniciar)
-> - `IN_PROGRESS` → `REVIEW` (ao criar PR)
-> - `REVIEW` → `ACCEPTANCE_TESTING` (apos merge)
+> - `IN_PROGRESS` → `ACCEPTANCE_TESTING` (apos merge)
 > - E assim por diante ate `DONE`
 
 ### 1. Inicio do Desenvolvimento
@@ -301,7 +282,7 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 - Commits devem ser atomicos e descritivos
 - **O agente que pega a task e responsavel por atualizar o PROGRESS.md**
 
-### 2. Desenvolvimento Concluido
+### 2. Desenvolvimento Concluido e Merge
 
 **Acoes:**
 1. Dev/Agente finaliza a implementacao
@@ -316,92 +297,28 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
    git push origin feature/BE-001-implementar-trade-repository
    ```
 4. Abre PR para `main` usando o template apropriado
-5. Adiciona label `needs-review` ao PR
-6. **OBRIGATORIO:** Atualiza status para `REVIEW` em:
+5. Verifica que todos os checks de CI passaram
+6. Faz merge do PR para `main`
+7. **OBRIGATORIO:** Atualiza status para `ACCEPTANCE_TESTING` em:
    - `tasks/PROGRESS.md`
    - `tasks/tasks_<area>.md`
-7. **OBRIGATORIO:** Aciona agente revisor da mesma disciplina:
-   ```
-   Exemplo para DevOps:
-   "Acione o agente staff-devops para revisar o PR #X"
-
-   Exemplo para Backend:
-   "Acione o agente staff-backend-dev para revisar o PR #X"
-   ```
 
 **Regras:**
 - PR deve ter descricao clara do que foi feito
-- Todos os checks de CI devem passar
+- Todos os checks de CI devem passar antes do merge
 - PR deve referenciar a task (ex: `Closes #123` ou `Ref: BE-001`)
 - **O mesmo agente que iniciou a task atualiza o status**
-- **O agente implementador DEVE acionar o agente revisor** (nao esperar passivamente)
+- Merge pode ser feito diretamente apos CI passar
 
-### 3. Code Review
-
-> **Nota:** Para projetos com agentes de IA usando a mesma conta GitHub,
-> usamos um fluxo de review via comentario + label (ver detalhes em [BRANCH_PROTECTION.md](/docs/BRANCH_PROTECTION.md)).
-
-**Fluxo de Review com Agentes:**
-
-```
-1. Agente Implementador cria PR e adiciona label "needs-review"
-2. Agente Implementador ACIONA Agente Revisor (mesma disciplina)
-3. Agente Revisor analisa o codigo e deixa comentario de review
-4. Se aprovado: adiciona label "approved" e RETORNA ao Implementador
-5. Se mudancas necessarias: adiciona label "changes-requested" e RETORNA ao Implementador
-6. Agente Implementador faz merge (se aprovado) ou ajustes (se mudancas)
-```
-
-**Acoes do Agente Revisor:**
-1. Analisa o codigo seguindo os criterios de aprovacao
-2. Deixa comentario estruturado no PR com checklist
-3. Adiciona label apropriado:
-   - `approved` - PR pronto para merge
-   - `changes-requested` - Precisa de ajustes
-4. Se mudancas solicitadas, descreve o que precisa mudar
-5. **RETORNA controle ao Agente Implementador** com resultado do review
-
-**Exemplo de Comentario de Review:**
-```markdown
-## Review por staff-devops agent
-
-### Checklist
-- [x] Codigo segue padroes do projeto
-- [x] Sem problemas de seguranca
-- [x] Testes adequados
-- [x] Documentacao atualizada
-
-### Resultado: APROVADO
-
-O PR esta pronto para merge.
-```
-
-**Acoes do Agente Implementador (se mudancas solicitadas):**
-1. Analisa cada ponto do review
-2. Implementa as mudancas necessarias
-3. Faz push das correcoes
-4. Solicita nova revisao (remove label "changes-requested", adiciona "needs-review")
-
-**Regras:**
-- Revisor deve ser da mesma disciplina (DevOps revisa DevOps, Backend revisa Backend)
-- Revisor NAO pode ser o mesmo agente que implementou
-- Discussoes devem ser objetivas e construtivas
-- Merge so apos label "approved" estar presente
-
-### 4. Merge e Deploy para Stage
+### 3. Deploy para Stage
 
 **Acoes:**
-1. Dev faz merge do PR com `main`:
-   ```bash
-   # Via GitHub UI ou CLI
-   gh pr merge --merge
-   ```
-2. **CD Stage e acionado automaticamente:**
+1. **CD Stage e acionado automaticamente apos merge:**
    - Build da imagem Docker
    - Push para registry com tag `btcbot:stage`
-3. **Watchtower detecta nova imagem** (poll 30s)
-4. **Container btcbot-stage e atualizado automaticamente**
-5. Dev move task para `ACCEPTANCE_TESTING`
+2. **Watchtower detecta nova imagem** (poll 30s)
+3. **Container btcbot-stage e atualizado automaticamente**
+4. Task ja esta em `ACCEPTANCE_TESTING` (atualizado no passo anterior)
 
 **Regras:**
 - Usar "Merge commit" (nao squash ou rebase)
@@ -409,7 +326,7 @@ O PR esta pronto para merge.
 - Verificar se CD Stage completou com sucesso
 - Verificar se Watchtower atualizou o container
 
-### 5. Acceptance Testing
+### 4. Acceptance Testing
 
 **Acoes do Tester:**
 1. Acessa ambiente Stage (porta 3001)
@@ -422,7 +339,7 @@ O PR esta pronto para merge.
 2. Usa o template de bugfix do arquivo
 3. Referencia a task original
 4. **IMPORTANTE:** Tester move a task original para `BLOCKED_BY_BUG`
-5. Dev pega a task de bugfix e segue o mesmo fluxo (branch -> PR -> review -> merge)
+5. Dev pega a task de bugfix e segue o mesmo fluxo (branch -> PR -> merge)
 6. Apos merge do bugfix, Tester retesta em Stage
 7. Se bugfix OK: move bugfix para DONE
 8. Se todos bugfixes resolvidos: task original volta para `ACCEPTANCE_TESTING`
@@ -435,9 +352,8 @@ O PR esta pronto para merge.
 - Todos os criterios de aceite devem ser verificados
 - Bugs devem ser documentados em `/tasks/tasks_bugfixes.md`
 - Task original fica BLOQUEADA ate todos os bugfixes serem resolvidos
-- Bugfixes tem prioridade no code review
 
-### 6. Ready to Production
+### 5. Ready to Production
 
 **Acoes:**
 1. Dev executa o workflow CD Prod manualmente:
@@ -563,13 +479,12 @@ Tester aprova em Stage
 3. Dev move BUG-001 para IN_PROGRESS
 4. Dev cria branch: bugfix/BUG-001-fix-pnl-calculation
 5. Dev corrige e abre PR
-6. Reviewer faz code review
-7. Merge -> CD Stage automatico
-8. Tester retesta bugfix em Stage
-9. Se OK: BUG-001 vai para DONE
-10. Se todos bugfixes resolvidos: task original volta para ACCEPTANCE_TESTING
-11. Tester retesta task original
-12. Se OK: task original vai para READY_TO_PROD
+6. Merge (apos CI passar) -> CD Stage automatico
+7. Tester retesta bugfix em Stage
+8. Se OK: BUG-001 vai para DONE
+9. Se todos bugfixes resolvidos: task original volta para ACCEPTANCE_TESTING
+10. Tester retesta task original
+11. Se OK: task original vai para READY_TO_PROD
 ```
 
 ### Diagrama de Bloqueio
@@ -695,21 +610,8 @@ chore(deps): atualizar asyncpg para 0.29.0
 |------|-------------------|
 | TODO | Selecionar task apropriada para suas habilidades |
 | IN_PROGRESS | Implementar seguindo padroes, escrever testes, documentar |
-| REVIEW | Responder comentarios, fazer ajustes solicitados |
 | ACCEPTANCE_TESTING | Corrigir bugs encontrados (criar branch bugfix) |
 | READY_TO_PROD | Executar CD Prod, verificar producao |
-
-### Reviewer (Revisor de Codigo)
-
-| Fase | Responsabilidades |
-|------|-------------------|
-| REVIEW | Analisar codigo, sugerir melhorias, aprovar ou rejeitar |
-| Qualquer fase | Estar disponivel para tirar duvidas |
-
-**Criterios para ser Reviewer:**
-- Ser da mesma disciplina (backend, frontend, etc)
-- Ter conhecimento do modulo sendo alterado
-- Nao ser o autor do PR
 
 ### Tester (Testador)
 
@@ -737,24 +639,13 @@ chore(deps): atualizar asyncpg para 0.29.0
 - [ ] Documentacao atualizada (se aplicavel)
 - [ ] Arquivo `.env.*.example` atualizado (se novas variaveis)
 
-### Checklist: Code Review
-
-- [ ] Codigo e legivel e bem organizado
-- [ ] Segue padroes do projeto
-- [ ] Testes cobrem casos principais
-- [ ] Nao ha codigo comentado ou debug
-- [ ] Nao ha secrets ou credenciais
-- [ ] Performance foi considerada
-- [ ] Erros sao tratados adequadamente
-- [ ] Logs sao uteis e nao excessivos
-
 ### Checklist: Antes do Merge
 
 - [ ] Todos os checks de CI passaram
-- [ ] PR foi aprovado por pelo menos 1 reviewer
-- [ ] Todos os comentarios foram resolvidos
 - [ ] Nao ha conflitos com main
 - [ ] Titulo e descricao do PR estao corretos
+- [ ] Codigo compila sem erros
+- [ ] Todos os testes passam localmente
 
 ### Checklist: Acceptance Testing
 
@@ -811,9 +702,6 @@ Breve descricao do que foi implementado.
 - [ ] Documentacao atualizada
 - [ ] Lint e type check passando
 - [ ] PR atualizado com main
-
-### Notas para Reviewer
-Pontos de atencao ou decisoes de design.
 ```
 
 ### Template: Bugfix
@@ -882,50 +770,6 @@ O que foi feito para corrigir.
 ---
 
 ## Criterios de Aprovacao
-
-### Code Review - Criterios Obrigatorios
-
-O PR deve ser **rejeitado** se:
-
-1. **Funcionalidade incorreta**
-   - Nao implementa o que foi pedido
-   - Comportamento diferente do especificado
-
-2. **Bugs obvios**
-   - Erros de logica evidentes
-   - Casos nao tratados
-
-3. **Problemas de seguranca**
-   - Secrets no codigo
-   - Vulnerabilidades conhecidas
-   - SQL injection, XSS, etc
-
-4. **Quebra de testes**
-   - Testes existentes falhando
-   - Cobertura reduzida significativamente
-
-5. **Problemas graves de performance**
-   - Queries N+1
-   - Loops infinitos
-   - Memory leaks obvios
-
-### Code Review - Criterios Opcionais
-
-O PR pode ser aprovado **com sugestoes** para:
-
-1. **Melhorias de legibilidade**
-   - Nomes de variaveis
-   - Estrutura do codigo
-   - Comentarios
-
-2. **Melhorias de performance minor**
-   - Otimizacoes que nao sao criticas
-
-3. **Refatoracoes futuras**
-   - Sugestoes para melhorar em proxima iteracao
-
-4. **Estilo de codigo**
-   - Preferencias pessoais (se lint passar)
 
 ### Acceptance Testing - Criterios de Aprovacao
 
@@ -998,28 +842,6 @@ Reprovar, **criar task de bugfix em tasks_bugfixes.md** e **bloquear task origin
 - Preferir rebase sobre merge para manter historico limpo
 - Em caso de duvida, pedir ajuda
 
-### Conflitos de Code Review
-
-**Quando Dev e Reviewer discordam:**
-
-1. **Discussao no PR**
-   - Dev explica sua decisao
-   - Reviewer explica sua preocupacao
-   - Ambos buscam entender o outro lado
-
-2. **Escalacao (se necessario)**
-   - Envolver um terceiro dev
-   - Decisao por consenso ou maioria
-
-3. **Documentar decisao**
-   - Comentar no PR a decisao final
-   - Justificar se for contra a sugestao
-
-**Regras:**
-- Foco no codigo, nao na pessoa
-- Argumentos tecnicos, nao pessoais
-- Prazo maximo de 24h para resolver
-
 ---
 
 ## Rollback
@@ -1069,8 +891,7 @@ Rollback imediato se:
    ```
 
 3. Abrir PR com label `URGENT`
-4. Review rapido (pode ser self-approve em emergencia)
-5. Merge -> CD Stage automatico
+4. Merge (apos CI passar) -> CD Stage automatico
 6. Testar em Stage
 7. CD Prod manual para producao
 
@@ -1118,4 +939,4 @@ Rollback imediato se:
 
 ---
 
-*Documento atualizado em 26/12/2025 - Versao 1.5 (Agente implementador aciona agente revisor)*
+*Documento atualizado em 26/12/2025 - Versao 1.6 (Removido step de review para economizar tokens)*
