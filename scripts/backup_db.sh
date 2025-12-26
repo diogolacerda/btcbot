@@ -48,13 +48,27 @@ echo "[$(date)] Starting backup for $ENV environment..."
 docker exec "$CONTAINER" pg_dump -U "${POSTGRES_USER:-btcbot}" "${POSTGRES_DB:-btcbot}" | gzip > "$BACKUP_DIR/$BACKUP_FILE"
 
 # Verify backup was created
-if [[ -f "$BACKUP_DIR/$BACKUP_FILE" ]]; then
-    BACKUP_SIZE=$(ls -lh "$BACKUP_DIR/$BACKUP_FILE" | awk '{print $5}')
-    echo "[$(date)] Backup created: $BACKUP_FILE ($BACKUP_SIZE)"
-else
+if [[ ! -f "$BACKUP_DIR/$BACKUP_FILE" ]]; then
     echo "[$(date)] Error: Backup file was not created"
     exit 1
 fi
+
+# [BAIXO] Verify backup is not empty
+if [[ ! -s "$BACKUP_DIR/$BACKUP_FILE" ]]; then
+    echo "[$(date)] Error: Backup file is empty"
+    rm -f "$BACKUP_DIR/$BACKUP_FILE"
+    exit 1
+fi
+
+# [MEDIO] Verify backup integrity after creation
+if ! gzip -t "$BACKUP_DIR/$BACKUP_FILE" 2>/dev/null; then
+    echo "[$(date)] Error: Backup file is corrupted"
+    rm -f "$BACKUP_DIR/$BACKUP_FILE"
+    exit 1
+fi
+
+BACKUP_SIZE=$(ls -lh "$BACKUP_DIR/$BACKUP_FILE" | awk '{print $5}')
+echo "[$(date)] Backup created and validated: $BACKUP_FILE ($BACKUP_SIZE)"
 
 # Cleanup old backups (keep last 30)
 BACKUP_COUNT=$(find "$BACKUP_DIR" -name "*.sql.gz" -type f 2>/dev/null | wc -l)

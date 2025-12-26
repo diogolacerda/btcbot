@@ -13,7 +13,7 @@ Este documento descreve o processo de setup inicial do homeserver para executar 
 | Item | Valor |
 |------|-------|
 | **IP Local** | `192.168.68.99` |
-| **Acesso SSH** | `ssh usuario@192.168.68.99` |
+| **Acesso SSH** | `ssh diogo@192.168.68.99` |
 | **Portainer** | `http://192.168.68.99:9000` |
 | **Stage URL** | `http://192.168.68.99:3001` |
 | **Production URL** | `http://192.168.68.99:3000` |
@@ -36,8 +36,13 @@ Antes de iniciar, verifique que o homeserver possui:
 ## Passo 1: Conectar ao Homeserver
 
 ```bash
-ssh usuario@192.168.68.99
+# IMPORTANTE: Substitua "diogo" pelo seu usuário real do homeserver se diferente
+ssh diogo@192.168.68.99
+# ou se usar chave SSH:
+ssh -i ~/.ssh/sua_chave diogo@192.168.68.99
 ```
+
+**Nota:** Se seu usuário for diferente de `diogo`, substitua pelo seu usuário real. Substitua `192.168.68.99` pelo IP real do seu homeserver.
 
 ---
 
@@ -136,11 +141,16 @@ docker info | grep Username
 
 Se nao estiver logado:
 ```bash
+# Método seguro: usar --password-stdin para evitar que senha apareça no histórico
+echo "$DOCKER_TOKEN" | docker login docker.io --username seu_usuario --password-stdin
+# ou interativamente (menos seguro, mas funciona)
 docker login docker.io
 # Inserir usuario e senha/token do Docker Hub
 ```
 
 **Nota:** Recomendamos usar um Access Token ao inves de senha. Crie em: https://hub.docker.com/settings/security
+
+**IMPORTANTE:** Substitua `seu_usuario` pelo seu usuário real do Docker Hub. Se usar o método interativo, as credenciais não aparecerão no histórico do shell.
 
 ---
 
@@ -175,10 +185,23 @@ ls -la /opt/btcbot/
 
 ## Passo 7: Criar Arquivos de Ambiente
 
+**IMPORTANTE - Segurança:** Use um editor de texto (nano, vi, vim) para criar os arquivos `.env` ao invés de usar `cat` com heredoc. Isso evita que credenciais apareçam no histórico do shell.
+
+**Nota sobre IP:** Substitua `192.168.68.99` pelo IP real do seu homeserver em todas as instruções.
+
+**Nota sobre Portainer:** O Portainer está configurado sem HTTPS, o que é aceitável para uso em rede local. Para acesso remoto, considere configurar um túnel SSH ou VPN.
+
 ### 7.1 Ambiente Stage (.env.stage)
 
 ```bash
-cat > /opt/btcbot/.env.stage << 'EOF'
+# Use um editor de texto para criar o arquivo
+nano /opt/btcbot/.env.stage
+# ou
+vi /opt/btcbot/.env.stage
+```
+
+Cole o seguinte conteúdo no arquivo:
+```
 # BTC Grid Bot - Stage Environment
 # IMPORTANTE: Usar apenas credenciais de DEMO/VST
 
@@ -220,8 +243,10 @@ REACTIVATION_MODE=immediate
 
 # Health Check
 HEALTH_PORT=8080
-EOF
+```
 
+Salve o arquivo e proteja-o:
+```bash
 # Proteger arquivo (somente owner pode ler/escrever)
 chmod 600 /opt/btcbot/.env.stage
 ```
@@ -229,7 +254,14 @@ chmod 600 /opt/btcbot/.env.stage
 ### 7.2 Ambiente Production (.env.prod)
 
 ```bash
-cat > /opt/btcbot/.env.prod << 'EOF'
+# Use um editor de texto para criar o arquivo
+nano /opt/btcbot/.env.prod
+# ou
+vi /opt/btcbot/.env.prod
+```
+
+Cole o seguinte conteúdo no arquivo:
+```
 # BTC Grid Bot - Production Environment
 # ATENCAO: Este ambiente usa DINHEIRO REAL!
 
@@ -271,9 +303,11 @@ REACTIVATION_MODE=immediate
 
 # Health Check
 HEALTH_PORT=8080
-EOF
+```
 
-# Proteger arquivo
+Salve o arquivo e proteja-o:
+```bash
+# Proteger arquivo (somente owner pode ler/escrever)
 chmod 600 /opt/btcbot/.env.prod
 ```
 
@@ -292,7 +326,7 @@ Os scripts de backup e restore devem ser copiados do repositorio para o homeserv
 
 ```bash
 # Na sua maquina de desenvolvimento
-scp scripts/backup_db.sh scripts/restore_db.sh usuario@192.168.68.99:/opt/btcbot/scripts/
+scp scripts/backup_db.sh scripts/restore_db.sh diogo@192.168.68.99:/opt/btcbot/scripts/
 ```
 
 ### Opcao B: Clonar repositorio no homeserver

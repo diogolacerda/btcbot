@@ -11,7 +11,7 @@
 | Componente | Valor |
 |------------|-------|
 | **IP Local** | `192.168.68.99` |
-| **Acesso SSH** | `ssh usuario@192.168.68.99` |
+| **Acesso SSH** | `ssh diogo@192.168.68.99` |
 | **Portainer** | `http://192.168.68.99:9000` |
 | **Stage URL** | `http://192.168.68.99:3001` |
 | **Production URL** | `http://192.168.68.99:3000` |
@@ -27,7 +27,6 @@
 |--------|-----------|
 | `TODO` | Nao iniciada |
 | `IN_PROGRESS` | Em desenvolvimento |
-| `REVIEW` | Aguardando code review |
 | `ACCEPTANCE_TESTING` | Testando em Stage |
 | `BLOCKED_BY_BUG` | Bug encontrado no teste |
 | `READY_TO_PROD` | Aprovado para producao |
@@ -37,7 +36,7 @@
 | Task | Descricao | Status | Responsavel |
 |------|-----------|--------|-------------|
 | DEVOPS-001 | Criar Dockerfile | DONE | staff-devops |
-| DEVOPS-002 | docker-compose.stage.yml | REVIEW | staff-devops |
+| DEVOPS-002 | docker-compose.stage.yml | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-002B | docker-compose.prod.yml | TODO | - |
 | DEVOPS-003 | Repositorio GitHub + GitFlow | DONE | Claude |
 | DEVOPS-004 | GitHub Actions - CI | TODO | - |
@@ -230,7 +229,7 @@ Criar Dockerfile otimizado para executar o bot Python em container, com healthch
 
 ### DEVOPS-002: Criar docker-compose.stage.yml
 
-**Status:** REVIEW
+**Status:** ACCEPTANCE_TESTING
 
 **Descricao:**
 Criar arquivo docker-compose para ambiente de Stage, com Watchtower habilitado e TRADING_MODE=demo.
@@ -1393,7 +1392,7 @@ Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretor
 
 **Informacoes do Homeserver:**
 - **IP:** `192.168.68.99`
-- **SSH:** `ssh usuario@192.168.68.99`
+- **SSH:** `ssh diogo@192.168.68.99`
 - **Portainer:** `http://192.168.68.99:9000`
 - **Watchtower:** Ja configurado e funcional (atualiza outros containers)
 
@@ -1410,7 +1409,7 @@ Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretor
 - [x] Arquivos de ambiente exemplo criados (`.env.stage.example`, `.env.prod.example`)
 - [ ] Conectar via SSH:
   ```bash
-  ssh usuario@192.168.68.99
+  ssh diogo@192.168.68.99
   ```
 - [ ] Verificar Portainer acessivel: `http://192.168.68.99:9000`
 - [ ] Verificar Watchtower rodando com configuracao correta:
@@ -1585,7 +1584,7 @@ Documentar processo de migracao do homeserver para cloud quando necessario.
 
 ### DEVOPS-021: Corrigir issues de seguranca do PR #9
 
-**Status:** TODO
+**Status:** IN_PROGRESS
 
 **Descricao:**
 Implementar correcoes de seguranca identificadas no code review do PR #9 (DEVOPS-016).
@@ -1821,7 +1820,7 @@ URLs de Acesso:
 - Portainer: http://192.168.68.99:9000
 - Stage:     http://192.168.68.99:3001/health
 - Prod:      http://192.168.68.99:3000/health
-- SSH:       ssh usuario@192.168.68.99
+- SSH:       ssh diogo@192.168.68.99
 ```
 
 ---

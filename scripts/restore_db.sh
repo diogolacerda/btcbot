@@ -20,6 +20,13 @@ YELLOW='\033[1;33m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
+# [CRITICO] Verify interactive terminal to prevent bypass via pipe
+if [[ ! -t 0 ]]; then
+    echo -e "${RED}Error: This script requires an interactive terminal${NC}"
+    echo "For security reasons, restore cannot be executed via pipe or non-interactive shell"
+    exit 1
+fi
+
 # Validate arguments
 if [[ -z "$ENV" || -z "$BACKUP_FILE" ]]; then
     echo "Usage: $0 <stage|prod> <backup_file.sql.gz>"
@@ -43,6 +50,12 @@ fi
 # Check backup file exists
 if [[ ! -f "$BACKUP_FILE" ]]; then
     echo -e "${RED}Error: Backup file not found: $BACKUP_FILE${NC}"
+    exit 1
+fi
+
+# [BAIXO] Verify backup integrity before restore
+if ! gzip -t "$BACKUP_FILE" 2>/dev/null; then
+    echo -e "${RED}Error: Backup file is corrupted or invalid: $BACKUP_FILE${NC}"
     exit 1
 fi
 
@@ -82,6 +95,23 @@ else
     POSTGRES_DB="btcbot_${ENV}"
 fi
 
+# [ALTO] Create safety backup before restore
+SAFETY_BACKUP_DIR="/opt/btcbot/backups/${ENV}"
+SAFETY_BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+SAFETY_BACKUP_FILE="${SAFETY_BACKUP_DIR}/safety_backup_${ENV}_${SAFETY_BACKUP_TIMESTAMP}.sql.gz"
+mkdir -p "$SAFETY_BACKUP_DIR"
+
+echo -e "${YELLOW}[$(date)] Creating safety backup before restore...${NC}"
+if docker exec "$CONTAINER" pg_dump -U "${POSTGRES_USER:-btcbot}" "${POSTGRES_DB:-btcbot}" | gzip > "$SAFETY_BACKUP_FILE" 2>/dev/null; then
+    if [[ -f "$SAFETY_BACKUP_FILE" && -s "$SAFETY_BACKUP_FILE" ]]; then
+        echo -e "${GREEN}[$(date)] Safety backup created: $(basename "$SAFETY_BACKUP_FILE")${NC}"
+    else
+        echo -e "${YELLOW}[$(date)] Warning: Safety backup creation failed, but continuing...${NC}"
+    fi
+else
+    echo -e "${YELLOW}[$(date)] Warning: Could not create safety backup, but continuing...${NC}"
+fi
+
 # Stop the bot container to prevent writes during restore
 BOT_CONTAINER="btcbot-${ENV}"
 BOT_WAS_RUNNING=false
@@ -93,6 +123,11 @@ fi
 
 # Perform restore
 echo "[$(date)] Starting restore for $ENV environment..."
+
+# [MEDIO] Terminate active connections before dropping database
+echo "[$(date)] Terminating active connections..."
+docker exec "$CONTAINER" psql -U "${POSTGRES_USER:-btcbot}" -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${POSTGRES_DB:-btcbot}' AND pid <> pg_backend_pid();" >/dev/null 2>&1 || true
+
 echo "[$(date)] Dropping existing database..."
 docker exec "$CONTAINER" dropdb -U "${POSTGRES_USER:-btcbot}" --if-exists "${POSTGRES_DB:-btcbot}"
 
