@@ -45,7 +45,8 @@
 | DEVOPS-008 | Stack Stage no Portainer | TODO | - |
 | DEVOPS-014 | Pre-commit hooks | TODO | - |
 | DEVOPS-015 | Script setup desenvolvimento | TODO | - |
-| DEVOPS-016 | Setup inicial homeserver | ACCEPTANCE_TESTING | staff-devops |
+| DEVOPS-016 | Setup inicial homeserver | DONE | staff-devops |
+| DEVOPS-021 | Corrigir issues seguranca PR #9 | TODO | - |
 
 ### Sprint 0.5 - Testes de Integracao
 | Task | Descricao | Status | Responsavel |
@@ -1385,7 +1386,7 @@ Script para configurar ambiente de desenvolvimento local em < 5 minutos.
 
 ### DEVOPS-016: Setup inicial no homeserver
 
-**Status:** ACCEPTANCE_TESTING
+**Status:** DONE
 
 **Descricao:**
 Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretorios).
@@ -1579,6 +1580,90 @@ Documentar processo de migracao do homeserver para cloud quando necessario.
 **Sprint:** 5
 
 **Prioridade:** Baixa
+
+---
+
+### DEVOPS-021: Corrigir issues de seguranca do PR #9
+
+**Status:** TODO
+
+**Descricao:**
+Implementar correcoes de seguranca identificadas no code review do PR #9 (DEVOPS-016).
+Ref: https://github.com/diogolacerda/btcbot/pull/9
+
+**Origem:** Code review do PR #9 por staff-devops
+
+**Itens a Corrigir:**
+
+#### Scripts (`scripts/backup_db.sh`, `scripts/restore_db.sh`)
+
+1. **[CRITICO] Verificar terminal interativo no restore**
+   - Arquivo: `scripts/restore_db.sh`
+   - Adicionar verificacao `[[ ! -t 0 ]]` para evitar bypass via pipe
+
+2. **[ALTO] Criar backup de seguranca antes do restore**
+   - Arquivo: `scripts/restore_db.sh`
+   - Criar backup automatico do estado atual antes de sobrescrever
+
+3. **[MEDIO] Verificar integridade do backup apos criacao**
+   - Arquivo: `scripts/backup_db.sh`
+   - Usar `gzip -t` para validar arquivo nao corrompido
+
+4. **[MEDIO] Terminar conexoes ativas antes do dropdb**
+   - Arquivo: `scripts/restore_db.sh`
+   - Usar `pg_terminate_backend()` antes do drop
+
+5. **[BAIXO] Verificar backup nao vazio**
+   - Arquivo: `scripts/backup_db.sh`
+   - Usar `[[ ! -s "$FILE" ]]` para detectar arquivo vazio
+
+6. **[BAIXO] Verificar integridade antes do restore**
+   - Arquivo: `scripts/restore_db.sh`
+   - Validar `.gz` com `gzip -t` antes de restaurar
+
+#### Documentacao (`docs/HOMESERVER_SETUP.md`)
+
+7. **[CRITICO] Instrucoes seguras para criar .env**
+   - Substituir `cat > .env << 'EOF'` por instrucao usando `nano`/`vi`
+
+8. **[MEDIO] Nota sobre IP hardcoded**
+   - Adicionar aviso para substituir `192.168.68.99` pelo IP real
+
+9. **[MEDIO] Nota sobre Portainer sem HTTPS**
+   - Mencionar que para rede local e aceitavel
+
+10. **[BAIXO] Docker login com --password-stdin**
+    - Usar `echo "$TOKEN" | docker login --password-stdin`
+
+11. **[BAIXO] Clarificar usuario SSH**
+    - Adicionar instrucao explicita para substituir "usuario"
+
+#### Arquivos de Ambiente (`.env.*.example`)
+
+12. **[BAIXO] Reduzir LEVERAGE exemplo**
+    - Arquivo: `.env.prod.example`
+    - Mudar de `LEVERAGE=10` para `LEVERAGE=3`
+
+13. **[MEDIO] Adicionar variaveis uteis**
+    - `LOG_LEVEL=INFO` e `TZ=America/Sao_Paulo`
+
+**Criterios de Aceite:**
+- [ ] Scripts passam em ShellCheck sem warnings
+- [ ] Restore exige terminal interativo
+- [ ] Restore cria backup de seguranca automaticamente
+- [ ] Backups sao validados apos criacao
+- [ ] Documentacao nao expoe credenciais no history
+- [ ] Exemplos de ambiente mais seguros
+
+**Dependencias:** DEVOPS-016 (done)
+
+**Paralelo com:** Qualquer task
+
+**Complexidade:** P
+
+**Sprint:** 0
+
+**Prioridade:** Alta (seguranca)
 
 ---
 
