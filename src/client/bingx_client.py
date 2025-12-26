@@ -272,15 +272,29 @@ class BingXClient:
         if stop_loss:
             params["stopLoss"] = json.dumps(stop_loss, separators=(",", ":"))
 
-        data = await self._request("POST", endpoint, params)
+        try:
+            data = await self._request("POST", endpoint, params)
 
-        # Invalidate cache after order creation
-        self._invalidate_cache("open_orders", "positions", "balance")
+            # Invalidate cache after order creation
+            self._invalidate_cache("open_orders", "positions", "balance")
 
-        orders_logger.info(
-            f"Order created: {side} {position_side} {quantity} {symbol} @ {price or 'MARKET'}"
-        )
-        return data
+            # Only log success if we get a valid response with orderId
+            order_id = data.get("orderId") or data.get("order", {}).get("orderId")
+            if order_id:
+                orders_logger.info(
+                    f"Order created: {side} {position_side} {quantity} {symbol} @ {price or 'MARKET'} | ID: {order_id}"
+                )
+            else:
+                orders_logger.warning(
+                    f"Order response missing orderId: {data}"
+                )
+
+            return data
+        except Exception as e:
+            orders_logger.error(
+                f"FAILED to create order: {side} {position_side} {quantity} {symbol} @ {price or 'MARKET'} | Error: {e}"
+            )
+            raise
 
     async def create_limit_order_with_tp(
         self,

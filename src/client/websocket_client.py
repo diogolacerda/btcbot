@@ -280,6 +280,8 @@ class BingXAccountWebSocket:
                     self.ws_url,
                     ping_interval=20,
                     ping_timeout=10,
+                    close_timeout=5,  # Don't wait forever for close
+                    max_size=10_485_760,  # 10MB max message size
                 ) as ws:
                     self._ws = ws
                     self._reconnect_delay = 1
@@ -289,15 +291,19 @@ class BingXAccountWebSocket:
                     await self._message_loop()
 
             except ConnectionClosed as e:
-                main_logger.warning(f"Account WebSocket desconectado: {e}")
+                # Normal disconnection - don't spam logs
+                if self._running:
+                    main_logger.debug(f"Account WebSocket desconectado: {e}")
+            except asyncio.TimeoutError:
+                main_logger.warning("Account WebSocket timeout - reconectando...")
             except Exception as e:
                 main_logger.error(f"Erro Account WebSocket: {e}")
 
             if self._running:
-                main_logger.info(f"Reconectando Account WS em {self._reconnect_delay}s...")
-                await asyncio.sleep(self._reconnect_delay)
+                # Short delay for normal reconnects, don't log excessively
+                await asyncio.sleep(min(2, self._reconnect_delay))
                 self._reconnect_delay = min(
-                    self._reconnect_delay * 2,
+                    self._reconnect_delay * 1.5,  # Slower backoff
                     self._max_reconnect_delay,
                 )
 
@@ -331,11 +337,12 @@ class BingXAccountWebSocket:
             await self._send({"Pong": data["Ping"]})
             return
 
-        # Log all incoming messages for debugging
-        orders_logger.info(f"WS RAW: {data}")
-
         # Get event type
         event_type = data.get("e", "")
+
+        # Log only important events to avoid spam
+        if event_type in ["ORDER_TRADE_UPDATE", "ACCOUNT_UPDATE", "listenKeyExpired"]:
+            orders_logger.debug(f"WS Event: {event_type}")
 
         # Order update event
         if event_type == "ORDER_TRADE_UPDATE":

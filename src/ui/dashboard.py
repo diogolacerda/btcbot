@@ -139,8 +139,17 @@ class Dashboard:
         table.add_column("Dist TP", justify="right")
 
         for pos in positions[:10]:  # Limit to 10
-            pnl = (current_price - pos.entry_price) * pos.quantity
-            dist_tp = ((pos.tp_price - current_price) / current_price) * 100
+            # Safely calculate PnL with validation
+            try:
+                if pos.entry_price and pos.quantity and current_price:
+                    pnl = (current_price - pos.entry_price) * pos.quantity
+                    dist_tp = ((pos.tp_price - current_price) / current_price) * 100
+                else:
+                    pnl = 0.0
+                    dist_tp = 0.0
+            except (TypeError, ValueError, OverflowError, ZeroDivisionError):
+                pnl = 0.0
+                dist_tp = 0.0
 
             pnl_text = self._format_pnl(pnl)
             dist_text = Text(f"{dist_tp:.2f}%", style="yellow" if dist_tp > 0 else "green")
@@ -188,7 +197,15 @@ class Dashboard:
 
         for trade in trades[-10:][::-1]:  # Last 10, reversed
             pnl_text = self._format_pnl(trade.pnl)
-            pct = (trade.pnl / (trade.entry_price * trade.quantity)) * 100
+
+            # Safely calculate percentage with validation
+            try:
+                if trade.entry_price and trade.quantity and (trade.entry_price * trade.quantity) != 0:
+                    pct = (trade.pnl / (trade.entry_price * trade.quantity)) * 100
+                else:
+                    pct = 0.0
+            except (TypeError, ValueError, OverflowError, ZeroDivisionError):
+                pct = 0.0
 
             table.add_row(
                 Text.assemble(

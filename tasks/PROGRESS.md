@@ -9,10 +9,10 @@
 | Metrica | Valor |
 |---------|-------|
 | **Total de Tasks** | 67 |
-| **Concluidas (DONE)** | 3 |
+| **Concluidas (DONE)** | 5 |
 | **Em Acceptance Testing** | 2 |
-| **Pendentes (TODO)** | 62 |
-| **Progresso Geral** | 6% |
+| **Pendentes (TODO)** | 61 |
+| **Progresso Geral** | 8% |
 
 ---
 
@@ -31,19 +31,19 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 4/15 (27%) - 3 DONE, 2 em ACCEPTANCE_TESTING
+**Progresso:** 6/15 (40%) - 5 DONE, 2 em ACCEPTANCE_TESTING
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | ✔️ DONE | staff-devops |
 | DEVOPS-021 | DevOps | Corrigir issues seguranca PR #9 | 🔄 IN_PROGRESS | staff-devops |
 | DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
-| DEVOPS-002 | DevOps | docker-compose.stage.yml | 🧪 ACCEPTANCE_TESTING | staff-devops |
+| DEVOPS-002 | DevOps | docker-compose.stage.yml | ✔️ DONE | staff-devops |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | 🔄 IN_PROGRESS | staff-devops |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
-| DEVOPS-004 | DevOps | GitHub Actions - CI | 👀 REVIEW | staff-devops |
+| DEVOPS-004 | DevOps | GitHub Actions - CI | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | 🧪 ACCEPTANCE_TESTING | staff-devops |
-| DEVOPS-008 | DevOps | Stack Stage no Portainer | ⬜ TODO | - |
+| DEVOPS-008 | DevOps | Stack Stage no Portainer | ✔️ DONE | staff-devops |
 | DEVOPS-014 | DevOps | Pre-commit hooks | ⬜ TODO | - |
 | DEVOPS-015 | DevOps | Script setup desenvolvimento | ⬜ TODO | - |
 | DB-001 | Database | PostgreSQL Docker Compose | ⬜ TODO | - |
@@ -204,13 +204,13 @@
 ## Proximas Acoes
 
 ### Prioridade Imediata (Sprint 0)
-1. **DEVOPS-021** - IN_PROGRESS - Corrigir issues seguranca PR #9 (Alta prioridade, 13 itens corrigidos)
-2. **DEVOPS-006** - Em ACCEPTANCE_TESTING (PR #7 merged, testar workflow)
-3. **DEVOPS-002** - Em ACCEPTANCE_TESTING (PR #10 merged, aguardando testes em Stage)
-4. **DEVOPS-002B** - docker-compose.prod.yml (proximo)
+1. **DEVOPS-021** - IN_PROGRESS - Corrigir issues seguranca PR #9 (13 itens)
+2. **DEVOPS-004** - Em ACCEPTANCE_TESTING (testar CI workflow)
+3. **DEVOPS-006** - Em ACCEPTANCE_TESTING (testar secrets workflow)
+4. **DEVOPS-002B** - IN_PROGRESS - docker-compose.prod.yml
 
 ### Bloqueadores
-*Nenhum bloqueador identificado*
+*Nenhum bloqueador ativo*
 
 ---
 
@@ -218,6 +218,9 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | **DEVOPS-002 DONE** - Stage funcionando com bot operacional |
+| 26/12/2025 | **BUG-001 RESOLVIDO** - Ordens funcionando, DEVOPS-002 READY_TO_PROD |
+| 26/12/2025 | **BUG-001 CRITICO** - Ordens nao criadas na BingX, DEVOPS-002 BLOCKED_BY_BUG |
 | 26/12/2025 | DEVOPS-021 em IN_PROGRESS - Iniciada correcao de 13 issues de seguranca do PR #9 |
 | 26/12/2025 | DEVOPS-002 em ACCEPTANCE_TESTING - PR #10 merged, testar docker-compose.stage.yml |
 | 26/12/2025 | DEVOPS-021 criada - Issues seguranca do PR #9 (13 itens) |
