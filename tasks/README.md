@@ -363,8 +363,19 @@ TODO -> IN_PROGRESS -> REVIEW -> ACCEPTANCE_TESTING -> READY_TO_PROD -> DONE
 ### Papeis
 
 - **Dev:** Implementa, responde review, faz merge e deploy
-- **Reviewer:** Revisa codigo, sugere melhorias, aprova PRs
+- **Reviewer:** Revisa codigo, sugere melhorias, aprova PRs (via comentario + label)
 - **Tester:** Valida em Stage, **cria bugs em tasks_bugfixes.md**, **bloqueia task original**, aprova para producao
+
+### Review com Agentes
+
+Para projetos com agentes de IA usando a mesma conta GitHub:
+
+1. **Agente Implementador** cria o PR
+2. **Agente Revisor** (mesma disciplina, agente diferente) revisa via comentario
+3. Se aprovado: Revisor adiciona label `approved`
+4. **Agente Implementador** faz merge apos ver label `approved`
+
+> Ver detalhes em [BRANCH_PROTECTION.md](/docs/BRANCH_PROTECTION.md) e [GITFLOW.md](/docs/GITFLOW.md)
 
 ---
 

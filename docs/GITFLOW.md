@@ -1,7 +1,7 @@
 # GitFlow - BTC Grid Bot
 
-**Data:** 22 de Dezembro de 2025
-**Versao:** 1.2
+**Data:** 26 de Dezembro de 2025
+**Versao:** 1.3
 
 ---
 
@@ -315,24 +315,54 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 
 ### 3. Code Review
 
-**Acoes do Reviewer:**
-1. Analisa o codigo seguindo os criterios de aprovacao
-2. Deixa comentarios com sugestoes de melhoria
-3. Solicita mudancas se necessario, OU
-4. Aprova o PR se estiver OK
+> **Nota:** Para projetos com agentes de IA usando a mesma conta GitHub,
+> usamos um fluxo de review via comentario + label (ver detalhes em [BRANCH_PROTECTION.md](/docs/BRANCH_PROTECTION.md)).
 
-**Acoes do Dev (se houver sugestoes):**
-1. Analisa cada sugestao
-2. Para cada sugestao:
-   - Implementa a mudanca, OU
-   - Responde explicando porque nao seguir a sugestao
-3. Solicita nova revisao apos resolver todos os pontos
-4. Reviewer aprova quando satisfeito
+**Fluxo de Review com Agentes:**
+
+```
+1. Agente Implementador cria PR e adiciona label "needs-review"
+2. Agente Revisor (mesma disciplina) e acionado
+3. Agente Revisor analisa o codigo e deixa comentario de review
+4. Se aprovado: adiciona label "approved"
+5. Se mudancas necessarias: adiciona label "changes-requested"
+6. Agente Implementador e notificado para fazer merge (se aprovado) ou ajustes
+```
+
+**Acoes do Agente Revisor:**
+1. Analisa o codigo seguindo os criterios de aprovacao
+2. Deixa comentario estruturado no PR com checklist
+3. Adiciona label apropriado:
+   - `approved` - PR pronto para merge
+   - `changes-requested` - Precisa de ajustes
+4. Se mudancas solicitadas, descreve o que precisa mudar
+
+**Exemplo de Comentario de Review:**
+```markdown
+## Review por staff-devops agent
+
+### Checklist
+- [x] Codigo segue padroes do projeto
+- [x] Sem problemas de seguranca
+- [x] Testes adequados
+- [x] Documentacao atualizada
+
+### Resultado: APROVADO
+
+O PR esta pronto para merge.
+```
+
+**Acoes do Agente Implementador (se mudancas solicitadas):**
+1. Analisa cada ponto do review
+2. Implementa as mudancas necessarias
+3. Faz push das correcoes
+4. Solicita nova revisao (remove label "changes-requested", adiciona "needs-review")
 
 **Regras:**
-- Reviewer deve ser da mesma disciplina (backend review backend)
+- Revisor deve ser da mesma disciplina (DevOps revisa DevOps, Backend revisa Backend)
+- Revisor NAO pode ser o mesmo agente que implementou
 - Discussoes devem ser objetivas e construtivas
-- Nao aprovar se houver comentarios pendentes
+- Merge so apos label "approved" estar presente
 
 ### 4. Merge e Deploy para Stage
 
@@ -1064,4 +1094,4 @@ Rollback imediato se:
 
 ---
 
-*Documento atualizado em 22/12/2025 - Versao 1.2 (BLOCKED_BY_BUG state + tasks_bugfixes.md)*
+*Documento atualizado em 26/12/2025 - Versao 1.3 (Fluxo de review com agentes via comentario + label)*
