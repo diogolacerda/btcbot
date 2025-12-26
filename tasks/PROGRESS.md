@@ -39,7 +39,7 @@
 | DEVOPS-021 | DevOps | Corrigir issues seguranca PR #9 | 🔄 IN_PROGRESS | staff-devops |
 | DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | 🧪 ACCEPTANCE_TESTING | staff-devops |
-| DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
+| DEVOPS-002B | DevOps | docker-compose.prod.yml | 🔄 IN_PROGRESS | staff-devops |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
 | DEVOPS-004 | DevOps | GitHub Actions - CI | ⬜ TODO | - |
 | DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | 🧪 ACCEPTANCE_TESTING | staff-devops |

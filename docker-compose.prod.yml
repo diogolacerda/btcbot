@@ -1,0 +1,137 @@
+# =============================================================================
+# BTC Grid Bot - Docker Compose for Production Environment
+# =============================================================================
+#
+# Ambiente de Production para trading real com dinheiro real.
+# ATENCAO: Este ambiente usa DINHEIRO REAL!
+#
+# Uso:
+#   docker-compose -f docker-compose.prod.yml up -d
+#
+# Para parar:
+#   docker-compose -f docker-compose.prod.yml down
+#
+# Variaveis de ambiente:
+#   - Copie .env.prod.example para .env.prod e configure suas credenciais
+#   - No homeserver: /opt/btcbot/.env.prod
+#
+# IMPORTANTE:
+# - Use credenciais de API DIFERENTES das usadas em Stage
+# - Use senhas DIFERENTES das usadas em Stage
+# - Revise TODAS as configuracoes antes de iniciar
+# - Faca backup do banco regularmente
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Bot Service - BTC Grid Trading Bot (Production)
+  # ---------------------------------------------------------------------------
+  # Servico principal do bot, configurado para ambiente de Production.
+  # - Usa imagem btcbot:latest do Docker Hub
+  # - TRADING_MODE=live (obrigatorio para Production)
+  # - Watchtower habilitado para auto-update apos CD Prod manual
+  # ---------------------------------------------------------------------------
+  bot-prod:
+    image: docker.io/${DOCKER_USERNAME}/btcbot:latest
+    container_name: btcbot-prod
+    restart: unless-stopped
+
+    # Porta externa 3000 mapeada para 8080 interna (healthcheck)
+    ports:
+      - "3000:8080"
+
+    # Labels para Watchtower - auto-update habilitado
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+    # Healthcheck para Docker, Portainer e Watchtower
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Volumes
+    volumes:
+      # Logs persistidos no host
+      - ./logs-prod:/app/logs
+
+    # Variaveis de ambiente
+    environment:
+      # OBRIGATORIO: Production sempre usa live mode (dinheiro real)
+      - TRADING_MODE=live
+      # URL de conexao com PostgreSQL
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-prod:5432/${POSTGRES_DB}
+
+    # Arquivo de ambiente com credenciais
+    env_file:
+      - .env.prod
+
+    # Network isolada para Production
+    networks:
+      - btcbot-prod-network
+
+    # Aguardar PostgreSQL estar healthy antes de iniciar
+    depends_on:
+      postgres-prod:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Service (Production)
+  # ---------------------------------------------------------------------------
+  # Banco de dados PostgreSQL para ambiente de Production.
+  # - Volume persistente para dados (SEPARADO de Stage)
+  # - Watchtower DESABILITADO (nunca auto-update banco de dados)
+  # ---------------------------------------------------------------------------
+  postgres-prod:
+    image: postgres:15
+    container_name: btcbot-postgres-prod
+    restart: unless-stopped
+
+    # Labels para Watchtower - auto-update DESABILITADO
+    # Nunca atualizar automaticamente banco de dados
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+
+    # Healthcheck para garantir que o banco esta pronto
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-btcbot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Volume persistente para dados do banco (SEPARADO de Stage)
+    volumes:
+      - pgdata-prod:/var/lib/postgresql/data
+
+    # Configuracao do PostgreSQL
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-btcbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-btcbot_prod}
+
+    # Network isolada para Production (SEPARADA de Stage)
+    networks:
+      - btcbot-prod-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # Network bridge isolada para ambiente Production
+  # Separada da network de Stage para evitar conflitos
+  btcbot-prod-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # Volume persistente para dados do PostgreSQL Production
+  # Dados sao mantidos mesmo apos docker-compose down
+  # SEPARADO do volume de Stage (pgdata-stage)
+  pgdata-prod:
+    driver: local
+
