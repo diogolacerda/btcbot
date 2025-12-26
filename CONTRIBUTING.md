@@ -75,22 +75,35 @@ pip install pre-commit
 pre-commit install
 ```
 
-### Pre-commit Hooks
+### Pre-commit Hooks (OBRIGATORIO)
 
-Este projeto usa pre-commit para garantir qualidade de codigo:
+Este projeto usa pre-commit para **BLOQUEAR** commits que nao passam nas verificacoes.
+Isso garante paridade com o CI - codigo que nao passa aqui, nao passa la.
 
 ```bash
-# Instalar hooks
+# Instalar hooks (OBRIGATORIO antes de commitar)
+pip install pre-commit
 pre-commit install
 
-# Executar em todos os arquivos
+# Executar em todos os arquivos (util para verificar antes de commitar)
 pre-commit run --all-files
 ```
 
-Hooks configurados:
-- **ruff** - Linting e formatacao
-- **mypy** - Type checking
-- **detect-secrets** - Prevenir commit de secrets
+**Hooks configurados (BLOQUEIAM commits):**
+
+| Hook | Funcao | Bloqueia se... |
+|------|--------|----------------|
+| `ruff` | Linting | Erros de lint encontrados |
+| `ruff-format` | Formatacao | Codigo nao formatado |
+| `mypy` | Type checking | Erros de tipo encontrados |
+| `detect-secrets` | Seguranca | Secrets detectados no codigo |
+| `trailing-whitespace` | Limpeza | Espacos em branco no final |
+| `end-of-file-fixer` | Limpeza | Arquivo sem newline final |
+| `check-yaml` | Validacao | YAML invalido |
+| `debug-statements` | Limpeza | print/pdb no codigo |
+
+**IMPORTANTE:** Se o commit for bloqueado, corrija os erros antes de tentar novamente.
+Alguns hooks (ruff, trailing-whitespace) corrigem automaticamente - basta `git add` novamente.
 
 ## Padroes de Codigo
 
@@ -173,4 +186,3 @@ Use os templates em `.github/PULL_REQUEST_TEMPLATE/`:
 - Consulte a documentacao em `/docs`
 - Verifique as tasks em `/tasks`
 - Abra uma Issue para discussao
-

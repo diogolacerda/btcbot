@@ -44,4 +44,3 @@
 - [ ] Baixo - Apenas esta funcionalidade
 - [ ] Medio - Afeta funcionalidades relacionadas
 - [ ] Alto - Afeta multiplas partes do sistema
-

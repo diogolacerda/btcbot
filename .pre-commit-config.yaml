@@ -1,0 +1,63 @@
+# Pre-commit hooks configuration
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# IMPORTANTE: Estes hooks BLOQUEIAM commits que nao passam nas verificacoes.
+# Isso garante paridade com o CI - codigo que nao passa aqui, nao passa la.
+
+repos:
+  # Ruff - Linting e Formatting (usa config do pyproject.toml)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        name: ruff (lint)
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+        name: ruff (format)
+
+  # MyPy - Type checking (usa config do pyproject.toml)
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        name: mypy (type check)
+        additional_dependencies:
+          - types-requests
+          - types-PyYAML
+        args: [--config-file=pyproject.toml]
+        pass_filenames: false
+        entry: mypy src/
+
+  # Detect-secrets - Previne commits com secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (scan for secrets)
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package-lock\.json|\.secrets\.baseline
+
+  # Pre-commit hooks padrao
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: trailing-whitespace (remove espacos)
+      - id: end-of-file-fixer
+        name: end-of-file-fixer (newline final)
+      - id: check-yaml
+        name: check-yaml (valida YAML)
+      - id: check-added-large-files
+        name: check-added-large-files (max 500kb)
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+        name: check-merge-conflict (detecta marcadores)
+      - id: check-case-conflict
+        name: check-case-conflict (case sensitivity)
+      - id: debug-statements
+        name: debug-statements (remove print/pdb)
+
+# Configuracao padrao
+default_language_version:
+  python: python3.12

@@ -29,10 +29,12 @@ class TestMACDOverflowFix:
 
         # Create klines with extreme values that would cause overflow
         extreme_prices = [1e15] * 100  # Extremely large prices
-        klines = pd.DataFrame({
-            "close": extreme_prices,
-            "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h")
-        })
+        klines = pd.DataFrame(
+            {
+                "close": extreme_prices,
+                "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h"),
+            }
+        )
 
         # Should not raise overflow error, should return None or valid values
         result = strategy.calculate_macd(klines)
@@ -50,10 +52,12 @@ class TestMACDOverflowFix:
 
         # Create klines with null values
         prices = [100.0] * 50 + [None] * 50
-        klines = pd.DataFrame({
-            "close": prices,
-            "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h")
-        })
+        klines = pd.DataFrame(
+            {
+                "close": prices,
+                "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h"),
+            }
+        )
 
         # Should return None due to null values
         result = strategy.calculate_macd(klines)
@@ -66,10 +70,12 @@ class TestMACDOverflowFix:
 
         # Create klines with negative prices (invalid)
         prices = [-100.0] * 100
-        klines = pd.DataFrame({
-            "close": prices,
-            "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h")
-        })
+        klines = pd.DataFrame(
+            {
+                "close": prices,
+                "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h"),
+            }
+        )
 
         # Should return None due to negative prices
         result = strategy.calculate_macd(klines)
@@ -82,10 +88,12 @@ class TestMACDOverflowFix:
 
         # Create klines with normal BTC prices
         prices = [95000.0 + i * 10 for i in range(100)]  # Trending prices
-        klines = pd.DataFrame({
-            "close": prices,
-            "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h")
-        })
+        klines = pd.DataFrame(
+            {
+                "close": prices,
+                "timestamp": pd.date_range(start="2024-01-01", periods=100, freq="1h"),
+            }
+        )
 
         # Should successfully calculate MACD
         result = strategy.calculate_macd(klines)
@@ -108,7 +116,7 @@ class TestDashboardOverflowFix:
             tp_price=1e15 * 1.01,
             quantity=0.001,
             status=OrderStatus.FILLED,
-            filled_at=datetime.now()
+            filled_at=datetime.now(),
         )
 
         current_price = 1e15
@@ -131,7 +139,7 @@ class TestDashboardOverflowFix:
             quantity=1e10,  # Extreme quantity
             pnl=1e15,  # Extreme PnL
             entry_time=datetime.now(),
-            exit_time=datetime.now()
+            exit_time=datetime.now(),
         )
 
         # Should not raise overflow error
@@ -152,7 +160,7 @@ class TestDashboardOverflowFix:
             tp_price=95500.0,
             quantity=0.001,
             status=OrderStatus.FILLED,
-            filled_at=datetime.now()
+            filled_at=datetime.now(),
         )
 
         current_price = 95250.0
@@ -168,7 +176,10 @@ class TestWebSocketConfiguration:
     def test_websocket_ping_disabled(self):
         """Verify that WebSocket library ping is disabled in favor of server ping."""
         # This is a code verification test - checking the configuration
-        with open("/Users/diogolacerda/Sites/btcbot/src/client/websocket_client.py") as f:
+        from pathlib import Path
+
+        ws_file = Path(__file__).parent.parent / "src" / "client" / "websocket_client.py"
+        with open(ws_file) as f:
             content = f.read()
 
         # Should use None for ping_interval to disable library ping

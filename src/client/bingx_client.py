@@ -285,9 +285,7 @@ class BingXClient:
                     f"Order created: {side} {position_side} {quantity} {symbol} @ {price or 'MARKET'} | ID: {order_id}"
                 )
             else:
-                orders_logger.warning(
-                    f"Order response missing orderId: {data}"
-                )
+                orders_logger.warning(f"Order response missing orderId: {data}")
 
             return data
         except Exception as e:
@@ -412,7 +410,7 @@ class BingXClient:
         headers = self._get_headers()
 
         response = await self.client.put(url, headers=headers)
-        return response.status_code == 200
+        return bool(response.status_code == 200)
 
     async def close_listen_key(self, listen_key: str) -> bool:
         """Close/invalidate a listenKey."""
@@ -426,7 +424,7 @@ class BingXClient:
         headers = self._get_headers()
 
         response = await self.client.delete(url, headers=headers)
-        return response.status_code == 200
+        return bool(response.status_code == 200)
 
     async def close(self):
         """Close the HTTP client."""

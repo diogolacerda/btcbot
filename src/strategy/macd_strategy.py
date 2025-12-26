@@ -10,7 +10,7 @@ from config import MACDConfig
 from src.utils.logger import macd_logger
 
 # Suppress numpy overflow warnings - we'll handle them explicitly
-warnings.filterwarnings('ignore', category=RuntimeWarning, message='overflow encountered')
+warnings.filterwarnings("ignore", category=RuntimeWarning, message="overflow encountered")
 
 
 class GridState(Enum):
@@ -102,7 +102,9 @@ class MACDStrategy:
             close_max = klines["close"].max()
             close_min = klines["close"].min()
             if close_max > 1e10 or close_min < 0:
-                macd_logger.warning(f"Extreme close prices detected (min: {close_min}, max: {close_max}), skipping")
+                macd_logger.warning(
+                    f"Extreme close prices detected (min: {close_min}, max: {close_max}), skipping"
+                )
                 return None
 
             macd_df = ta.macd(

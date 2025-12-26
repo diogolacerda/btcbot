@@ -42,4 +42,3 @@ assignees: ''
 ## Informacoes Adicionais
 
 <!-- Qualquer contexto adicional -->
-

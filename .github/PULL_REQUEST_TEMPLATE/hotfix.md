@@ -48,4 +48,3 @@ Este PR contem uma correcao urgente para um problema em producao.
 
 - [ ] Tech Lead
 - [ ] DevOps (para deploy de emergencia)
-

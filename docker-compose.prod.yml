@@ -134,4 +134,3 @@ volumes:
   # SEPARADO do volume de Stage (pgdata-stage)
   pgdata-prod:
     driver: local
-

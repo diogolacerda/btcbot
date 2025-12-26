@@ -200,7 +200,11 @@ class Dashboard:
 
             # Safely calculate percentage with validation
             try:
-                if trade.entry_price and trade.quantity and (trade.entry_price * trade.quantity) != 0:
+                if (
+                    trade.entry_price
+                    and trade.quantity
+                    and (trade.entry_price * trade.quantity) != 0
+                ):
                     pct = (trade.pnl / (trade.entry_price * trade.quantity)) * 100
                 else:
                     pct = 0.0
