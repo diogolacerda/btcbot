@@ -8,12 +8,11 @@
 
 | Metrica | Valor |
 |---------|-------|
-| **Total de Tasks** | 66 |
+| **Total de Tasks** | 67 |
 | **Concluidas (DONE)** | 3 |
 | **Em Acceptance Testing** | 1 |
-| **Em Review** | 0 |
-| **Pendentes (TODO)** | 62 |
-| **Progresso Geral** | 7.5% |
+| **Pendentes (TODO)** | 63 |
+| **Progresso Geral** | 6% |
 
 ---
 
@@ -33,11 +32,12 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 4/14 (29%) - 3 DONE, 1 em ACCEPTANCE_TESTING
+**Progresso:** 4/15 (27%) - 3 DONE, 1 em ACCEPTANCE_TESTING
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | ✔️ DONE | staff-devops |
+| DEVOPS-021 | DevOps | Corrigir issues seguranca PR #9 | ⬜ TODO | - |
 | DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
@@ -194,18 +194,18 @@
 
 | Area | Total | Done | Em Teste | Pendente | % |
 |------|-------|------|----------|----------|---|
-| DevOps | 20 | 2 | 2 | 16 | 10% |
+| DevOps | 21 | 3 | 1 | 17 | 14% |
 | Database | 11 | 0 | 0 | 11 | 0% |
 | Backend | 20 | 0 | 0 | 20 | 0% |
 | Frontend | 15 | 0 | 0 | 15 | 0% |
-| **Total** | **66** | **2** | **2** | **62** | **6%** |
+| **Total** | **67** | **3** | **1** | **63** | **6%** |
 
 ---
 
 ## Proximas Acoes
 
 ### Prioridade Imediata (Sprint 0)
-1. **DEVOPS-016** - Em ACCEPTANCE_TESTING (PR #9 merged, testar setup homeserver)
+1. **DEVOPS-021** - TODO - Corrigir issues seguranca PR #9 (Alta prioridade)
 2. **DEVOPS-006** - Em ACCEPTANCE_TESTING (PR #7 merged, testar workflow)
 3. **DEVOPS-002** - docker-compose.stage.yml (proximo)
 4. **DEVOPS-002B** - docker-compose.prod.yml
@@ -219,6 +219,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-021 criada - Issues seguranca do PR #9 (13 itens) |
 | 26/12/2025 | **DEVOPS-016 DONE** - Homeserver setup docs e scripts concluidos |
 | 26/12/2025 | DEVOPS-016 em ACCEPTANCE_TESTING - PR #9 merged, testar setup |
 | 26/12/2025 | DEVOPS-006 em ACCEPTANCE_TESTING - PR #7 merged, testar workflow |
@@ -236,7 +237,7 @@
 
 | Arquivo | Descricao | Tasks |
 |---------|-----------|-------|
-| [tasks_devops.md](tasks_devops.md) | Infraestrutura, Docker, CI/CD | 20 |
+| [tasks_devops.md](tasks_devops.md) | Infraestrutura, Docker, CI/CD | 21 |
 | [tasks_database.md](tasks_database.md) | PostgreSQL, Schema, Migrations | 11 |
 | [tasks_backend.md](tasks_backend.md) | Python, API, Indicadores | 20 |
 | [tasks_frontend.md](tasks_frontend.md) | Dashboard, UI, Interface Web | 15 |
