@@ -176,7 +176,10 @@ class TestWebSocketConfiguration:
     def test_websocket_ping_disabled(self):
         """Verify that WebSocket library ping is disabled in favor of server ping."""
         # This is a code verification test - checking the configuration
-        with open("/Users/diogolacerda/Sites/btcbot/src/client/websocket_client.py") as f:
+        from pathlib import Path
+
+        ws_file = Path(__file__).parent.parent / "src" / "client" / "websocket_client.py"
+        with open(ws_file) as f:
             content = f.read()
 
         # Should use None for ping_interval to disable library ping
