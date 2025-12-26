@@ -1,7 +1,7 @@
 # GitFlow - BTC Grid Bot
 
 **Data:** 26 de Dezembro de 2025
-**Versao:** 1.3
+**Versao:** 1.4
 
 ---
 
@@ -273,11 +273,20 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 
 ## Fluxo Detalhado
 
+> **IMPORTANTE - Responsabilidade de Atualizacao:**
+> O agente/dev que **pega a task** e responsavel por atualizar o `PROGRESS.md` e `tasks_<area>.md` em **todas as transicoes de status**:
+> - `TODO` → `IN_PROGRESS` (ao iniciar)
+> - `IN_PROGRESS` → `REVIEW` (ao criar PR)
+> - `REVIEW` → `ACCEPTANCE_TESTING` (apos merge)
+> - E assim por diante ate `DONE`
+
 ### 1. Inicio do Desenvolvimento
 
 **Acoes:**
-1. Dev seleciona uma task em `TODO`
-2. Move a task para `IN_PROGRESS`
+1. Dev/Agente seleciona uma task em `TODO`
+2. **OBRIGATORIO:** Atualiza status para `IN_PROGRESS` em:
+   - `tasks/PROGRESS.md` (visao consolidada)
+   - `tasks/tasks_<area>.md` (arquivo da area)
 3. Cria branch a partir de `main`:
    ```bash
    git checkout main
@@ -287,14 +296,15 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 4. Inicia o desenvolvimento
 
 **Regras:**
-- Cada dev deve ter no maximo 1 task em `IN_PROGRESS`
+- Cada dev/agente deve ter no maximo 1 task em `IN_PROGRESS`
 - Branch deve seguir a convencao de nomenclatura
 - Commits devem ser atomicos e descritivos
+- **O agente que pega a task e responsavel por atualizar o PROGRESS.md**
 
 ### 2. Desenvolvimento Concluido
 
 **Acoes:**
-1. Dev finaliza a implementacao
+1. Dev/Agente finaliza a implementacao
 2. Garante que todos os testes passam localmente:
    ```bash
    pytest
@@ -306,12 +316,15 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
    git push origin feature/BE-001-implementar-trade-repository
    ```
 4. Abre PR para `main` usando o template apropriado
-5. Move a task para `REVIEW`
+5. **OBRIGATORIO:** Atualiza status para `REVIEW` em:
+   - `tasks/PROGRESS.md`
+   - `tasks/tasks_<area>.md`
 
 **Regras:**
 - PR deve ter descricao clara do que foi feito
 - Todos os checks de CI devem passar
 - PR deve referenciar a task (ex: `Closes #123` ou `Ref: BE-001`)
+- **O mesmo agente que iniciou a task atualiza o status**
 
 ### 3. Code Review
 
@@ -1094,4 +1107,4 @@ Rollback imediato se:
 
 ---
 
-*Documento atualizado em 26/12/2025 - Versao 1.3 (Fluxo de review com agentes via comentario + label)*
+*Documento atualizado em 26/12/2025 - Versao 1.4 (Responsabilidade de atualizacao do PROGRESS.md)*
