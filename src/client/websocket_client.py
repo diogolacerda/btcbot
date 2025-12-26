@@ -42,8 +42,9 @@ class BingXWebSocket:
             try:
                 async with websockets.connect(
                     self.ws_url,
-                    ping_interval=20,
-                    ping_timeout=10,
+                    ping_interval=None,  # Disable library ping, use server's ping/pong
+                    ping_timeout=None,
+                    close_timeout=5,
                 ) as ws:
                     self._ws = ws
                     self._reconnect_delay = 1
@@ -278,8 +279,8 @@ class BingXAccountWebSocket:
             try:
                 async with websockets.connect(
                     self.ws_url,
-                    ping_interval=20,
-                    ping_timeout=10,
+                    ping_interval=None,  # Disable library ping, use server's ping/pong
+                    ping_timeout=None,
                     close_timeout=5,  # Don't wait forever for close
                     max_size=10_485_760,  # 10MB max message size
                 ) as ws:
@@ -291,10 +292,16 @@ class BingXAccountWebSocket:
                     await self._message_loop()
 
             except ConnectionClosed as e:
-                # Normal disconnection - don't spam logs
+                # Log disconnections but with more detail for debugging
                 if self._running:
-                    main_logger.debug(f"Account WebSocket desconectado: {e}")
-            except asyncio.TimeoutError:
+                    # Check if it's a normal close or error
+                    if hasattr(e, 'code') and e.code in [1000, 1001]:
+                        # Normal close or going away - just debug
+                        main_logger.debug(f"Account WebSocket desconectado normalmente: code={e.code}")
+                    else:
+                        # Unexpected disconnection - log as warning for investigation
+                        main_logger.info(f"Account WebSocket desconectado: {e}")
+            except TimeoutError:
                 main_logger.warning("Account WebSocket timeout - reconectando...")
             except Exception as e:
                 main_logger.error(f"Erro Account WebSocket: {e}")

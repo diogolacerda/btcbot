@@ -1,11 +1,16 @@
+import warnings
 from dataclasses import dataclass
 from enum import Enum
 
+import numpy as np
 import pandas as pd
 import pandas_ta as ta
 
 from config import MACDConfig
 from src.utils.logger import macd_logger
+
+# Suppress numpy overflow warnings - we'll handle them explicitly
+warnings.filterwarnings('ignore', category=RuntimeWarning, message='overflow encountered')
 
 
 class GridState(Enum):
@@ -87,27 +92,58 @@ class MACDStrategy:
             )
             return None
 
-        macd_df = ta.macd(
-            klines["close"],
-            fast=self.fast,
-            slow=self.slow,
-            signal=self.signal,
-        )
+        try:
+            # Validate input data
+            if klines["close"].isnull().any():
+                macd_logger.warning("Klines contain null values, skipping MACD calculation")
+                return None
 
-        if macd_df is None or macd_df.empty:
-            macd_logger.error("Failed to calculate MACD")
+            # Check for extreme values that might cause overflow
+            close_max = klines["close"].max()
+            close_min = klines["close"].min()
+            if close_max > 1e10 or close_min < 0:
+                macd_logger.warning(f"Extreme close prices detected (min: {close_min}, max: {close_max}), skipping")
+                return None
+
+            macd_df = ta.macd(
+                klines["close"],
+                fast=self.fast,
+                slow=self.slow,
+                signal=self.signal,
+            )
+
+            if macd_df is None or macd_df.empty:
+                macd_logger.error("Failed to calculate MACD")
+                return None
+
+            macd_col = f"MACD_{self.fast}_{self.slow}_{self.signal}"
+            signal_col = f"MACDs_{self.fast}_{self.slow}_{self.signal}"
+            hist_col = f"MACDh_{self.fast}_{self.slow}_{self.signal}"
+
+            # Safely extract values with overflow protection
+            def safe_float(value):
+                """Convert to float with overflow protection."""
+                try:
+                    result = float(value)
+                    if np.isnan(result) or np.isinf(result):
+                        return 0.0
+                    # Clamp extreme values
+                    if abs(result) > 1e10:
+                        macd_logger.warning(f"Extreme MACD value detected: {result}, clamping to 0")
+                        return 0.0
+                    return result
+                except (ValueError, OverflowError):
+                    return 0.0
+
+            return MACDValues(
+                macd_line=safe_float(macd_df[macd_col].iloc[-1]),
+                signal_line=safe_float(macd_df[signal_col].iloc[-1]),
+                histogram=safe_float(macd_df[hist_col].iloc[-1]),
+                prev_histogram=safe_float(macd_df[hist_col].iloc[-2]),
+            )
+        except Exception as e:
+            macd_logger.error(f"Error calculating MACD: {e}")
             return None
-
-        macd_col = f"MACD_{self.fast}_{self.slow}_{self.signal}"
-        signal_col = f"MACDs_{self.fast}_{self.slow}_{self.signal}"
-        hist_col = f"MACDh_{self.fast}_{self.slow}_{self.signal}"
-
-        return MACDValues(
-            macd_line=float(macd_df[macd_col].iloc[-1]),
-            signal_line=float(macd_df[signal_col].iloc[-1]),
-            histogram=float(macd_df[hist_col].iloc[-1]),
-            prev_histogram=float(macd_df[hist_col].iloc[-2]),
-        )
 
     def get_state(self, klines: pd.DataFrame) -> GridState:
         """
