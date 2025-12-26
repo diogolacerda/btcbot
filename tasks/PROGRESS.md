@@ -10,8 +10,8 @@
 |---------|-------|
 | **Total de Tasks** | 66 |
 | **Concluidas (DONE)** | 1 |
-| **Em Progresso** | 0 |
-| **Pendentes (TODO)** | 65 |
+| **Em Progresso** | 1 |
+| **Pendentes (TODO)** | 64 |
 | **Progresso Geral** | 1.5% |
 
 ---
@@ -37,7 +37,7 @@
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | ⬜ TODO | - |
-| DEVOPS-001 | DevOps | Criar Dockerfile | ⬜ TODO | - |
+| DEVOPS-001 | DevOps | Criar Dockerfile | 🔄 IN_PROGRESS | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
