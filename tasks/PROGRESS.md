@@ -39,7 +39,7 @@
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
-| DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
+| DEVOPS-002 | DevOps | docker-compose.stage.yml | 👀 REVIEW | staff-devops |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
 | DEVOPS-004 | DevOps | GitHub Actions - CI | ⬜ TODO | - |
@@ -207,8 +207,8 @@
 ### Prioridade Imediata (Sprint 0)
 1. **DEVOPS-016** - Em ACCEPTANCE_TESTING (PR #9 merged, testar setup homeserver)
 2. **DEVOPS-006** - Em ACCEPTANCE_TESTING (PR #7 merged, testar workflow)
-3. **DEVOPS-002** - docker-compose.stage.yml (proximo)
-4. **DEVOPS-002B** - docker-compose.prod.yml
+3. **DEVOPS-002** - Em REVIEW (PR aberto, aguardando code review)
+4. **DEVOPS-002B** - docker-compose.prod.yml (proximo)
 
 ### Bloqueadores
 *Nenhum bloqueador identificado*
@@ -219,6 +219,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-002 em REVIEW - docker-compose.stage.yml criado, PR aberto |
 | 26/12/2025 | DEVOPS-016 em ACCEPTANCE_TESTING - PR #9 merged, testar setup |
 | 26/12/2025 | DEVOPS-006 em ACCEPTANCE_TESTING - PR #7 merged, testar workflow |
 | 26/12/2025 | **DEVOPS-001 DONE** - Dockerfile finalizado e testado |

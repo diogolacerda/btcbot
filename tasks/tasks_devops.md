@@ -37,7 +37,7 @@
 | Task | Descricao | Status | Responsavel |
 |------|-----------|--------|-------------|
 | DEVOPS-001 | Criar Dockerfile | DONE | staff-devops |
-| DEVOPS-002 | docker-compose.stage.yml | TODO | - |
+| DEVOPS-002 | docker-compose.stage.yml | REVIEW | staff-devops |
 | DEVOPS-002B | docker-compose.prod.yml | TODO | - |
 | DEVOPS-003 | Repositorio GitHub + GitFlow | DONE | Claude |
 | DEVOPS-004 | GitHub Actions - CI | TODO | - |
@@ -229,7 +229,7 @@ Criar Dockerfile otimizado para executar o bot Python em container, com healthch
 
 ### DEVOPS-002: Criar docker-compose.stage.yml
 
-**Status:** TODO
+**Status:** REVIEW
 
 **Descricao:**
 Criar arquivo docker-compose para ambiente de Stage, com Watchtower habilitado e TRADING_MODE=demo.
