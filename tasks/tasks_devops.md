@@ -45,7 +45,7 @@
 | DEVOPS-008 | Stack Stage no Portainer | TODO | - |
 | DEVOPS-014 | Pre-commit hooks | TODO | - |
 | DEVOPS-015 | Script setup desenvolvimento | TODO | - |
-| DEVOPS-016 | Setup inicial homeserver | TODO | - |
+| DEVOPS-016 | Setup inicial homeserver | REVIEW | staff-devops |
 
 ### Sprint 0.5 - Testes de Integracao
 | Task | Descricao | Status | Responsavel |
@@ -1385,7 +1385,7 @@ Script para configurar ambiente de desenvolvimento local em < 5 minutos.
 
 ### DEVOPS-016: Setup inicial no homeserver
 
-**Status:** TODO
+**Status:** REVIEW
 
 **Descricao:**
 Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretorios).
@@ -1396,7 +1396,17 @@ Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretor
 - **Portainer:** `http://192.168.68.99:9000`
 - **Watchtower:** Ja configurado e funcional (atualiza outros containers)
 
+**Artefatos Criados:**
+- `docs/HOMESERVER_SETUP.md` - Documentacao passo-a-passo para setup do homeserver
+- `scripts/backup_db.sh` - Script de backup do banco de dados
+- `scripts/restore_db.sh` - Script de restore do banco de dados
+- `.env.stage.example` - Modelo de arquivo de ambiente para Stage
+- `.env.prod.example` - Modelo de arquivo de ambiente para Production
+
 **Criterios de Aceite:**
+- [x] Documentacao de setup criada (`docs/HOMESERVER_SETUP.md`)
+- [x] Scripts de backup/restore criados (`scripts/backup_db.sh`, `scripts/restore_db.sh`)
+- [x] Arquivos de ambiente exemplo criados (`.env.stage.example`, `.env.prod.example`)
 - [ ] Conectar via SSH:
   ```bash
   ssh usuario@192.168.68.99
