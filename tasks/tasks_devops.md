@@ -1,8 +1,15 @@
 # Tarefas de DevOps - BTC Grid Bot
 
 **Data:** 26 de Dezembro de 2025
-**Versao:** 1.6
+**Versao:** 1.7
 **Infraestrutura:** Homeserver + Portainer + Watchtower + Docker Hub
+
+---
+
+> **GitHub Projects:** https://github.com/users/diogolacerda/projects/2
+>
+> Este arquivo contem a **documentacao detalhada** (criterios de aceite, especificacoes tecnicas).
+> O **status atual** das tasks e gerenciado no GitHub Projects.
 
 ---
 

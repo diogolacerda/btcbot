@@ -22,6 +22,7 @@
 | Task | Descricao | Status | Responsavel |
 |------|-----------|--------|-------------|
 | BE-018 | Sistema de filtros plugaveis | TODO | - |
+| BE-021 | Grid dinamico ancorado | TODO | - |
 
 ### Sprint 0.5
 | Task | Descricao | Status | Responsavel |
@@ -660,11 +661,70 @@ Criar suite de testes que usa banco PostgreSQL real via Docker.
 
 ---
 
+### BE-021: Implementar grid dinamico ancorado em centenas
+
+**Status:** TODO
+
+**Descricao:**
+Modificar o GridCalculator para criar ordens ancoradas em multiplos exatos de $100 (centenas) e fazer o grid "flutuar" acompanhando o preco quando ele sobe. Mantendo sempre as 10 ordens mais proximas abaixo do preco atual.
+
+**Comportamento Desejado:**
+1. **Ancoragem em centenas:** Ordens criadas em $87900, $88000, $88100, etc (nunca $87932.50)
+2. **Limite de 10 ordens:** Maximo de 10 ordens pendentes (ja existente)
+3. **Preco subindo:** Quando preco ultrapassa uma nova centena:
+   - Cancelar a ordem mais distante (a mais baixa)
+   - Criar nova ordem na centena que ficou disponivel logo abaixo do preco
+   - Exemplo: Preco passa de $88100 -> cancela ordem em $87100 -> cria ordem em $88000
+4. **Preco descendo:** Ordens sao executadas normalmente (compra), novas ordens podem ser criadas mais abaixo
+
+**Exemplo Visual:**
+```
+Preco atual: $88050
+Ordens: $88000, $87900, $87800, $87700, $87600, $87500, $87400, $87300, $87200, $87100
+
+Preco sobe para: $88150
+Ordens: $88100, $88000, $87900, $87800, $87700, $87600, $87500, $87400, $87300, $87200
+         ^nova                                                                    ^cancelada
+```
+
+**Criterios de Aceite:**
+- [ ] Novo parametro `GRID_ANCHOR_MODE=hundred` no .env (valores: hundred, none)
+- [ ] Novo parametro `GRID_ANCHOR_VALUE=100` - valor de ancoragem em USD
+- [ ] Funcao `anchor_price(price, anchor_value) -> float` em `src/utils/helpers.py`
+- [ ] Modificar `GridCalculator.calculate_levels()` para usar ancoragem
+- [ ] Modificar `GridCalculator.get_orders_to_cancel()` para cancelar ordens distantes quando preco sobe
+- [ ] Novo metodo `GridCalculator.get_anchor_level(price) -> float` - retorna centena mais proxima abaixo
+- [ ] Manter sempre exatamente N ordens (ate o limite de max_orders)
+- [ ] Log quando ordem e cancelada por estar muito distante
+- [ ] Log quando nova ordem e criada por nova centena disponivel
+- [ ] Testes unitarios cobrindo cenarios de subida e descida
+- [ ] Teste de integracao simulando movimento de preco
+
+**Arquivos a Modificar:**
+- `src/utils/helpers.py` - adicionar `anchor_price()`
+- `src/grid/grid_calculator.py` - modificar logica de calculo
+- `src/grid/grid_manager.py` - chamar cancelamento de ordens distantes
+- `config.py` - adicionar novos parametros
+- `.env.example` - documentar novos parametros
+
+**Dependencias:** Nenhuma
+
+**Paralelo com:** BE-018
+
+**Complexidade:** M
+
+**Sprint:** 0
+
+**Prioridade:** Alta
+
+---
+
 ## Grafico de Dependencias
 
 ```
 Sprint 0:
 BE-018 (Sistema de filtros) ----+
+BE-021 (Grid dinamico ancorado)
                                 |
 Sprint 0.5:                     |
 DB-002 ---> BE-001 ---> BE-002 ---> BE-003
@@ -704,37 +764,38 @@ BE-011/12/13 ---> BE-016 (Backtest)
 
 ### Sprint 0
 1. BE-018 - Sistema de filtros plugaveis
+2. BE-021 - Grid dinamico ancorado em centenas
 
 ### Sprint 0.5
-2. BE-001 - TradeRepository
-3. BE-002 - Integracao persistencia no TP
-4. BE-003 - Carregar historico no startup
-5. BE-020 - Testes de integracao
+3. BE-001 - TradeRepository
+4. BE-002 - Integracao persistencia no TP
+5. BE-003 - Carregar historico no startup
+6. BE-020 - Testes de integracao
 
 ### Sprint 1
-6. BE-004 - Confirmacao de 2 velas
-7. BE-005 - Preco inicial ATH
-8. BE-006 - Contador de hits
+7. BE-004 - Confirmacao de 2 velas
+8. BE-005 - Preco inicial ATH
+9. BE-006 - Contador de hits
 
 ### Sprint 2
-9. BE-007 - TP dinamico
-10. BE-008 - Protecao de margem
-11. BE-009 - Pausa em tendencia de baixa
+10. BE-007 - TP dinamico
+11. BE-008 - Protecao de margem
+12. BE-009 - Pausa em tendencia de baixa
 
 ### Sprint 3
-12. BE-010 - Ordens virtuais
+13. BE-010 - Ordens virtuais
 
 ### Sprint 4
-13. BE-011 - RSI
-14. BE-012 - Bollinger
-15. BE-013 - MA Cross
-16. BE-019 - Multi-pares
+14. BE-011 - RSI
+15. BE-012 - Bollinger
+16. BE-013 - MA Cross
+17. BE-019 - Multi-pares
 
 ### Sprint 5
-17. BE-014 - Long + Short
-18. BE-015 - Estrategias customizadas
-19. BE-016 - Backtest
-20. BE-017 - Trailing stop
+18. BE-014 - Long + Short
+19. BE-015 - Estrategias customizadas
+20. BE-016 - Backtest
+21. BE-017 - Trailing stop
 
 ---
 

@@ -4,15 +4,26 @@
 
 ---
 
+## GitHub Projects
+
+> **As tasks agora sao gerenciadas no GitHub Projects!**
+>
+> **Board:** https://github.com/users/diogolacerda/projects/2
+>
+> O board oferece visualizacao Kanban com filtros por Status, Sprint, Area e Priority.
+> Este arquivo `.md` serve como referencia e historico, mas a **fonte da verdade** e o GitHub Projects.
+
+---
+
 ## Resumo Executivo
 
 | Metrica | Valor |
 |---------|-------|
-| **Total de Tasks** | 67 |
-| **Concluidas (DONE)** | 5 |
-| **Em Acceptance Testing** | 2 |
-| **Pendentes (TODO)** | 61 |
-| **Progresso Geral** | 8% |
+| **Total de Tasks** | 68 |
+| **Concluidas (DONE)** | 6 |
+| **Em Acceptance Testing** | 4 |
+| **Pendentes (TODO)** | 58 |
+| **Progresso Geral** | 9% |
 
 ---
 
@@ -31,7 +42,7 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 6/15 (40%) - 5 DONE, 2 em ACCEPTANCE_TESTING
+**Progresso:** 6/16 (37%) - 5 DONE, 2 em ACCEPTANCE_TESTING
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
@@ -48,6 +59,7 @@
 | DEVOPS-015 | DevOps | Script setup desenvolvimento | ⬜ TODO | - |
 | DB-001 | Database | PostgreSQL Docker Compose | ⬜ TODO | - |
 | BE-018 | Backend | Sistema de filtros plugaveis | ⬜ TODO | - |
+| BE-021 | Backend | Grid dinamico ancorado centenas | ⬜ TODO | - |
 
 **Ordem de Execucao:** DEVOPS-016 → DEVOPS-003 → DEVOPS-001 → DEVOPS-002 → DB-001 → ...
 
@@ -78,14 +90,14 @@
 
 ## Sprint 1 - Deploy Automatizado + Quick Wins
 
-**Progresso:** 1/13 (8%)
+**Progresso:** 2/13 (15%) - 1 DONE, 1 em ACCEPTANCE_TESTING
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-007 | DevOps | GitHub Actions - CD Stage | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-007B | DevOps | GitHub Actions - CD Production | ⬜ TODO | - |
 | DEVOPS-009 | DevOps | Validar Watchtower + Stage | ⬜ TODO | - |
-| DEVOPS-011 | DevOps | Healthcheck endpoint | ⬜ TODO | - |
+| DEVOPS-011 | DevOps | Healthcheck endpoint | ✔️ DONE | staff-devops |
 | DB-005 | Database | Contagem hits por nivel | ⬜ TODO | - |
 | DB-006 | Database | Historico ATH | ⬜ TODO | - |
 | BE-004 | Backend | Confirmacao 2 velas | ⬜ TODO | - |
@@ -193,11 +205,11 @@
 
 | Area | Total | Done | Em Teste | Pendente | % |
 |------|-------|------|----------|----------|---|
-| DevOps | 21 | 3 | 3 | 15 | 19% |
+| DevOps | 21 | 6 | 4 | 11 | 29% |
 | Database | 11 | 0 | 0 | 11 | 0% |
 | Backend | 20 | 0 | 0 | 20 | 0% |
 | Frontend | 15 | 0 | 0 | 15 | 0% |
-| **Total** | **67** | **3** | **3** | **61** | **8%** |
+| **Total** | **67** | **6** | **4** | **57** | **15%** |
 
 ---
 
@@ -219,6 +231,8 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | **GitHub Projects configurado** - Tasks migradas para https://github.com/users/diogolacerda/projects/2 |
+| 26/12/2025 | **DEVOPS-011 DONE** - Healthcheck endpoint implementado (aiohttp, /health, testes) |
 | 26/12/2025 | DEVOPS-007 em ACCEPTANCE_TESTING - PR #16 merged, aguardando secrets DEVOPS-006 |
 | 26/12/2025 | **DEVOPS-002 DONE** - Stage funcionando com bot operacional |
 | 26/12/2025 | **BUG-001 RESOLVIDO** - Ordens funcionando, DEVOPS-002 READY_TO_PROD |
@@ -251,4 +265,4 @@
 
 ---
 
-*Este arquivo deve ser atualizado sempre que o status de uma task mudar.*
+*Este arquivo serve como referencia historica. A fonte da verdade para status das tasks e o [GitHub Projects](https://github.com/users/diogolacerda/projects/2).*

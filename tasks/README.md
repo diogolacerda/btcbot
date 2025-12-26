@@ -1,9 +1,40 @@
 # BTC Grid Bot - Decomposicao de Tarefas
 
 **Data:** 26 de Dezembro de 2025
-**Versao:** 1.5
+**Versao:** 1.6
 **Baseado em:** PRD v1.1
-**Infraestrutura:** Homeserver + Portainer + Watchtower + Docker Registry
+**Infraestrutura:** Homeserver + Portainer + Watchtower + Docker Hub
+
+---
+
+## GitHub Projects (Fonte da Verdade)
+
+> **Board Principal:** https://github.com/users/diogolacerda/projects/2
+
+As tasks sao gerenciadas no **GitHub Projects** com os seguintes campos:
+
+| Campo | Opcoes |
+|-------|--------|
+| **Status** | Todo, In Progress, Done |
+| **Area** | DevOps, Backend, Database, Frontend, Docs |
+| **Sprint** | Sprint 0, Sprint 1, Sprint 2, Sprint 3, Backlog |
+| **Priority** | Critical, High, Medium, Low |
+
+### Comandos Uteis (via Claude Code)
+
+```bash
+# Listar tasks do projeto
+gh project item-list 2 --owner diogolacerda
+
+# Criar nova task
+gh project item-create 2 --owner diogolacerda --title "TASK-XXX: Descricao"
+
+# Atualizar status de uma task
+gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
+  --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id <STATUS_ID>
+```
+
+Os arquivos `.md` neste diretorio servem como **documentacao detalhada** dos criterios de aceite e especificacoes tecnicas de cada task.
 
 ---
 
