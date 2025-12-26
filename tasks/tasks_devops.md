@@ -39,7 +39,7 @@
 | DEVOPS-001 | Criar Dockerfile | TODO | - |
 | DEVOPS-002 | docker-compose.stage.yml | TODO | - |
 | DEVOPS-002B | docker-compose.prod.yml | TODO | - |
-| DEVOPS-003 | Repositorio GitHub + GitFlow | REVIEW | Claude |
+| DEVOPS-003 | Repositorio GitHub + GitFlow | DONE | Claude |
 | DEVOPS-004 | GitHub Actions - CI | TODO | - |
 | DEVOPS-006 | GitHub Secrets Docker Hub | TODO | - |
 | DEVOPS-008 | Stack Stage no Portainer | TODO | - |
@@ -390,7 +390,7 @@ Criar arquivo docker-compose para ambiente de Production, com Watchtower habilit
 
 ### DEVOPS-003: Criar repositorio GitHub com estrutura GitFlow
 
-**Status:** REVIEW
+**Status:** ACCEPTANCE_TESTING
 
 **Descricao:**
 Criar repositorio no GitHub seguindo a estrutura definida no [GitFlow](/docs/GITFLOW.md), com branches protegidos e templates de PR.

@@ -9,10 +9,10 @@
 | Metrica | Valor |
 |---------|-------|
 | **Total de Tasks** | 66 |
-| **Concluidas (DONE)** | 0 |
-| **Em Progresso** | 1 |
-| **Pendentes (TODO)** | 66 |
-| **Progresso Geral** | 0% |
+| **Concluidas (DONE)** | 1 |
+| **Em Progresso** | 0 |
+| **Pendentes (TODO)** | 65 |
+| **Progresso Geral** | 1.5% |
 
 ---
 
@@ -32,7 +32,7 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 0/14 (0%)
+**Progresso:** 1/14 (7%)
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
@@ -40,7 +40,7 @@
 | DEVOPS-001 | DevOps | Criar Dockerfile | ⬜ TODO | - |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
-| DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | 👀 REVIEW | Claude |
+| DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
 | DEVOPS-004 | DevOps | GitHub Actions - CI | ⬜ TODO | - |
 | DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | ⬜ TODO | - |
 | DEVOPS-008 | DevOps | Stack Stage no Portainer | ⬜ TODO | - |
@@ -193,11 +193,11 @@
 
 | Area | Total | Done | Em Progresso | Pendente | % |
 |------|-------|------|--------------|----------|---|
-| DevOps | 20 | 0 | 0 | 20 | 0% |
+| DevOps | 20 | 1 | 0 | 19 | 5% |
 | Database | 11 | 0 | 0 | 11 | 0% |
 | Backend | 20 | 0 | 0 | 20 | 0% |
 | Frontend | 15 | 0 | 0 | 15 | 0% |
-| **Total** | **66** | **0** | **0** | **66** | **0%** |
+| **Total** | **66** | **1** | **0** | **65** | **1.5%** |
 
 ---
 
@@ -217,6 +217,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-003 concluida - Repositorio GitHub + GitFlow configurado |
 | 26/12/2025 | Criacao do arquivo de progresso consolidado |
 
 ---
