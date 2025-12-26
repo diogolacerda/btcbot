@@ -6,6 +6,12 @@ Este documento descreve como configurar a protecao de branches no repositorio Gi
 
 A branch `main` e a branch principal do projeto e deve ser protegida.
 
+### Configuracao Atual
+
+> **Nota:** Para projetos solo ou com agentes de IA usando a mesma conta GitHub,
+> a aprovacao formal de PR nao funciona (nao pode aprovar proprio PR).
+> Usamos um fluxo alternativo baseado em **review via comentario + label**.
+
 ### Passos para Configurar
 
 1. Acesse: https://github.com/diogolacerda/btcbot/settings/branches
@@ -19,9 +25,9 @@ A branch `main` e a branch principal do projeto e deve ser protegida.
 #### Protecao de Pull Requests
 
 - [x] **Require a pull request before merging**
-  - [x] Require approvals: `1`
-  - [x] Dismiss stale pull request approvals when new commits are pushed
-  - [ ] Require review from Code Owners (opcional, se usar CODEOWNERS)
+  - [ ] ~~Require approvals~~ (desabilitado - usamos review via comentario)
+  - [ ] ~~Dismiss stale pull request approvals~~ (nao aplicavel)
+  - [ ] Require review from Code Owners (opcional)
 
 #### Status Checks
 
@@ -39,6 +45,71 @@ A branch `main` e a branch principal do projeto e deve ser protegida.
 - [ ] **Require signed commits** (opcional, recomendado para producao)
 - [ ] **Require linear history** (opcional)
 - [x] **Restrict who can push to matching branches** (apenas via PR)
+
+---
+
+## Fluxo de Review com Agentes
+
+Como todos os agentes usam a mesma conta GitHub, usamos um fluxo alternativo:
+
+### 1. Agente Implementador cria o PR
+
+```bash
+# Agente DevOps cria branch e PR
+git checkout -b feature/DEVOPS-004-ci-pipeline
+# ... faz as mudancas ...
+git push -u origin feature/DEVOPS-004-ci-pipeline
+gh pr create --title "feat: CI pipeline" --body "..."
+```
+
+### 2. Agente Revisor faz review via comentario
+
+```bash
+# Outro agente DevOps revisa e adiciona comentario + label
+gh pr comment <numero> --body "## Review por staff-devops agent
+
+### Checklist
+- [x] Codigo segue padroes do projeto
+- [x] Sem problemas de seguranca
+- [x] Documentacao atualizada
+
+### Resultado: APROVADO
+
+O PR esta pronto para merge."
+
+# Adiciona label de aprovado
+gh pr edit <numero> --add-label "approved"
+```
+
+### 3. Agente Implementador faz merge
+
+```bash
+# Apos ver o label "approved", faz o merge
+gh pr merge <numero> --merge --delete-branch
+```
+
+### Labels para Review
+
+| Label | Descricao |
+|-------|-----------|
+| `approved` | Revisado e aprovado por outro agente |
+| `needs-review` | Aguardando revisao |
+| `changes-requested` | Revisor solicitou mudancas |
+
+### Fluxo Visual
+
+```
+Agente A (implementa)     Agente B (revisa)      Agente A (merge)
+        |                        |                      |
+        | cria PR                |                      |
+        |----------------------->|                      |
+        |                        | review + comment     |
+        |                        | + label "approved"   |
+        |<-----------------------|                      |
+        |                                               |
+        |---------------------------------------------->|
+        |                                  merge + deploy
+```
 
 5. Clique em **Create** ou **Save changes**
 
