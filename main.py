@@ -9,7 +9,6 @@ import asyncio
 import sys
 
 from rich.console import Console
-from rich.prompt import Confirm
 
 from config import load_config
 from src.client.bingx_client import BingXClient
@@ -121,12 +120,6 @@ async def run_bot() -> None:
     except Exception as e:
         console.print(f"[red]Erro de conexão: {e}[/red]")
         sys.exit(1)
-
-    # Confirm start
-    if not Confirm.ask("[bold yellow]Iniciar o bot?[/bold yellow]"):
-        console.print("[dim]Operação cancelada.[/dim]")
-        await client.close()
-        sys.exit(0)
 
     # Start grid manager
     await grid_manager.start()

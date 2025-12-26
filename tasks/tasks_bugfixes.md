@@ -165,7 +165,22 @@ PnL esta sendo calculado como se o trade inteiro fosse fechado.
 
 ## Bugs Resolvidos
 
-*Nenhum bug resolvido ainda.*
+### BUG-001: Ordens nao criadas na BingX apesar de log indicar sucesso
+
+**Resolvido em:** 26/12/2025
+**Resolvido por:** staff-backend-dev
+**Task Original:** DEVOPS-002
+**Tempo de resolucao:** < 1 hora
+
+**Causa Raiz:**
+1. Log de sucesso era escrito ANTES de verificar resposta da API
+2. Dashboard nao validava dados antes de calculos (overflow)
+3. WebSocket sem timeout adequado
+
+**Correcoes Aplicadas:**
+- `src/client/bingx_client.py` - Validacao de orderId antes de logar sucesso
+- `src/ui/dashboard.py` - Protecao contra overflow em calculos
+- `src/client/websocket_client.py` - Timeout e reconexao melhorados
 
 <!-- Exemplo de bug resolvido:
 
@@ -187,10 +202,10 @@ PnL esta sendo calculado como se o trade inteiro fosse fechado.
 
 | Metrica | Valor |
 |---------|-------|
-| Total de bugs reportados | 0 |
+| Total de bugs reportados | 1 |
 | Bugs ativos | 0 |
-| Bugs resolvidos | 0 |
-| Tempo medio de resolucao | - |
+| Bugs resolvidos | 1 |
+| Tempo medio de resolucao | < 1 hora |
 
 ---
 
