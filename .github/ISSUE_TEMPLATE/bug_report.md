@@ -54,4 +54,3 @@ Cole logs aqui
 ## Informacoes Adicionais
 
 <!-- Qualquer contexto adicional sobre o problema -->
-
