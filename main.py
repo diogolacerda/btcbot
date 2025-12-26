@@ -14,6 +14,7 @@ from config import load_config
 from src.client.bingx_client import BingXClient
 from src.grid.grid_calculator import GridCalculator
 from src.grid.grid_manager import GridManager
+from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
 from src.ui.alerts import AudioAlerts
 from src.ui.dashboard import Dashboard
@@ -39,6 +40,11 @@ async def run_bot() -> None:
     dashboard = Dashboard()
     calculator = GridCalculator(config.grid)
 
+    # Initialize health server (starts early for Docker healthcheck)
+    health_server = HealthServer()
+    health_server.set_bingx_client(client)
+    await health_server.start()
+
     # Grid Manager with callbacks
     def on_state_change(old_state: GridState, new_state: GridState):
         if new_state == GridState.ACTIVATE:
@@ -61,6 +67,9 @@ async def run_bot() -> None:
         on_order_filled=on_order_filled,
         on_tp_hit=on_tp_hit,
     )
+
+    # Link grid manager to health server for status reporting
+    health_server.set_grid_manager(grid_manager)
 
     # Keyboard handler for manual controls
     keyboard_handler = KeyboardHandler()
@@ -124,6 +133,10 @@ async def run_bot() -> None:
     # Start grid manager
     await grid_manager.start()
 
+    # Link WebSocket to health server (after grid_manager.start() creates it)
+    if grid_manager._account_ws:
+        health_server.set_account_websocket(grid_manager._account_ws)
+
     # Start keyboard handler
     keyboard_handler.start()
 
@@ -174,6 +187,7 @@ async def run_bot() -> None:
         console.print("\n[yellow]Encerrando bot...[/yellow]")
         keyboard_handler.stop()
         await grid_manager.stop()
+        await health_server.stop()
         await client.close()
         console.print("[green]Bot encerrado com sucesso.[/green]")
 

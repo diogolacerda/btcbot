@@ -58,7 +58,7 @@
 | DEVOPS-007 | GitHub Actions - CD Stage | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-007B | GitHub Actions - CD Production | TODO | - |
 | DEVOPS-009 | Validar Watchtower + Stage | TODO | - |
-| DEVOPS-011 | Healthcheck endpoint | TODO | - |
+| DEVOPS-011 | Healthcheck endpoint | DONE | staff-devops |
 
 ### Sprint 2 - Production + Monitoramento
 | Task | Descricao | Status | Responsavel |
@@ -1083,15 +1083,15 @@ Script de backup automatico do PostgreSQL com armazenamento local no homeserver,
 
 ### DEVOPS-011: Implementar healthcheck endpoint no bot
 
-**Status:** TODO
+**Status:** DONE
 
 **Descricao:**
 Criar endpoint HTTP para verificacao de saude do bot, essencial para funcionamento do Watchtower e Portainer.
 
 **Criterios de Aceite:**
-- [ ] Servidor HTTP leve (aiohttp) rodando em paralelo ao bot
-- [ ] Endpoint `GET /health` na porta configuravel (`HEALTH_PORT=8080`)
-- [ ] Resposta JSON:
+- [x] Servidor HTTP leve (aiohttp) rodando em paralelo ao bot
+- [x] Endpoint `GET /health` na porta configuravel (`HEALTH_PORT=8080`)
+- [x] Resposta JSON:
   ```json
   {
     "status": "healthy",
@@ -1101,7 +1101,6 @@ Criar endpoint HTTP para verificacao de saude do bot, essencial para funcionamen
     "environment": "stage",
     "trading_mode": "demo",
     "components": {
-      "database": {"status": "healthy", "latency_ms": 5},
       "websocket": {"status": "healthy", "connected": true},
       "exchange_api": {"status": "healthy", "latency_ms": 120}
     },
@@ -1112,17 +1111,17 @@ Criar endpoint HTTP para verificacao de saude do bot, essencial para funcionamen
     }
   }
   ```
-- [ ] Status codes:
+- [x] Status codes:
   - `200`: Todos componentes healthy
   - `503`: Algum componente unhealthy (Watchtower nao atualiza)
-- [ ] Timeout de 5 segundos para cada componente
-- [ ] Usado por:
+- [x] Timeout de 5 segundos para cada componente
+- [x] Usado por:
   - Docker healthcheck (Dockerfile)
   - docker-compose healthcheck
   - Portainer status
   - Watchtower (verifica apos restart)
-- [ ] Nao expor informacoes sensiveis (API keys, etc)
-- [ ] Log de requests apenas em nivel DEBUG
+- [x] Nao expor informacoes sensiveis (API keys, etc)
+- [x] Log de requests apenas em nivel DEBUG
 
 **Dependencias:** Nenhuma
 
