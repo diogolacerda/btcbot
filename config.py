@@ -1,6 +1,7 @@
+import os
 from dataclasses import dataclass
 from enum import Enum
-import os
+
 from dotenv import load_dotenv
 
 load_dotenv()

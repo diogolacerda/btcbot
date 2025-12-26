@@ -3,6 +3,7 @@
 Script de teste manual para validar os métodos do BingXClient.
 """
 import asyncio
+
 from config import load_config
 from src.client.bingx_client import BingXClient
 
@@ -29,7 +30,7 @@ async def test_get_klines(client: BingXClient, symbol: str):
     try:
         df = await client.get_klines(symbol, interval="1h", limit=10)
         print(f"✅ Sucesso! Recebidos {len(df)} candles")
-        print(f"   Últimos 3 candles:")
+        print("   Últimos 3 candles:")
         print(df[["timestamp", "open", "high", "low", "close"]].tail(3).to_string(index=False))
         return df
     except Exception as e:
@@ -44,7 +45,7 @@ async def test_get_balance(client: BingXClient):
     print("="*50)
     try:
         balance = await client.get_balance()
-        print(f"✅ Sucesso! Dados do balance:")
+        print("✅ Sucesso! Dados do balance:")
         if isinstance(balance, dict):
             available = balance.get("balance", {}).get("availableMargin", "N/A")
             equity = balance.get("balance", {}).get("equity", "N/A")
@@ -116,7 +117,7 @@ async def test_create_simple_limit_order(client: BingXClient, symbol: str, price
     print("TESTE: create_order (LIMIT simples)")
     print("="*50)
 
-    print(f"   Criando ordem LIMIT BUY LONG:")
+    print("   Criando ordem LIMIT BUY LONG:")
     print(f"   - Preço entrada: ${price:,.2f}")
     print(f"   - Quantidade: {quantity}")
 
@@ -130,7 +131,7 @@ async def test_create_simple_limit_order(client: BingXClient, symbol: str, price
             quantity=quantity,
         )
         order_id = result.get("orderId") or result.get("order", {}).get("orderId")
-        print(f"✅ Sucesso! Ordem criada")
+        print("✅ Sucesso! Ordem criada")
         print(f"   Order ID: {order_id}")
         print(f"   Resposta completa: {result}")
         return result
@@ -148,7 +149,7 @@ async def test_create_limit_order_with_tp(client: BingXClient, symbol: str, pric
     # Calcular TP (1% acima do preço de entrada)
     tp_price = round(price * 1.01, 2)
 
-    print(f"   Criando ordem LIMIT BUY LONG com TP:")
+    print("   Criando ordem LIMIT BUY LONG com TP:")
     print(f"   - Preço entrada: ${price:,.2f}")
     print(f"   - Take Profit: ${tp_price:,.2f}")
     print(f"   - Quantidade: {quantity}")
@@ -163,7 +164,7 @@ async def test_create_limit_order_with_tp(client: BingXClient, symbol: str, pric
             tp_price=tp_price,
         )
         order_id = result.get("orderId") or result.get("order", {}).get("orderId")
-        print(f"✅ Sucesso! Ordem criada")
+        print("✅ Sucesso! Ordem criada")
         print(f"   Order ID: {order_id}")
         print(f"   Resposta completa: {result}")
         return result
@@ -197,7 +198,7 @@ async def main():
     config = load_config()
     symbol = config.trading.symbol
 
-    print(f"\nConfiguração:")
+    print("\nConfiguração:")
     print(f"  - Modo: {'DEMO (VST)' if config.bingx.is_demo else 'LIVE'}")
     print(f"  - Base URL: {config.bingx.base_url}")
     print(f"  - Symbol: {symbol}")

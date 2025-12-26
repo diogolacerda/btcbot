@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import asyncio
 import gzip
 import json
 import time
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
 
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -22,9 +25,9 @@ class BingXWebSocket:
 
     def __init__(self, config: BingXConfig):
         self.ws_url = config.ws_url
-        self._ws = None
+        self._ws: Any = None
         self._running = False
-        self._subscriptions: dict[str, Callable] = {}
+        self._subscriptions: dict[str, Callable[[dict[str, Any]], None]] = {}
         self._reconnect_delay = 1
         self._max_reconnect_delay = 60
 
@@ -67,16 +70,17 @@ class BingXWebSocket:
 
     async def _message_loop(self) -> None:
         """Process incoming messages."""
+        assert self._ws is not None
         async for message in self._ws:
             try:
                 data = json.loads(message)
                 await self._handle_message(data)
             except json.JSONDecodeError:
-                main_logger.warning(f"Invalid JSON: {message}")
+                main_logger.warning(f"Invalid JSON: {message!r}")
             except Exception as e:
                 main_logger.error(f"Error processing message: {e}")
 
-    async def _handle_message(self, data: dict) -> None:
+    async def _handle_message(self, data: dict[str, Any]) -> None:
         """Handle incoming WebSocket message."""
         # Handle ping/pong
         if data.get("ping"):
@@ -205,7 +209,7 @@ class BingXWebSocket:
         if self._ws is None:
             return False
         try:
-            return self._ws.state.name == "OPEN"
+            return str(self._ws.state.name) == "OPEN"
         except Exception:
             return False
 
@@ -223,7 +227,7 @@ class BingXAccountWebSocket:
 
     def __init__(self, listen_key: str):
         self._listen_key = listen_key
-        self._ws = None
+        self._ws: Any = None
         self._running = False
         self._reconnect_delay = 1
         self._max_reconnect_delay = 60
@@ -231,9 +235,9 @@ class BingXAccountWebSocket:
         self._renewal_in_progress = False  # Prevent duplicate renewal calls
 
         # Callbacks
-        self._on_order_update: Callable[[dict], None] | None = None
-        self._on_position_update: Callable[[dict], None] | None = None
-        self._on_account_update: Callable[[dict], None] | None = None
+        self._on_order_update: Callable[[dict[str, Any]], None] | None = None
+        self._on_position_update: Callable[[dict[str, Any]], None] | None = None
+        self._on_account_update: Callable[[dict[str, Any]], None] | None = None
         self._on_listen_key_expired: Callable[[], None] | None = None
 
     @property
@@ -299,6 +303,7 @@ class BingXAccountWebSocket:
 
     async def _message_loop(self) -> None:
         """Process incoming messages."""
+        assert self._ws is not None
         async for message in self._ws:
             try:
                 # BingX sends GZIP compressed data
@@ -311,11 +316,11 @@ class BingXAccountWebSocket:
                 data = json.loads(message)
                 await self._handle_message(data)
             except json.JSONDecodeError:
-                main_logger.warning(f"Invalid JSON: {message[:100]}")
+                main_logger.warning(f"Invalid JSON: {message[:100]!r}")
             except Exception as e:
                 main_logger.error(f"Error processing account message: {e}")
 
-    async def _handle_message(self, data: dict) -> None:
+    async def _handle_message(self, data: dict[str, Any]) -> None:
         """Handle incoming WebSocket message."""
         # Handle ping/pong
         if "ping" in data:
@@ -384,6 +389,6 @@ class BingXAccountWebSocket:
         if self._ws is None:
             return False
         try:
-            return self._ws.state.name == "OPEN"
+            return str(self._ws.state.name) == "OPEN"
         except Exception:
             return False

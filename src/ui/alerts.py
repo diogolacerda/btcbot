@@ -43,7 +43,7 @@ class AudioAlerts:
             elif self.system == "Windows":
                 import winsound
                 for _ in range(count):
-                    winsound.Beep(1000, duration_ms)
+                    winsound.Beep(1000, duration_ms)  # type: ignore[attr-defined]
             else:
                 # Fallback: print bell character
                 print("\a" * count, end="", flush=True)

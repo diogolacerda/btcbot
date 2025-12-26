@@ -249,12 +249,12 @@ class OrderTracker:
             Number of positions loaded
         """
         # Find existing TP orders
-        existing_tps = {}
-        for order in open_orders:
-            order_type = order.get("type", "")
+        existing_tps: dict[float, float] = {}
+        for open_order in open_orders:
+            order_type = open_order.get("type", "")
             if order_type in ["TAKE_PROFIT_MARKET", "TAKE_PROFIT"]:
-                stop_price = float(order.get("stopPrice", 0))
-                qty = float(order.get("origQty", 0))
+                stop_price = float(open_order.get("stopPrice", 0))
+                qty = float(open_order.get("origQty", 0))
                 if stop_price > 0:
                     existing_tps[qty] = stop_price
 

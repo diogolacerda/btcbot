@@ -3,13 +3,13 @@ Keyboard handler for dashboard controls.
 
 Reads from stdin - only captures when terminal is focused.
 """
+import select
 import sys
+import termios
 import threading
 import time
 import tty
-import termios
-import select
-from typing import Callable
+from collections.abc import Callable
 from enum import Enum
 
 from src.utils.logger import main_logger

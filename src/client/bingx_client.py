@@ -4,13 +4,13 @@ import json
 import time
 import uuid
 from typing import Any
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode
 
 import httpx
 import pandas as pd
 
 from config import BingXConfig
-from src.utils.logger import orders_logger, error_logger
+from src.utils.logger import error_logger, orders_logger
 
 
 class BingXClient:
@@ -113,7 +113,8 @@ class BingXClient:
                 error_logger.error(f"API Error: {error_msg}")
                 raise Exception(f"BingX API Error: {error_msg}")
 
-            return data.get("data", data)
+            result: dict[str, Any] = data.get("data", data)
+            return result
 
         except httpx.HTTPStatusError as e:
             error_logger.error(f"HTTP Error: {e}")
@@ -175,11 +176,11 @@ class BingXClient:
         self._set_cache(cache_key, df)
         return df
 
-    async def get_balance(self) -> dict:
+    async def get_balance(self) -> dict[str, Any]:
         """Get account balance (cached for 30s)."""
         cached = self._get_cached("balance")
         if cached is not None:
-            return cached
+            return cached  # type: ignore[no-any-return]
 
         endpoint = "/openApi/swap/v2/user/balance"
         data = await self._request("GET", endpoint)
@@ -187,34 +188,34 @@ class BingXClient:
         self._set_cache("balance", data)
         return data
 
-    async def get_positions(self, symbol: str | None = None) -> list[dict]:
+    async def get_positions(self, symbol: str | None = None) -> list[dict[str, Any]]:
         """Get open positions (cached for 15s)."""
         cache_key = f"positions:{symbol or 'all'}"
         cached = self._get_cached(cache_key)
         if cached is not None:
-            return cached
+            return cached  # type: ignore[no-any-return]
 
         endpoint = "/openApi/swap/v2/user/positions"
-        params = {}
+        params: dict[str, str] = {}
         if symbol:
             params["symbol"] = symbol
         data = await self._request("GET", endpoint, params)
-        result = data if isinstance(data, list) else []
+        result: list[dict[str, Any]] = data if isinstance(data, list) else []
 
         self._set_cache(cache_key, result)
         return result
 
-    async def get_open_orders(self, symbol: str) -> list[dict]:
+    async def get_open_orders(self, symbol: str) -> list[dict[str, Any]]:
         """Get open orders for a symbol (cached for 15s)."""
         cache_key = f"open_orders:{symbol}"
         cached = self._get_cached(cache_key)
         if cached is not None:
-            return cached
+            return cached  # type: ignore[no-any-return]
 
         endpoint = "/openApi/swap/v2/trade/openOrders"
         params = {"symbol": symbol}
         data = await self._request("GET", endpoint, params)
-        result = data.get("orders", []) if isinstance(data, dict) else data
+        result: list[dict[str, Any]] = data.get("orders", []) if isinstance(data, dict) else data
 
         self._set_cache(cache_key, result)
         return result
@@ -376,7 +377,7 @@ class BingXClient:
                 error_logger.error(f"ListenKey API error: {response.status_code} - {data}")
                 return ""
 
-            listen_key = data.get("listenKey", "")
+            listen_key: str = data.get("listenKey", "")
             if not listen_key:
                 error_logger.error(f"ListenKey vazio na resposta: {data}")
             return listen_key

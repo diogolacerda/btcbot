@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any
 
 from rich.console import Console
 from rich.layout import Layout
@@ -9,7 +8,7 @@ from rich.table import Table
 from rich.text import Text
 
 from src.grid.grid_manager import GridStatus
-from src.grid.order_tracker import TrackedOrder, TradeRecord, OrderStatus
+from src.grid.order_tracker import TrackedOrder, TradeRecord
 from src.strategy.macd_strategy import GridState
 
 

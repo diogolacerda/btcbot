@@ -85,12 +85,12 @@ class GridCalculator:
             List of GridLevel objects
         """
         existing_levels = existing_levels or []
-        existing_set = set(round_price(p) for p in existing_levels)
+        existing_set = {round_price(p) for p in existing_levels}
 
         spacing = self.calculate_spacing(current_price)
         min_price = self.calculate_min_price(current_price)
 
-        levels = []
+        levels: list[GridLevel] = []
         level_index = 1
         price = current_price - spacing
 
