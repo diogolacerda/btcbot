@@ -1,0 +1,118 @@
+# Workflow para testar login no Docker Hub
+# Este workflow valida que os secrets DOCKER_USERNAME e DOCKER_PASSWORD estao
+# configurados corretamente e permitem autenticacao no registry.
+#
+# Uso: Execute manualmente via Actions -> Test Docker Hub Login -> Run workflow
+
+name: Test Docker Hub Login
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Apenas testar login sem push (recomendado)'
+        required: true
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  REGISTRY: docker.io
+
+jobs:
+  test-login:
+    name: Test Docker Hub Authentication
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate required secrets
+        run: |
+          echo "Validando que secrets obrigatorios estao configurados..."
+
+          if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
+            echo "::error::DOCKER_USERNAME secret nao esta configurado!"
+            echo ""
+            echo "Para configurar:"
+            echo "1. Va em Settings -> Secrets and variables -> Actions"
+            echo "2. Clique em 'New repository secret'"
+            echo "3. Nome: DOCKER_USERNAME"
+            echo "4. Valor: seu usuario do Docker Hub"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.DOCKER_PASSWORD }}" ]; then
+            echo "::error::DOCKER_PASSWORD secret nao esta configurado!"
+            echo ""
+            echo "Para configurar:"
+            echo "1. Acesse https://hub.docker.com/settings/security"
+            echo "2. Clique em 'New Access Token'"
+            echo "3. Nome: btcbot-github-actions"
+            echo "4. Permissoes: Read & Write"
+            echo "5. Copie o token gerado"
+            echo "6. Va em Settings -> Secrets and variables -> Actions"
+            echo "7. Clique em 'New repository secret'"
+            echo "8. Nome: DOCKER_PASSWORD"
+            echo "9. Valor: o token copiado"
+            exit 1
+          fi
+
+          echo "::notice::Secrets obrigatorios estao configurados!"
+
+      - name: Check optional secrets
+        run: |
+          echo "Verificando secrets opcionais..."
+
+          if [ -z "${{ secrets.DISCORD_WEBHOOK }}" ]; then
+            echo "::warning::DISCORD_WEBHOOK nao esta configurado. Notificacoes de deploy nao serao enviadas."
+          else
+            echo "::notice::DISCORD_WEBHOOK esta configurado."
+          fi
+
+      - name: Login to Docker Hub
+        id: login
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Verify login success
+        run: |
+          echo "::notice::Login no Docker Hub realizado com sucesso!"
+          echo ""
+          echo "Informacoes:"
+          echo "- Registry: ${{ env.REGISTRY }}"
+          echo "- Username: ${{ secrets.DOCKER_USERNAME }}"
+          echo "- Status: Autenticado"
+          echo ""
+          echo "Os secrets estao configurados corretamente!"
+          echo "Os workflows cd-stage.yml e cd-prod.yml poderao fazer push de imagens."
+
+      - name: Test push capability (optional)
+        if: ${{ github.event.inputs.dry_run == 'false' }}
+        run: |
+          echo "::warning::Teste de push desabilitado neste workflow."
+          echo "O teste de push real sera feito pelo cd-stage.yml apos merge em main."
+
+      - name: Summary
+        run: |
+          echo "## Resultado do Teste de Login" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| DOCKER_USERNAME | Configurado |" >> $GITHUB_STEP_SUMMARY
+          echo "| DOCKER_PASSWORD | Configurado |" >> $GITHUB_STEP_SUMMARY
+          echo "| Login | Sucesso |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Proximos Passos" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Os secrets estao prontos para uso" >> $GITHUB_STEP_SUMMARY
+          echo "2. Configure o CI (DEVOPS-004) para validar builds" >> $GITHUB_STEP_SUMMARY
+          echo "3. Configure o CD Stage (DEVOPS-007) para push automatico" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Rotacao de Tokens" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Recomendamos rotacionar o token a cada 90 dias." >> $GITHUB_STEP_SUMMARY
+          echo "Consulte: docs/SECRETS.md para o procedimento." >> $GITHUB_STEP_SUMMARY
