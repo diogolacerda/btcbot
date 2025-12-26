@@ -309,7 +309,7 @@ Criar arquivo docker-compose para ambiente de Stage, com Watchtower habilitado e
 
 ### DEVOPS-002B: Criar docker-compose.prod.yml
 
-**Status:** TODO
+**Status:** IN_PROGRESS
 
 **Descricao:**
 Criar arquivo docker-compose para ambiente de Production, com Watchtower habilitado e TRADING_MODE=live.
