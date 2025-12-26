@@ -1,0 +1,69 @@
+# =============================================================================
+# BTC Grid Bot - Docker Ignore
+# Arquivos e diretorios excluidos do build Docker
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+.env
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Ambiente local
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs (serao montados como volume)
+logs/
+*.log
+
+# IDE e editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testes
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Documentacao (nao necessaria em runtime)
+docs/
+*.md
+!README.md
+
+# Tasks e planejamento
+tasks/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.docker/
+
+# Claude
+.claude/
+
+# Outros
+*.bak
+*.tmp
+.secrets.baseline
