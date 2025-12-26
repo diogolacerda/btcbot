@@ -1,7 +1,24 @@
 # Tarefas de Bugfix - BTC Grid Bot
 
-**Data:** 22 de Dezembro de 2025
-**Versao:** 1.1
+**Data:** 26 de Dezembro de 2025
+**Versao:** 1.2
+
+---
+
+## Controle de Progresso
+
+### Legenda de Status (Bugfixes)
+| Status | Descricao |
+|--------|-----------|
+| `TODO` | Bug reportado, aguardando dev |
+| `IN_PROGRESS` | Dev trabalhando na correcao |
+| `REVIEW` | Aguardando code review |
+| `DONE` | Corrigido e testado |
+
+### Bugs Ativos
+| Bug ID | Descricao | Severidade | Status | Responsavel |
+|--------|-----------|------------|--------|-------------|
+| *Nenhum bug ativo* | - | - | - | - |
 
 ---
 
@@ -315,4 +332,4 @@ Antes de criar um bugfix, verifique:
 
 ---
 
-*Documento criado em 22/12/2025 - Versao 1.1 (com bloqueio de task original)*
+*Documento atualizado em 26/12/2025 - Versao 1.2 (Adicionado tabela de controle de progresso)*

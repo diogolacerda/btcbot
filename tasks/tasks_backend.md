@@ -1,7 +1,70 @@
 # Tarefas de Backend - BTC Grid Bot
 
-**Data:** 22 de Dezembro de 2025
-**Versao:** 1.0
+**Data:** 26 de Dezembro de 2025
+**Versao:** 1.1
+
+---
+
+## Controle de Progresso
+
+### Legenda de Status (GitFlow)
+| Status | Descricao |
+|--------|-----------|
+| `TODO` | Nao iniciada |
+| `IN_PROGRESS` | Em desenvolvimento |
+| `REVIEW` | Aguardando code review |
+| `ACCEPTANCE_TESTING` | Testando em Stage |
+| `BLOCKED_BY_BUG` | Bug encontrado no teste |
+| `READY_TO_PROD` | Aprovado para producao |
+| `DONE` | Concluida e em producao |
+
+### Sprint 0
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| BE-018 | Sistema de filtros plugaveis | TODO | - |
+
+### Sprint 0.5
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| BE-001 | TradeRepository | TODO | - |
+| BE-002 | Integracao persistencia TP | TODO | - |
+| BE-003 | Carregar historico startup | TODO | - |
+| BE-020 | Testes integracao banco | TODO | - |
+
+### Sprint 1
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| BE-004 | Confirmacao 2 velas | TODO | - |
+| BE-005 | Preco inicial ATH | TODO | - |
+| BE-006 | Contador hits nivel | TODO | - |
+
+### Sprint 2
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| BE-007 | TP dinamico | TODO | - |
+| BE-008 | Protecao margem | TODO | - |
+| BE-009 | Pausa tendencia baixa | TODO | - |
+
+### Sprint 3
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| BE-010 | Ordens virtuais | TODO | - |
+
+### Sprint 4
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| BE-011 | RSI | TODO | - |
+| BE-012 | Bollinger | TODO | - |
+| BE-013 | MA Cross | TODO | - |
+| BE-019 | Multi-pares | TODO | - |
+
+### Sprint 5
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| BE-014 | Long + Short | TODO | - |
+| BE-015 | Estrategias customizadas | TODO | - |
+| BE-016 | Backtest | TODO | - |
+| BE-017 | Trailing stop | TODO | - |
 
 ---
 
@@ -15,13 +78,14 @@ Este documento contém todas as tarefas de backend Python, incluindo API, logica
 
 - **Complexidade:** P (Pequena ~0.5 dia), M (Media ~1-2 dias), G (Grande ~3-5 dias)
 - **Prioridade:** Alta, Media, Baixa
-- **Status:** Pendente, Em Progresso, Concluido
 
 ---
 
 ## Tarefas
 
 ### BE-001: Implementar camada de repositorio (TradeRepository)
+
+**Status:** TODO
 
 **Descricao:**
 Criar classe TradeRepository com asyncpg para persistir e consultar trades no PostgreSQL. Seguir padrao Repository para isolamento da camada de dados.
@@ -53,6 +117,8 @@ Criar classe TradeRepository com asyncpg para persistir e consultar trades no Po
 
 ### BE-002: Integrar persistencia no fluxo de TP atingido
 
+**Status:** TODO
+
 **Descricao:**
 Modificar o `OrderTracker` para chamar `TradeRepository.save_trade()` quando um Take Profit e atingido.
 
@@ -81,6 +147,8 @@ Modificar o `OrderTracker` para chamar `TradeRepository.save_trade()` quando um 
 
 ### BE-003: Carregar historico de trades do banco no startup
 
+**Status:** TODO
+
 **Descricao:**
 Ao iniciar o bot, carregar historico de trades do banco para popular estatisticas do dashboard.
 
@@ -106,6 +174,8 @@ Ao iniciar o bot, carregar historico de trades do banco para popular estatistica
 
 ### BE-004: Implementar confirmacao de 2 velas (RF19)
 
+**Status:** TODO
+
 **Descricao:**
 Modificar `MACDStrategy` para so mudar de estado apos 2 velas consecutivas confirmarem a direcao.
 
@@ -130,6 +200,8 @@ Modificar `MACDStrategy` para so mudar de estado apos 2 velas consecutivas confi
 ---
 
 ### BE-005: Implementar preco inicial baseado em ATH (RF10)
+
+**Status:** TODO
 
 **Descricao:**
 Permitir configurar o grid para comecar X% abaixo do All Time High em vez do preco atual.
@@ -158,6 +230,8 @@ Permitir configurar o grid para comecar X% abaixo do All Time High em vez do pre
 
 ### BE-006: Implementar contador de hits por nivel (RF11)
 
+**Status:** TODO
+
 **Descricao:**
 Rastrear quantas vezes cada faixa de preco do grid gerou lucro.
 
@@ -185,6 +259,8 @@ Rastrear quantas vezes cada faixa de preco do grid gerou lucro.
 
 ### BE-007: Implementar atualizacao dinamica do TP (RF09)
 
+**Status:** TODO
+
 **Descricao:**
 Apos 8 horas, aumentar TP de 0.3% para 0.5% + taxas para cobrir custos.
 
@@ -211,6 +287,8 @@ Apos 8 horas, aumentar TP de 0.3% para 0.5% + taxas para cobrir custos.
 ---
 
 ### BE-008: Implementar protecao de margem automatica (RF13)
+
+**Status:** TODO
 
 **Descricao:**
 Monitorar margem e injetar automaticamente se liquidacao estiver proxima.
@@ -241,6 +319,8 @@ Monitorar margem e injetar automaticamente se liquidacao estiver proxima.
 
 ### BE-009: Implementar pausa em tendencia de baixa (RF14)
 
+**Status:** TODO
+
 **Descricao:**
 Usar indicadores adicionais (MA/MACD) para detectar tendencia de baixa e pausar criacao de ordens.
 
@@ -268,6 +348,8 @@ Usar indicadores adicionais (MA/MACD) para detectar tendencia de baixa e pausar 
 ---
 
 ### BE-010: Implementar sistema de ordens virtuais (RF12)
+
+**Status:** TODO
 
 **Descricao:**
 Criar ordens que nao vao para exchange ate o preco atingir o nivel (gatilhos).
@@ -298,6 +380,8 @@ Criar ordens que nao vao para exchange ate o preco atingir o nivel (gatilhos).
 
 ### BE-011: Implementar RSI como indicador (RF15)
 
+**Status:** TODO
+
 **Descricao:**
 Adicionar RSI ao sistema de estrategias para comprar quando sobrevendido.
 
@@ -324,6 +408,8 @@ Adicionar RSI ao sistema de estrategias para comprar quando sobrevendido.
 
 ### BE-012: Implementar Bandas de Bollinger (RF16)
 
+**Status:** TODO
+
 **Descricao:**
 Adicionar Bandas de Bollinger para sinalizar entradas.
 
@@ -349,6 +435,8 @@ Adicionar Bandas de Bollinger para sinalizar entradas.
 ---
 
 ### BE-013: Implementar cruzamento de MAs (RF17)
+
+**Status:** TODO
 
 **Descricao:**
 Usar cruzamento de medias moveis (MA 7/21) para indicar tendencia.
@@ -377,6 +465,8 @@ Usar cruzamento de medias moveis (MA 7/21) para indicar tendencia.
 
 ### BE-014: Implementar Long + Short simultaneo (RF18)
 
+**Status:** TODO
+
 **Descricao:**
 Permitir operar grid de compra E venda ao mesmo tempo para mercados laterais.
 
@@ -404,6 +494,8 @@ Permitir operar grid de compra E venda ao mesmo tempo para mercados laterais.
 
 ### BE-015: Implementar estrategias customizadas (RF20)
 
+**Status:** TODO
+
 **Descricao:**
 Permitir combinar 2+ indicadores em uma estrategia personalizada.
 
@@ -429,6 +521,8 @@ Permitir combinar 2+ indicadores em uma estrategia personalizada.
 ---
 
 ### BE-016: Implementar backtest de estrategias (RF23)
+
+**Status:** TODO
 
 **Descricao:**
 Simular estrategia nos dados historicos para avaliar performance.
@@ -458,6 +552,8 @@ Simular estrategia nos dados historicos para avaliar performance.
 
 ### BE-017: Implementar trailing stop (RF24)
 
+**Status:** TODO
+
 **Descricao:**
 Travar lucro quando mercado sobe, movendo o stop junto com o preco.
 
@@ -483,6 +579,8 @@ Travar lucro quando mercado sobe, movendo o stop junto com o preco.
 ---
 
 ### BE-018: Refatorar para sistema de filtros plugaveis
+
+**Status:** TODO
 
 **Descricao:**
 Refatorar arquitetura de estrategias para permitir adicionar novos indicadores como plugins.
@@ -510,6 +608,8 @@ Refatorar arquitetura de estrategias para permitir adicionar novos indicadores c
 
 ### BE-019: Adicionar suporte a multiplos pares de trading
 
+**Status:** TODO
+
 **Descricao:**
 Permitir rodar o bot para diferentes pares alem de BTC-USDT.
 
@@ -534,6 +634,8 @@ Permitir rodar o bot para diferentes pares alem de BTC-USDT.
 ---
 
 ### BE-020: Implementar testes de integracao com banco
+
+**Status:** TODO
 
 **Descricao:**
 Criar suite de testes que usa banco PostgreSQL real via Docker.
@@ -656,4 +758,4 @@ BE-011/12/13 ---> BE-016 (Backtest)
 
 ---
 
-*Documento gerado em 22/12/2025*
+*Documento atualizado em 26/12/2025 - Versao 1.1 (Adicionado controle de status GitFlow)*

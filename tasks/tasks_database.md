@@ -1,7 +1,57 @@
 # Tarefas de Banco de Dados - BTC Grid Bot
 
-**Data:** 22 de Dezembro de 2025
-**Versao:** 1.0
+**Data:** 26 de Dezembro de 2025
+**Versao:** 1.1
+
+---
+
+## Controle de Progresso
+
+### Legenda de Status (GitFlow)
+| Status | Descricao |
+|--------|-----------|
+| `TODO` | Nao iniciada |
+| `IN_PROGRESS` | Em desenvolvimento |
+| `REVIEW` | Aguardando code review |
+| `ACCEPTANCE_TESTING` | Testando em Stage |
+| `BLOCKED_BY_BUG` | Bug encontrado no teste |
+| `READY_TO_PROD` | Aprovado para producao |
+| `DONE` | Concluida e em producao |
+
+### Sprint 0
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DB-001 | PostgreSQL Docker Compose | TODO | - |
+
+### Sprint 0.5
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DB-002 | Schema tabela trades | TODO | - |
+| DB-009 | Queries de agregacao | TODO | - |
+| DB-010 | Row-Level Security | TODO | - |
+| DB-011 | Sistema de migrations | TODO | - |
+
+### Sprint 1
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DB-005 | Contagem hits por nivel | TODO | - |
+| DB-006 | Historico ATH | TODO | - |
+
+### Sprint 2
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DB-007 | Logs protecao margem | TODO | - |
+
+### Sprint 3
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DB-004 | Ordens virtuais | TODO | - |
+
+### Sprint 5
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DB-003 | Configuracoes usuario | TODO | - |
+| DB-008 | Resultados backtest | TODO | - |
 
 ---
 
@@ -15,13 +65,14 @@ Este documento contém todas as tarefas relacionadas a banco de dados, incluindo
 
 - **Complexidade:** P (Pequena ~0.5 dia), M (Media ~1-2 dias), G (Grande ~3-5 dias)
 - **Prioridade:** Alta, Media, Baixa
-- **Status:** Pendente, Em Progresso, Concluido
 
 ---
 
 ## Tarefas
 
 ### DB-001: Configurar PostgreSQL com Docker Compose
+
+**Status:** TODO
 
 **Descricao:**
 Criar arquivo docker-compose.yml com servico PostgreSQL 15+ configurado para desenvolvimento local. Incluir volume persistente para dados e configuracoes de rede.
@@ -48,6 +99,8 @@ Criar arquivo docker-compose.yml com servico PostgreSQL 15+ configurado para des
 ---
 
 ### DB-002: Criar schema inicial da tabela trades
+
+**Status:** TODO
 
 **Descricao:**
 Criar script SQL de migration para a tabela `trades` conforme especificado no PRD (secao 6.3). Incluir todos os campos necessarios, indices e constraints.
@@ -88,6 +141,8 @@ Criar script SQL de migration para a tabela `trades` conforme especificado no PR
 
 ### DB-003: Criar tabela de configuracoes de usuario
 
+**Status:** TODO
+
 **Descricao:**
 Criar tabela para armazenar configuracoes persistentes de cada usuario (estrategias salvas - RF22). Permite salvar e alternar entre diferentes configuracoes de trading.
 
@@ -117,6 +172,8 @@ Criar tabela para armazenar configuracoes persistentes de cada usuario (estrateg
 ---
 
 ### DB-004: Criar tabela de historico de ordens virtuais
+
+**Status:** TODO
 
 **Descricao:**
 Criar tabela para armazenar ordens virtuais (gatilhos - RF12). Ordens que nao vao para exchange ate o preco bater no nivel.
@@ -153,6 +210,8 @@ Criar tabela para armazenar ordens virtuais (gatilhos - RF12). Ordens que nao va
 
 ### DB-005: Criar tabela de contagem de hits por nivel
 
+**Status:** TODO
+
 **Descricao:**
 Criar tabela para rastrear quantas vezes cada faixa/nivel do grid gerou lucro (RF11).
 
@@ -187,6 +246,8 @@ Criar tabela para rastrear quantas vezes cada faixa/nivel do grid gerou lucro (R
 
 ### DB-006: Criar tabela de historico de ATH (All Time High)
 
+**Status:** TODO
+
 **Descricao:**
 Criar tabela para armazenar historico de ATH por simbolo, usado para calcular preco inicial (RF10).
 
@@ -214,6 +275,8 @@ Criar tabela para armazenar historico de ATH por simbolo, usado para calcular pr
 ---
 
 ### DB-007: Criar tabela de logs de protecao de margem
+
+**Status:** TODO
 
 **Descricao:**
 Criar tabela para registrar eventos de injecao automatica de margem (RF13).
@@ -246,6 +309,8 @@ Criar tabela para registrar eventos de injecao automatica de margem (RF13).
 ---
 
 ### DB-008: Criar tabela de resultados de backtest
+
+**Status:** TODO
 
 **Descricao:**
 Criar tabela para armazenar resultados de backtests de estrategias (RF23).
@@ -283,6 +348,8 @@ Criar tabela para armazenar resultados de backtests de estrategias (RF23).
 
 ### DB-009: Criar queries de agregacao de estatisticas
 
+**Status:** TODO
+
 **Descricao:**
 Criar arquivo SQL com queries otimizadas para agregacoes e relatorios (PnL total, win rate, media por trade).
 
@@ -310,6 +377,8 @@ Criar arquivo SQL com queries otimizadas para agregacoes e relatorios (PnL total
 
 ### DB-010: Implementar Row-Level Security (RLS)
 
+**Status:** TODO
+
 **Descricao:**
 Configurar RLS no PostgreSQL para isolamento de dados multi-tenant (RF08.4).
 
@@ -335,6 +404,8 @@ Configurar RLS no PostgreSQL para isolamento de dados multi-tenant (RF08.4).
 ---
 
 ### DB-011: Criar sistema de migrations automatizado
+
+**Status:** TODO
 
 **Descricao:**
 Implementar sistema para executar migrations automaticamente na ordem correta.
@@ -433,4 +504,4 @@ DB-002 (Schema trades)
 
 ---
 
-*Documento gerado em 22/12/2025*
+*Documento atualizado em 26/12/2025 - Versao 1.1 (Adicionado controle de status GitFlow)*

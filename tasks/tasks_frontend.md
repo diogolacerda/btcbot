@@ -1,7 +1,61 @@
 # Tarefas de Frontend/UI - BTC Grid Bot
 
-**Data:** 22 de Dezembro de 2025
-**Versao:** 1.0
+**Data:** 26 de Dezembro de 2025
+**Versao:** 1.1
+
+---
+
+## Controle de Progresso
+
+### Legenda de Status (GitFlow)
+| Status | Descricao |
+|--------|-----------|
+| `TODO` | Nao iniciada |
+| `IN_PROGRESS` | Em desenvolvimento |
+| `REVIEW` | Aguardando code review |
+| `ACCEPTANCE_TESTING` | Testando em Stage |
+| `BLOCKED_BY_BUG` | Bug encontrado no teste |
+| `READY_TO_PROD` | Aprovado para producao |
+| `DONE` | Concluida e em producao |
+
+### Sprint 0.5
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| FE-001 | Dashboard dados do banco | TODO | - |
+
+### Sprint 1
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| FE-002 | Secao hits por nivel | TODO | - |
+| FE-009 | Grafico ASCII PnL | TODO | - |
+| FE-010 | Alertas visuais | TODO | - |
+| FE-011 | Modo compacto | TODO | - |
+
+### Sprint 2
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| FE-003 | Indicador tendencia | TODO | - |
+| FE-015 | Suporte temas | TODO | - |
+
+### Sprint 3
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| FE-004 | Ordens virtuais dashboard | TODO | - |
+
+### Sprint 4
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| FE-005 | Indicadores tecnicos | TODO | - |
+| FE-007 | Controles teclado filtros | TODO | - |
+
+### Sprint 5
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| FE-006 | Posicoes Long/Short | TODO | - |
+| FE-008 | Tela backtest | TODO | - |
+| FE-012 | Interface Web base | TODO | - |
+| FE-013 | Web dashboard | TODO | - |
+| FE-014 | Web controles | TODO | - |
 
 ---
 
@@ -15,13 +69,14 @@ Este documento contém todas as tarefas relacionadas a interface do usuario, inc
 
 - **Complexidade:** P (Pequena ~0.5 dia), M (Media ~1-2 dias), G (Grande ~3-5 dias)
 - **Prioridade:** Alta, Media, Baixa
-- **Status:** Pendente, Em Progresso, Concluido
 
 ---
 
 ## Tarefas
 
 ### FE-001: Atualizar dashboard para exibir dados do banco
+
+**Status:** TODO
 
 **Descricao:**
 Modificar o dashboard Rich para carregar e exibir estatisticas vindas do PostgreSQL em vez de apenas memoria.
@@ -51,6 +106,8 @@ Modificar o dashboard Rich para carregar e exibir estatisticas vindas do Postgre
 
 ### FE-002: Adicionar secao de hits por nivel no dashboard
 
+**Status:** TODO
+
 **Descricao:**
 Nova secao no dashboard mostrando os niveis de grid mais lucrativos.
 
@@ -75,6 +132,8 @@ Nova secao no dashboard mostrando os niveis de grid mais lucrativos.
 ---
 
 ### FE-003: Adicionar indicador de tendencia no dashboard
+
+**Status:** TODO
 
 **Descricao:**
 Exibir indicador visual de tendencia baseado em MA/MACD para RF14.
@@ -103,6 +162,8 @@ Exibir indicador visual de tendencia baseado em MA/MACD para RF14.
 
 ### FE-004: Adicionar secao de ordens virtuais no dashboard
 
+**Status:** TODO
+
 **Descricao:**
 Exibir ordens virtuais (gatilhos) separadas das ordens reais.
 
@@ -127,6 +188,8 @@ Exibir ordens virtuais (gatilhos) separadas das ordens reais.
 ---
 
 ### FE-005: Adicionar indicadores tecnicos no dashboard
+
+**Status:** TODO
 
 **Descricao:**
 Exibir valores dos indicadores tecnicos adicionais (RSI, Bollinger, MA).
@@ -157,6 +220,8 @@ Exibir valores dos indicadores tecnicos adicionais (RSI, Bollinger, MA).
 
 ### FE-006: Exibir posicoes Long e Short no dashboard
 
+**Status:** TODO
+
 **Descricao:**
 Adaptar dashboard para mostrar posicoes long e short separadamente.
 
@@ -181,6 +246,8 @@ Adaptar dashboard para mostrar posicoes long e short separadamente.
 ---
 
 ### FE-007: Adicionar controle de teclado para filtros
+
+**Status:** TODO
 
 **Descricao:**
 Novos atalhos de teclado para controlar indicadores em tempo real.
@@ -207,6 +274,8 @@ Novos atalhos de teclado para controlar indicadores em tempo real.
 ---
 
 ### FE-008: Implementar tela de backtest no terminal
+
+**Status:** TODO
 
 **Descricao:**
 Interface para executar e visualizar resultados de backtest no terminal.
@@ -239,6 +308,8 @@ Interface para executar e visualizar resultados de backtest no terminal.
 
 ### FE-009: Adicionar grafico ASCII de PnL no dashboard
 
+**Status:** TODO
+
 **Descricao:**
 Exibir mini-grafico de evolucao do PnL nas ultimas 24h/7d.
 
@@ -265,6 +336,8 @@ Exibir mini-grafico de evolucao do PnL nas ultimas 24h/7d.
 
 ### FE-010: Melhorar alertas visuais para eventos criticos
 
+**Status:** TODO
+
 **Descricao:**
 Aprimorar feedback visual para eventos importantes alem dos alertas sonoros.
 
@@ -289,6 +362,8 @@ Aprimorar feedback visual para eventos importantes alem dos alertas sonoros.
 ---
 
 ### FE-011: Implementar modo compacto do dashboard
+
+**Status:** TODO
 
 **Descricao:**
 Versao reduzida do dashboard para terminais pequenos.
@@ -318,6 +393,8 @@ Versao reduzida do dashboard para terminais pequenos.
 ---
 
 ### FE-012: Interface Web - Arquitetura base (RF21)
+
+**Status:** TODO
 
 **Descricao:**
 Criar arquitetura base para interface web como alternativa ao terminal.
@@ -350,6 +427,8 @@ Criar arquitetura base para interface web como alternativa ao terminal.
 
 ### FE-013: Interface Web - Dashboard principal
 
+**Status:** TODO
+
 **Descricao:**
 Implementar dashboard principal da interface web.
 
@@ -379,6 +458,8 @@ Implementar dashboard principal da interface web.
 ---
 
 ### FE-014: Interface Web - Controles e configuracao
+
+**Status:** TODO
 
 **Descricao:**
 Implementar controles e tela de configuracao na interface web.
@@ -411,6 +492,8 @@ Implementar controles e tela de configuracao na interface web.
 ---
 
 ### FE-015: Adicionar suporte a temas no terminal
+
+**Status:** TODO
 
 **Descricao:**
 Permitir customizar cores do dashboard terminal.
@@ -545,4 +628,4 @@ BE-016 ---> FE-008 (Backtest)
 
 ---
 
-*Documento gerado em 22/12/2025*
+*Documento atualizado em 26/12/2025 - Versao 1.1 (Adicionado controle de status GitFlow)*

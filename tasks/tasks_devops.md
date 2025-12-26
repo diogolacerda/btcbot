@@ -1,8 +1,81 @@
 # Tarefas de DevOps - BTC Grid Bot
 
-**Data:** 22 de Dezembro de 2025
-**Versao:** 1.5
-**Infraestrutura:** Homeserver + Portainer + Watchtower + Docker Registry
+**Data:** 26 de Dezembro de 2025
+**Versao:** 1.6
+**Infraestrutura:** Homeserver + Portainer + Watchtower + Docker Hub
+
+---
+
+## Configuracao do Homeserver
+
+| Componente | Valor |
+|------------|-------|
+| **IP Local** | `192.168.68.99` |
+| **Acesso SSH** | `ssh usuario@192.168.68.99` |
+| **Portainer** | `http://192.168.68.99:9000` |
+| **Stage URL** | `http://192.168.68.99:3001` |
+| **Production URL** | `http://192.168.68.99:3000` |
+| **Registry** | Docker Hub (`docker.io`) |
+| **Watchtower** | Ja configurado e funcional |
+
+---
+
+## Controle de Progresso
+
+### Legenda de Status (GitFlow)
+| Status | Descricao |
+|--------|-----------|
+| `TODO` | Nao iniciada |
+| `IN_PROGRESS` | Em desenvolvimento |
+| `REVIEW` | Aguardando code review |
+| `ACCEPTANCE_TESTING` | Testando em Stage |
+| `BLOCKED_BY_BUG` | Bug encontrado no teste |
+| `READY_TO_PROD` | Aprovado para producao |
+| `DONE` | Concluida e em producao |
+
+### Sprint 0 - Infraestrutura Base
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DEVOPS-001 | Criar Dockerfile | TODO | - |
+| DEVOPS-002 | docker-compose.stage.yml | TODO | - |
+| DEVOPS-002B | docker-compose.prod.yml | TODO | - |
+| DEVOPS-003 | Repositorio GitHub + GitFlow | REVIEW | Claude |
+| DEVOPS-004 | GitHub Actions - CI | TODO | - |
+| DEVOPS-006 | GitHub Secrets Docker Hub | TODO | - |
+| DEVOPS-008 | Stack Stage no Portainer | TODO | - |
+| DEVOPS-014 | Pre-commit hooks | TODO | - |
+| DEVOPS-015 | Script setup desenvolvimento | TODO | - |
+| DEVOPS-016 | Setup inicial homeserver | TODO | - |
+
+### Sprint 0.5 - Testes de Integracao
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DEVOPS-005 | GitHub Actions - Testes Integracao | TODO | - |
+
+### Sprint 1 - Deploy Automatizado
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DEVOPS-007 | GitHub Actions - CD Stage | TODO | - |
+| DEVOPS-007B | GitHub Actions - CD Production | TODO | - |
+| DEVOPS-009 | Validar Watchtower + Stage | TODO | - |
+| DEVOPS-011 | Healthcheck endpoint | TODO | - |
+
+### Sprint 2 - Production + Monitoramento
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DEVOPS-008B | Stack Production no Portainer | TODO | - |
+| DEVOPS-009B | Validar Watchtower + Production | TODO | - |
+| DEVOPS-010 | Backup automatico bancos | TODO | - |
+| DEVOPS-012 | Prometheus/Grafana | TODO | - |
+| DEVOPS-013 | Logging Loki | TODO | - |
+| DEVOPS-017 | Documentacao deploy/operacao | TODO | - |
+| DEVOPS-018 | Documentacao promocao Stage->Prod | TODO | - |
+
+### Sprint 5 - Futuro
+| Task | Descricao | Status | Responsavel |
+|------|-----------|--------|-------------|
+| DEVOPS-019 | SSL/TLS interface web | TODO | - |
+| DEVOPS-020 | Documentacao migracao cloud | TODO | - |
 
 ---
 
@@ -112,6 +185,8 @@ Ver documentacao completa: [GitFlow](/docs/GITFLOW.md)
 
 ### DEVOPS-001: Criar Dockerfile para o bot
 
+**Status:** TODO
+
 **Descricao:**
 Criar Dockerfile otimizado para executar o bot Python em container, com healthcheck integrado para funcionamento com Watchtower.
 
@@ -154,6 +229,8 @@ Criar Dockerfile otimizado para executar o bot Python em container, com healthch
 
 ### DEVOPS-002: Criar docker-compose.stage.yml
 
+**Status:** TODO
+
 **Descricao:**
 Criar arquivo docker-compose para ambiente de Stage, com Watchtower habilitado e TRADING_MODE=demo.
 
@@ -162,7 +239,7 @@ Criar arquivo docker-compose para ambiente de Stage, com Watchtower habilitado e
 - [ ] Servico `bot-stage`:
   ```yaml
   bot-stage:
-    image: ${DOCKER_REGISTRY}/btcbot:stage
+    image: docker.io/${DOCKER_USERNAME}/btcbot:stage
     container_name: btcbot-stage
     restart: unless-stopped
     ports:
@@ -232,6 +309,8 @@ Criar arquivo docker-compose para ambiente de Stage, com Watchtower habilitado e
 
 ### DEVOPS-002B: Criar docker-compose.prod.yml
 
+**Status:** TODO
+
 **Descricao:**
 Criar arquivo docker-compose para ambiente de Production, com Watchtower habilitado e TRADING_MODE=live.
 
@@ -240,7 +319,7 @@ Criar arquivo docker-compose para ambiente de Production, com Watchtower habilit
 - [ ] Servico `bot-prod`:
   ```yaml
   bot-prod:
-    image: ${DOCKER_REGISTRY}/btcbot:latest
+    image: docker.io/${DOCKER_USERNAME}/btcbot:latest
     container_name: btcbot-prod
     restart: unless-stopped
     ports:
@@ -311,6 +390,8 @@ Criar arquivo docker-compose para ambiente de Production, com Watchtower habilit
 
 ### DEVOPS-003: Criar repositorio GitHub com estrutura GitFlow
 
+**Status:** REVIEW
+
 **Descricao:**
 Criar repositorio no GitHub seguindo a estrutura definida no [GitFlow](/docs/GITFLOW.md), com branches protegidos e templates de PR.
 
@@ -366,6 +447,8 @@ Criar repositorio no GitHub seguindo a estrutura definida no [GitFlow](/docs/GIT
 ---
 
 ### DEVOPS-004: Configurar GitHub Actions - CI
+
+**Status:** TODO
 
 **Descricao:**
 Pipeline de CI que roda em todo push e PR, validando codigo antes do code review.
@@ -447,6 +530,8 @@ Pipeline de CI que roda em todo push e PR, validando codigo antes do code review
 
 ### DEVOPS-005: Configurar GitHub Actions - Testes de Integracao
 
+**Status:** TODO
+
 **Descricao:**
 Pipeline para testes de integracao com banco PostgreSQL real, roda em PRs para main.
 
@@ -494,28 +579,32 @@ Pipeline para testes de integracao com banco PostgreSQL real, roda em PRs para m
 
 ---
 
-### DEVOPS-006: Configurar GitHub Secrets para Docker Registry
+### DEVOPS-006: Configurar GitHub Secrets para Docker Hub
+
+**Status:** TODO
 
 **Descricao:**
-Configurar secrets necessarios no GitHub para os pipelines de CD fazerem push de imagens.
+Configurar secrets necessarios no GitHub para os pipelines de CD fazerem push de imagens no Docker Hub.
 
 **Criterios de Aceite:**
 - [ ] Secrets obrigatorios configurados:
   ```
-  DOCKER_REGISTRY   - URL do registry (ghcr.io, docker.io, etc)
-  DOCKER_USERNAME   - Usuario do registry
-  DOCKER_PASSWORD   - Token de acesso do registry
+  DOCKER_REGISTRY   = docker.io
+  DOCKER_USERNAME   = <usuario_dockerhub>
+  DOCKER_PASSWORD   = <access_token_dockerhub>
   ```
 - [ ] Secrets opcionais para notificacao:
   ```
   DISCORD_WEBHOOK   - Webhook para notificacoes de deploy
   ```
-- [ ] Documentacao de como obter cada secret:
-  - **Docker Hub:** Settings > Security > Access Tokens
-  - **GHCR:** Settings > Developer settings > Personal access tokens
-  - **Registry privado:** Credenciais do registry
+- [ ] Como obter o Access Token do Docker Hub:
+  1. Acessar https://hub.docker.com/settings/security
+  2. Clicar em "New Access Token"
+  3. Nome: `btcbot-github-actions`
+  4. Permissoes: Read & Write
+  5. Copiar token gerado (mostrado apenas uma vez)
 - [ ] Testar login no registry via workflow de teste
-- [ ] Documentar procedimento de rotacao de tokens
+- [ ] Documentar procedimento de rotacao de tokens (a cada 90 dias)
 
 **Dependencias:** DEVOPS-003
 
@@ -530,6 +619,8 @@ Configurar secrets necessarios no GitHub para os pipelines de CD fazerem push de
 ---
 
 ### DEVOPS-007: Configurar GitHub Actions - CD Stage
+
+**Status:** TODO
 
 **Descricao:**
 Pipeline de CD que faz build da imagem e push da tag `btcbot:stage` automaticamente apos merge em main.
@@ -548,8 +639,8 @@ Pipeline de CD que faz build da imagem e push da tag `btcbot:stage` automaticame
     cancel-in-progress: true
 
   env:
-    REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
-    IMAGE_NAME: btcbot
+    REGISTRY: docker.io
+    IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/btcbot
 
   jobs:
     build-and-push-stage:
@@ -629,6 +720,8 @@ Pipeline de CD que faz build da imagem e push da tag `btcbot:stage` automaticame
 
 ### DEVOPS-007B: Configurar GitHub Actions - CD Production
 
+**Status:** TODO
+
 **Descricao:**
 Pipeline de CD **manual** que promove a imagem de Stage para Production, retagueando `btcbot:stage` para `btcbot:latest`. NAO faz novo build.
 
@@ -653,8 +746,8 @@ Pipeline de CD **manual** que promove a imagem de Stage para Production, retague
     cancel-in-progress: false  # NAO cancelar deploy de producao
 
   env:
-    REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
-    IMAGE_NAME: btcbot
+    REGISTRY: docker.io
+    IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/btcbot
 
   jobs:
     validate:
@@ -746,28 +839,30 @@ Pipeline de CD **manual** que promove a imagem de Stage para Production, retague
 
 ### DEVOPS-008: Configurar stack Stage no Portainer
 
+**Status:** TODO
+
 **Descricao:**
 Criar e configurar stack do bot no Portainer do homeserver para ambiente de Stage.
 
 **Criterios de Aceite:**
-- [ ] Acessar Portainer no homeserver
+- [ ] Acessar Portainer: `http://192.168.68.99:9000`
 - [ ] Criar stack com nome `btcbot-stage`
 - [ ] Importar/colar docker-compose.stage.yml
 - [ ] Configurar variaveis de ambiente:
-  - `DOCKER_REGISTRY` - URL do registry
+  - `DOCKER_REGISTRY=docker.io`
   - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
   - `BINGX_API_KEY`, `BINGX_SECRET_KEY` (credenciais de DEMO)
   - `TRADING_MODE=demo` (OBRIGATORIO)
   - Demais configuracoes do bot
 - [ ] Verificar volumes mapeados corretamente:
   - `pgdata-stage` para banco
-  - `logs-stage` para logs
+  - `logs-stage` para logs (`/opt/btcbot/logs-stage`)
 - [ ] Verificar network `btcbot-stage-network` criada
 - [ ] Confirmar containers visiveis:
   - `btcbot-stage` - porta 3001, status healthy
   - `btcbot-postgres-stage` - status healthy
 - [ ] Testar acesso a logs via Portainer
-- [ ] Documentar URL de acesso: `http://homeserver:3001`
+- [ ] Verificar acesso ao bot: `http://192.168.68.99:3001/health`
 
 **Dependencias:** DEVOPS-002, DEVOPS-016
 
@@ -783,28 +878,30 @@ Criar e configurar stack do bot no Portainer do homeserver para ambiente de Stag
 
 ### DEVOPS-008B: Configurar stack Production no Portainer
 
+**Status:** TODO
+
 **Descricao:**
 Criar e configurar stack do bot no Portainer do homeserver para ambiente de Production.
 
 **Criterios de Aceite:**
-- [ ] Acessar Portainer no homeserver
+- [ ] Acessar Portainer: `http://192.168.68.99:9000`
 - [ ] Criar stack com nome `btcbot-prod`
 - [ ] Importar/colar docker-compose.prod.yml
 - [ ] Configurar variaveis de ambiente:
-  - `DOCKER_REGISTRY` - URL do registry
+  - `DOCKER_REGISTRY=docker.io`
   - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-  - `BINGX_API_KEY`, `BINGX_SECRET_KEY` (credenciais de PRODUCAO)
+  - `BINGX_API_KEY`, `BINGX_SECRET_KEY` (credenciais de PRODUCAO - DIFERENTES de stage!)
   - `TRADING_MODE=live` (producao real)
   - Demais configuracoes do bot
 - [ ] Verificar volumes mapeados corretamente:
   - `pgdata-prod` para banco (SEPARADO de stage)
-  - `logs-prod` para logs
+  - `logs-prod` para logs (`/opt/btcbot/logs-prod`)
 - [ ] Verificar network `btcbot-prod-network` criada (SEPARADA de stage)
 - [ ] Confirmar containers visiveis:
   - `btcbot-prod` - porta 3000, status healthy
   - `btcbot-postgres-prod` - status healthy
 - [ ] Testar acesso a logs via Portainer
-- [ ] Documentar URL de acesso: `http://homeserver:3000`
+- [ ] Verificar acesso ao bot: `http://192.168.68.99:3000/health`
 - [ ] **IMPORTANTE:** Nao subir ate Stage estar validado
 
 **Dependencias:** DEVOPS-002B, DEVOPS-008
@@ -820,6 +917,8 @@ Criar e configurar stack do bot no Portainer do homeserver para ambiente de Prod
 ---
 
 ### DEVOPS-009: Validar integracao Watchtower com Stage
+
+**Status:** TODO
 
 **Descricao:**
 Verificar e testar que Watchtower esta configurado corretamente para auto-update do container de Stage.
@@ -864,6 +963,8 @@ Verificar e testar que Watchtower esta configurado corretamente para auto-update
 
 ### DEVOPS-009B: Validar integracao Watchtower com Production
 
+**Status:** TODO
+
 **Descricao:**
 Verificar e testar que Watchtower esta configurado corretamente para auto-update do container de Production.
 
@@ -897,6 +998,8 @@ Verificar e testar que Watchtower esta configurado corretamente para auto-update
 ---
 
 ### DEVOPS-010: Configurar backup automatico dos bancos
+
+**Status:** TODO
 
 **Descricao:**
 Script de backup automatico do PostgreSQL com armazenamento local no homeserver, para ambos os ambientes.
@@ -970,6 +1073,8 @@ Script de backup automatico do PostgreSQL com armazenamento local no homeserver,
 
 ### DEVOPS-011: Implementar healthcheck endpoint no bot
 
+**Status:** TODO
+
 **Descricao:**
 Criar endpoint HTTP para verificacao de saude do bot, essencial para funcionamento do Watchtower e Portainer.
 
@@ -1022,6 +1127,8 @@ Criar endpoint HTTP para verificacao de saude do bot, essencial para funcionamen
 ---
 
 ### DEVOPS-012: Configurar monitoramento com Prometheus/Grafana
+
+**Status:** TODO
 
 **Descricao:**
 Integrar metricas do bot com Prometheus/Grafana existente no homeserver (se disponivel).
@@ -1080,6 +1187,8 @@ Integrar metricas do bot com Prometheus/Grafana existente no homeserver (se disp
 
 ### DEVOPS-013: Configurar logging centralizado com Loki
 
+**Status:** TODO
+
 **Descricao:**
 Integrar logs do bot com Loki/Grafana existente no homeserver (se disponivel).
 
@@ -1123,6 +1232,8 @@ Integrar logs do bot com Loki/Grafana existente no homeserver (se disponivel).
 ---
 
 ### DEVOPS-014: Configurar pre-commit hooks
+
+**Status:** TODO
 
 **Descricao:**
 Configurar hooks de pre-commit para garantir qualidade de codigo antes do commit.
@@ -1181,6 +1292,8 @@ Configurar hooks de pre-commit para garantir qualidade de codigo antes do commit
 ---
 
 ### DEVOPS-015: Criar script de setup de desenvolvimento
+
+**Status:** TODO
 
 **Descricao:**
 Script para configurar ambiente de desenvolvimento local em < 5 minutos.
@@ -1272,20 +1385,32 @@ Script para configurar ambiente de desenvolvimento local em < 5 minutos.
 
 ### DEVOPS-016: Setup inicial no homeserver
 
+**Status:** TODO
+
 **Descricao:**
 Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretorios).
 
+**Informacoes do Homeserver:**
+- **IP:** `192.168.68.99`
+- **SSH:** `ssh usuario@192.168.68.99`
+- **Portainer:** `http://192.168.68.99:9000`
+- **Watchtower:** Ja configurado e funcional (atualiza outros containers)
+
 **Criterios de Aceite:**
-- [ ] Verificar Portainer acessivel e funcional
+- [ ] Conectar via SSH:
+  ```bash
+  ssh usuario@192.168.68.99
+  ```
+- [ ] Verificar Portainer acessivel: `http://192.168.68.99:9000`
 - [ ] Verificar Watchtower rodando com configuracao correta:
   ```bash
   docker inspect watchtower | grep -A5 Env
   # Deve ter: WATCHTOWER_POLL_INTERVAL=30, WATCHTOWER_LABEL_ENABLE=true
   ```
-- [ ] Verificar conectividade com Docker Registry:
+- [ ] Verificar conectividade com Docker Hub:
   ```bash
-  docker login <registry>
-  docker pull <registry>/btcbot:stage  # se existir
+  docker login docker.io
+  # Usar credenciais do Docker Hub
   ```
 - [ ] Criar estrutura de diretorios:
   ```bash
@@ -1298,7 +1423,7 @@ Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretor
 - [ ] Copiar scripts de backup/restore para `/opt/btcbot/scripts/`
 - [ ] Configurar permissoes de execucao: `chmod +x /opt/btcbot/scripts/*.sh`
 - [ ] Documentar:
-  - URL de acesso ao Portainer
+  - URL de acesso ao Portainer: `http://192.168.68.99:9000`
   - Credenciais (onde encontrar)
   - Como acessar logs de cada ambiente
 
@@ -1315,6 +1440,8 @@ Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretor
 ---
 
 ### DEVOPS-017: Criar documentacao de deploy e operacao
+
+**Status:** TODO
 
 **Descricao:**
 Documentar processo completo de deploy e operacao do bot, integrando com GitFlow.
@@ -1362,6 +1489,8 @@ Documentar processo completo de deploy e operacao do bot, integrando com GitFlow
 
 ### DEVOPS-018: Documentar processo de promocao Stage -> Production
 
+**Status:** TODO
+
 **Descricao:**
 Criar guia detalhado do processo de promocao de uma versao de Stage para Production.
 
@@ -1390,6 +1519,8 @@ Criar guia detalhado do processo de promocao de uma versao de Stage para Product
 
 ### DEVOPS-019: Configurar SSL/TLS para interface web (futuro)
 
+**Status:** TODO
+
 **Descricao:**
 Configurar certificados SSL para a interface web quando implementada.
 
@@ -1414,6 +1545,8 @@ Configurar certificados SSL para a interface web quando implementada.
 ---
 
 ### DEVOPS-020: Documentar migracao para cloud (futuro)
+
+**Status:** TODO
 
 **Descricao:**
 Documentar processo de migracao do homeserver para cloud quando necessario.
@@ -1531,8 +1664,8 @@ DEVOPS-020 (Cloud docs)
 
 ```
 +-------------------+     +-------------------+     +------------------+
-|    Developer      |     |     GitHub        |     | Docker Registry  |
-|    Workstation    |     |                   |     | (Hub/GHCR/Priv)  |
+|    Developer      |     |     GitHub        |     |   Docker Hub     |
+|    Workstation    |     |                   |     |   (docker.io)    |
 +--------+----------+     +--------+----------+     +--------+---------+
          |                         |                         ^
          | git push                |                         |
@@ -1557,11 +1690,11 @@ DEVOPS-020 (Cloud docs)
 
 
 +------------------------------------------------------------------+
-|                         HOMESERVER                                |
+|                 HOMESERVER (192.168.68.99)                        |
 |                                                                  |
 |  +------------------+         +------------------+               |
-|  |   Watchtower     |-------->| Docker Registry  |               |
-|  | (poll 30s)       |  pull   |                  |               |
+|  |   Watchtower     |-------->|   Docker Hub     |               |
+|  | (poll 30s)       |  pull   |   (docker.io)    |               |
 |  +--------+---------+         +------------------+               |
 |           |                                                      |
 |           | auto-update                                          |
@@ -1573,7 +1706,7 @@ DEVOPS-020 (Cloud docs)
 |  | +------------------+   |     | +------------------+   |       |
 |  | |  btcbot-stage    |   |     | |  btcbot-prod     |   |       |
 |  | |  :stage          |   |     | |  :latest         |   |       |
-|  | |  port 3001       |   |     | |  port 3000       |   |       |
+|  | |  :3001           |   |     | |  :3000           |   |       |
 |  | |  TRADING=demo    |   |     | |  TRADING=live    |   |       |
 |  | +--------+---------+   |     | +--------+---------+   |       |
 |  |          |             |     |          |             |       |
@@ -1584,10 +1717,16 @@ DEVOPS-020 (Cloud docs)
 |  +------------------------+     +------------------------+       |
 |                                                                  |
 |  +------------------+                                            |
-|  |   Portainer      |  UI para gerenciamento                     |
+|  |   Portainer      |  http://192.168.68.99:9000                 |
 |  +------------------+                                            |
 |                                                                  |
 +------------------------------------------------------------------+
+
+URLs de Acesso:
+- Portainer: http://192.168.68.99:9000
+- Stage:     http://192.168.68.99:3001/health
+- Prod:      http://192.168.68.99:3000/health
+- SSH:       ssh usuario@192.168.68.99
 ```
 
 ---
@@ -1605,12 +1744,19 @@ DEVOPS-020 (Cloud docs)
 
 ## Secrets Necessarios no GitHub
 
-| Secret | Descricao | Obrigatorio | Exemplo |
-|--------|-----------|-------------|---------|
-| `DOCKER_REGISTRY` | URL do registry | Sim | `ghcr.io`, `docker.io` |
-| `DOCKER_USERNAME` | Usuario do registry | Sim | `username` |
-| `DOCKER_PASSWORD` | Token de acesso | Sim | `ghp_xxx...` |
+| Secret | Descricao | Obrigatorio | Valor |
+|--------|-----------|-------------|-------|
+| `DOCKER_REGISTRY` | URL do registry | Sim | `docker.io` |
+| `DOCKER_USERNAME` | Usuario do Docker Hub | Sim | `<seu_usuario>` |
+| `DOCKER_PASSWORD` | Access Token do Docker Hub | Sim | `dckr_pat_xxx...` |
 | `DISCORD_WEBHOOK` | Webhook notificacoes | Nao | `https://discord.com/api/webhooks/...` |
+
+**Como obter o Access Token:**
+1. Acessar https://hub.docker.com/settings/security
+2. Clicar em "New Access Token"
+3. Nome: `btcbot-github-actions`
+4. Permissoes: Read & Write
+5. Copiar e salvar (mostrado apenas uma vez)
 
 ---
 
@@ -1640,4 +1786,4 @@ DEVOPS-020 (Cloud docs)
 
 ---
 
-*Documento atualizado em 22/12/2025 - Versao 1.5 (BLOCKED_BY_BUG state + tasks_bugfixes.md)*
+*Documento atualizado em 26/12/2025 - Versao 1.6 (Adicionado detalhes do homeserver: IP 192.168.68.99, Docker Hub, SSH)*
