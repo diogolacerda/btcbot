@@ -78,11 +78,11 @@
 
 ## Sprint 1 - Deploy Automatizado + Quick Wins
 
-**Progresso:** 0/13 (0%)
+**Progresso:** 1/13 (8%)
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
-| DEVOPS-007 | DevOps | GitHub Actions - CD Stage | ⬜ TODO | - |
+| DEVOPS-007 | DevOps | GitHub Actions - CD Stage | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-007B | DevOps | GitHub Actions - CD Production | ⬜ TODO | - |
 | DEVOPS-009 | DevOps | Validar Watchtower + Stage | ⬜ TODO | - |
 | DEVOPS-011 | DevOps | Healthcheck endpoint | ⬜ TODO | - |
@@ -193,21 +193,22 @@
 
 | Area | Total | Done | Em Teste | Pendente | % |
 |------|-------|------|----------|----------|---|
-| DevOps | 21 | 3 | 2 | 16 | 14% |
+| DevOps | 21 | 3 | 3 | 15 | 19% |
 | Database | 11 | 0 | 0 | 11 | 0% |
 | Backend | 20 | 0 | 0 | 20 | 0% |
 | Frontend | 15 | 0 | 0 | 15 | 0% |
-| **Total** | **67** | **3** | **2** | **62** | **6%** |
+| **Total** | **67** | **3** | **3** | **61** | **8%** |
 
 ---
 
 ## Proximas Acoes
 
-### Prioridade Imediata (Sprint 0)
+### Prioridade Imediata (Sprint 0/1)
 1. **DEVOPS-021** - IN_PROGRESS - Corrigir issues seguranca PR #9 (13 itens)
 2. **DEVOPS-004** - Em ACCEPTANCE_TESTING (testar CI workflow)
-3. **DEVOPS-006** - Em ACCEPTANCE_TESTING (testar secrets workflow)
-4. **DEVOPS-002B** - IN_PROGRESS - docker-compose.prod.yml
+3. **DEVOPS-006** - Em ACCEPTANCE_TESTING (testar secrets workflow - BLOQUEADOR para DEVOPS-007)
+4. **DEVOPS-007** - Em ACCEPTANCE_TESTING (aguardando secrets DEVOPS-006)
+5. **DEVOPS-002B** - IN_PROGRESS - docker-compose.prod.yml
 
 ### Bloqueadores
 *Nenhum bloqueador ativo*
@@ -218,6 +219,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-007 em ACCEPTANCE_TESTING - PR #16 merged, aguardando secrets DEVOPS-006 |
 | 26/12/2025 | **DEVOPS-002 DONE** - Stage funcionando com bot operacional |
 | 26/12/2025 | **BUG-001 RESOLVIDO** - Ordens funcionando, DEVOPS-002 READY_TO_PROD |
 | 26/12/2025 | **BUG-001 CRITICO** - Ordens nao criadas na BingX, DEVOPS-002 BLOCKED_BY_BUG |

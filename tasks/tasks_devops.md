@@ -55,7 +55,7 @@
 ### Sprint 1 - Deploy Automatizado
 | Task | Descricao | Status | Responsavel |
 |------|-----------|--------|-------------|
-| DEVOPS-007 | GitHub Actions - CD Stage | TODO | - |
+| DEVOPS-007 | GitHub Actions - CD Stage | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-007B | GitHub Actions - CD Production | TODO | - |
 | DEVOPS-009 | Validar Watchtower + Stage | TODO | - |
 | DEVOPS-011 | Healthcheck endpoint | TODO | - |
@@ -622,7 +622,9 @@ Configurar secrets necessarios no GitHub para os pipelines de CD fazerem push de
 
 ### DEVOPS-007: Configurar GitHub Actions - CD Stage
 
-**Status:** TODO
+**Status:** ACCEPTANCE_TESTING
+
+**PR:** https://github.com/diogolacerda/btcbot/pull/16 (merged)
 
 **Descricao:**
 Pipeline de CD que faz build da imagem e push da tag `btcbot:stage` automaticamente apos merge em main.
