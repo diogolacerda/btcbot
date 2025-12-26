@@ -41,11 +41,11 @@
 | DEVOPS-002B | docker-compose.prod.yml | TODO | - |
 | DEVOPS-003 | Repositorio GitHub + GitFlow | DONE | Claude |
 | DEVOPS-004 | GitHub Actions - CI | TODO | - |
-| DEVOPS-006 | GitHub Secrets Docker Hub | REVIEW | staff-devops |
+| DEVOPS-006 | GitHub Secrets Docker Hub | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-008 | Stack Stage no Portainer | TODO | - |
 | DEVOPS-014 | Pre-commit hooks | TODO | - |
 | DEVOPS-015 | Script setup desenvolvimento | TODO | - |
-| DEVOPS-016 | Setup inicial homeserver | REVIEW | staff-devops |
+| DEVOPS-016 | Setup inicial homeserver | ACCEPTANCE_TESTING | staff-devops |
 
 ### Sprint 0.5 - Testes de Integracao
 | Task | Descricao | Status | Responsavel |
@@ -581,7 +581,7 @@ Pipeline para testes de integracao com banco PostgreSQL real, roda em PRs para m
 
 ### DEVOPS-006: Configurar GitHub Secrets para Docker Hub
 
-**Status:** TODO
+**Status:** ACCEPTANCE_TESTING
 
 **Descricao:**
 Configurar secrets necessarios no GitHub para os pipelines de CD fazerem push de imagens no Docker Hub.
@@ -1385,7 +1385,7 @@ Script para configurar ambiente de desenvolvimento local em < 5 minutos.
 
 ### DEVOPS-016: Setup inicial no homeserver
 
-**Status:** REVIEW
+**Status:** ACCEPTANCE_TESTING
 
 **Descricao:**
 Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretorios).

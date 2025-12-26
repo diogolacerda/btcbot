@@ -10,7 +10,8 @@
 |---------|-------|
 | **Total de Tasks** | 66 |
 | **Concluidas (DONE)** | 2 |
-| **Em Review** | 2 |
+| **Em Acceptance Testing** | 2 |
+| **Em Review** | 0 |
 | **Pendentes (TODO)** | 62 |
 | **Progresso Geral** | 6% |
 
@@ -32,17 +33,17 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 2/14 (14%)
+**Progresso:** 4/14 (29%) - 2 DONE, 2 em ACCEPTANCE_TESTING
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
-| DEVOPS-016 | DevOps | Setup inicial homeserver | 👀 REVIEW | staff-devops |
+| DEVOPS-016 | DevOps | Setup inicial homeserver | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
 | DEVOPS-004 | DevOps | GitHub Actions - CI | ⬜ TODO | - |
-| DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | 👀 REVIEW | staff-devops |
+| DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-008 | DevOps | Stack Stage no Portainer | ⬜ TODO | - |
 | DEVOPS-014 | DevOps | Pre-commit hooks | ⬜ TODO | - |
 | DEVOPS-015 | DevOps | Script setup desenvolvimento | ⬜ TODO | - |
@@ -191,21 +192,21 @@
 
 ## Progresso por Area
 
-| Area | Total | Done | Em Progresso | Pendente | % |
-|------|-------|------|--------------|----------|---|
-| DevOps | 20 | 1 | 0 | 19 | 5% |
+| Area | Total | Done | Em Teste | Pendente | % |
+|------|-------|------|----------|----------|---|
+| DevOps | 20 | 2 | 2 | 16 | 10% |
 | Database | 11 | 0 | 0 | 11 | 0% |
 | Backend | 20 | 0 | 0 | 20 | 0% |
 | Frontend | 15 | 0 | 0 | 15 | 0% |
-| **Total** | **66** | **1** | **0** | **65** | **1.5%** |
+| **Total** | **66** | **2** | **2** | **62** | **6%** |
 
 ---
 
 ## Proximas Acoes
 
 ### Prioridade Imediata (Sprint 0)
-1. **DEVOPS-016** - Aguardando Code Review (PR #9)
-2. **DEVOPS-006** - Aguardando Code Review (Secrets + Workflow)
+1. **DEVOPS-016** - Em ACCEPTANCE_TESTING (PR #9 merged, testar setup homeserver)
+2. **DEVOPS-006** - Em ACCEPTANCE_TESTING (PR #7 merged, testar workflow)
 3. **DEVOPS-002** - docker-compose.stage.yml (proximo)
 4. **DEVOPS-002B** - docker-compose.prod.yml
 
@@ -218,6 +219,8 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-016 em ACCEPTANCE_TESTING - PR #9 merged, testar setup |
+| 26/12/2025 | DEVOPS-006 em ACCEPTANCE_TESTING - PR #7 merged, testar workflow |
 | 26/12/2025 | **DEVOPS-001 DONE** - Dockerfile finalizado e testado |
 | 26/12/2025 | DEVOPS-016 em REVIEW - Documentacao homeserver, scripts backup/restore |
 | 26/12/2025 | DEVOPS-001 em ACCEPTANCE_TESTING - PR #6 merged, testando build |
