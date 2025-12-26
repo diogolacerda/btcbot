@@ -36,12 +36,12 @@
 ### Sprint 0 - Infraestrutura Base
 | Task | Descricao | Status | Responsavel |
 |------|-----------|--------|-------------|
-| DEVOPS-001 | Criar Dockerfile | REVIEW | staff-devops |
+| DEVOPS-001 | Criar Dockerfile | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-002 | docker-compose.stage.yml | TODO | - |
 | DEVOPS-002B | docker-compose.prod.yml | TODO | - |
 | DEVOPS-003 | Repositorio GitHub + GitFlow | DONE | Claude |
 | DEVOPS-004 | GitHub Actions - CI | TODO | - |
-| DEVOPS-006 | GitHub Secrets Docker Hub | TODO | - |
+| DEVOPS-006 | GitHub Secrets Docker Hub | REVIEW | staff-devops |
 | DEVOPS-008 | Stack Stage no Portainer | TODO | - |
 | DEVOPS-014 | Pre-commit hooks | TODO | - |
 | DEVOPS-015 | Script setup desenvolvimento | TODO | - |

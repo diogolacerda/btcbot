@@ -10,9 +10,10 @@
 |---------|-------|
 | **Total de Tasks** | 66 |
 | **Concluidas (DONE)** | 1 |
+| **Em Acceptance Testing** | 1 |
 | **Em Review** | 1 |
-| **Pendentes (TODO)** | 64 |
-| **Progresso Geral** | 3% |
+| **Pendentes (TODO)** | 63 |
+| **Progresso Geral** | 4.5% |
 
 ---
 
@@ -37,12 +38,12 @@
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | ⬜ TODO | - |
-| DEVOPS-001 | DevOps | Criar Dockerfile | 👀 REVIEW | staff-devops |
+| DEVOPS-001 | DevOps | Criar Dockerfile | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
 | DEVOPS-004 | DevOps | GitHub Actions - CI | ⬜ TODO | - |
-| DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | ⬜ TODO | - |
+| DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | 👀 REVIEW | staff-devops |
 | DEVOPS-008 | DevOps | Stack Stage no Portainer | ⬜ TODO | - |
 | DEVOPS-014 | DevOps | Pre-commit hooks | ⬜ TODO | - |
 | DEVOPS-015 | DevOps | Script setup desenvolvimento | ⬜ TODO | - |
@@ -204,9 +205,10 @@
 ## Proximas Acoes
 
 ### Prioridade Imediata (Sprint 0)
-1. **DEVOPS-001** - Aguardando Code Review (PR #6)
-2. **DEVOPS-002** - docker-compose.stage.yml (proximo)
-3. **DEVOPS-016** - Setup inicial homeserver
+1. **DEVOPS-001** - Em Acceptance Testing (testar build Docker)
+2. **DEVOPS-006** - Aguardando Code Review (Secrets + Workflow)
+3. **DEVOPS-002** - docker-compose.stage.yml (proximo)
+4. **DEVOPS-016** - Setup inicial homeserver
 
 ### Bloqueadores
 *Nenhum bloqueador identificado*
@@ -217,6 +219,8 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-001 em ACCEPTANCE_TESTING - PR #6 merged, testando build |
+| 26/12/2025 | DEVOPS-006 em REVIEW - Secrets docs e workflow de teste criados |
 | 26/12/2025 | DEVOPS-001 em REVIEW - Dockerfile criado, PR #6 aberto |
 | 26/12/2025 | DEVOPS-003 concluida - Repositorio GitHub + GitFlow configurado |
 | 26/12/2025 | Criacao do arquivo de progresso consolidado |
