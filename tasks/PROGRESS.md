@@ -9,11 +9,11 @@
 | Metrica | Valor |
 |---------|-------|
 | **Total de Tasks** | 66 |
-| **Concluidas (DONE)** | 2 |
-| **Em Acceptance Testing** | 2 |
+| **Concluidas (DONE)** | 3 |
+| **Em Acceptance Testing** | 1 |
 | **Em Review** | 0 |
 | **Pendentes (TODO)** | 62 |
-| **Progresso Geral** | 6% |
+| **Progresso Geral** | 7.5% |
 
 ---
 
@@ -33,11 +33,11 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 4/14 (29%) - 2 DONE, 2 em ACCEPTANCE_TESTING
+**Progresso:** 4/14 (29%) - 3 DONE, 1 em ACCEPTANCE_TESTING
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
-| DEVOPS-016 | DevOps | Setup inicial homeserver | 🧪 ACCEPTANCE_TESTING | staff-devops |
+| DEVOPS-016 | DevOps | Setup inicial homeserver | ✔️ DONE | staff-devops |
 | DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
@@ -219,6 +219,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | **DEVOPS-016 DONE** - Homeserver setup docs e scripts concluidos |
 | 26/12/2025 | DEVOPS-016 em ACCEPTANCE_TESTING - PR #9 merged, testar setup |
 | 26/12/2025 | DEVOPS-006 em ACCEPTANCE_TESTING - PR #7 merged, testar workflow |
 | 26/12/2025 | **DEVOPS-001 DONE** - Dockerfile finalizado e testado |

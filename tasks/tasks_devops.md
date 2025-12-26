@@ -1385,7 +1385,7 @@ Script para configurar ambiente de desenvolvimento local em < 5 minutos.
 
 ### DEVOPS-016: Setup inicial no homeserver
 
-**Status:** ACCEPTANCE_TESTING
+**Status:** DONE
 
 **Descricao:**
 Verificar e preparar homeserver para rodar o bot (Portainer, Watchtower, diretorios).
