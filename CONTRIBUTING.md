@@ -77,20 +77,41 @@ pre-commit install
 
 ### Pre-commit Hooks
 
-Este projeto usa pre-commit para garantir qualidade de codigo:
+Este projeto usa pre-commit para **BLOQUEAR commits** que nao passem nas verificacoes.
+Os hooks sao os **MESMOS** do CI, garantindo que codigo nao conforme nunca seja commitado.
 
 ```bash
-# Instalar hooks
+# Instalar hooks (obrigatorio)
+pip install pre-commit
 pre-commit install
 
-# Executar em todos os arquivos
+# Executar em todos os arquivos manualmente
 pre-commit run --all-files
+
+# Atualizar versoes dos hooks
+pre-commit autoupdate
 ```
 
-Hooks configurados:
-- **ruff** - Linting e formatacao
-- **mypy** - Type checking
-- **detect-secrets** - Prevenir commit de secrets
+**Hooks configurados (mesmas verificacoes do CI):**
+
+| Hook | Descricao | Acao |
+|------|-----------|------|
+| **ruff** | Linting Python | Auto-fix quando possivel |
+| **ruff-format** | Formatacao de codigo | Auto-format |
+| **mypy** | Type checking | BLOQUEIA commit |
+| **detect-secrets** | Prevenir vazamento de secrets | BLOQUEIA commit |
+| **trailing-whitespace** | Remover espacos no final | Auto-fix |
+| **end-of-file-fixer** | Garantir newline no final | Auto-fix |
+| **check-yaml** | Validar YAML | BLOQUEIA commit |
+| **check-json** | Validar JSON | BLOQUEIA commit |
+| **check-toml** | Validar TOML | BLOQUEIA commit |
+| **check-merge-conflict** | Detectar conflitos de merge | BLOQUEIA commit |
+| **check-added-large-files** | Prevenir arquivos > 1MB | BLOQUEIA commit |
+
+**IMPORTANTE:** Se o commit for bloqueado:
+1. Corrija os erros indicados
+2. Execute `git add .` para adicionar as correcoes
+3. Tente o commit novamente
 
 ## Padroes de Codigo
 
@@ -173,4 +194,3 @@ Use os templates em `.github/PULL_REQUEST_TEMPLATE/`:
 - Consulte a documentacao em `/docs`
 - Verifique as tasks em `/tasks`
 - Abra uma Issue para discussao
-

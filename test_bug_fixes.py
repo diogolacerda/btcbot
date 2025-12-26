@@ -18,10 +18,10 @@ from rich.console import Console
 
 from config import load_config
 from src.client.bingx_client import BingXClient
-from src.grid.order_tracker import TrackedOrder, TradeRecord, OrderStatus
-from src.ui.dashboard import Dashboard
 from src.grid.grid_manager import GridStatus
+from src.grid.order_tracker import OrderStatus, TrackedOrder, TradeRecord
 from src.strategy.macd_strategy import GridState
+from src.ui.dashboard import Dashboard
 
 console = Console()
 
@@ -116,7 +116,7 @@ def test_dashboard_overflow_protection(dashboard):
         }
 
         # This should NOT crash even with edge case data
-        layout = dashboard.render(
+        _ = dashboard.render(
             status=status,
             positions=positions,
             pending_orders=[],
@@ -176,7 +176,9 @@ async def test_api_connection(client, config):
         console.print("[green]  PASS: API connection successful[/green]\n")
         return True
     except Exception as e:
-        console.print(f"[yellow]  SKIP: API connection failed (might be network issue): {e}[/yellow]\n")
+        console.print(
+            f"[yellow]  SKIP: API connection failed (might be network issue): {e}[/yellow]\n"
+        )
         return None  # Not a failure, just skipped
 
 

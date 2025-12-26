@@ -42,7 +42,7 @@
 | DEVOPS-004 | GitHub Actions - CI | REVIEW | staff-devops |
 | DEVOPS-006 | GitHub Secrets Docker Hub | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-008 | Stack Stage no Portainer | DONE | staff-devops |
-| DEVOPS-014 | Pre-commit hooks | TODO | - |
+| DEVOPS-014 | Pre-commit hooks (BLOQUEAR lint/type) | DONE | staff-devops |
 | DEVOPS-015 | Script setup desenvolvimento | TODO | - |
 | DEVOPS-016 | Setup inicial homeserver | DONE | staff-devops |
 | DEVOPS-021 | Corrigir issues seguranca PR #9 | TODO | - |
@@ -1239,53 +1239,51 @@ Integrar logs do bot com Loki/Grafana existente no homeserver (se disponivel).
 
 ---
 
-### DEVOPS-014: Configurar pre-commit hooks
+### DEVOPS-014: Configurar pre-commit hooks (BLOQUEAR commits sem lint/type check)
 
-**Status:** TODO
+**Status:** DONE
 
 **Descricao:**
-Configurar hooks de pre-commit para garantir qualidade de codigo antes do commit.
+Configurar hooks de pre-commit para **BLOQUEAR commits** que nao passem em lint e type check.
+
+**PROBLEMA:** A pipeline CI esta falhando constantemente porque codigo sem conformidade esta sendo enviado ao repositorio. Os pre-commit hooks devem rodar as MESMAS verificacoes do CI localmente, impedindo que codigo com erros seja commitado.
+
+**Verificacoes OBRIGATORIAS antes do commit:**
+1. **ruff check** - Linting (mesmo que CI)
+2. **ruff format --check** - Formatting (mesmo que CI)
+3. **mypy** - Type checking (mesmo que CI)
+4. **detect-secrets** - Prevenir vazamento de secrets
 
 **Criterios de Aceite:**
-- [ ] Arquivo `.pre-commit-config.yaml`:
-  ```yaml
-  repos:
-    - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.8.0
-      hooks:
-        - id: ruff
-          args: [--fix]
-        - id: ruff-format
+- [x] Commit BLOQUEADO se ruff encontrar erros de lint
+- [x] Commit BLOQUEADO se codigo nao estiver formatado
+- [x] Commit BLOQUEADO se mypy encontrar erros de tipo
+- [x] Commit BLOQUEADO se secrets forem detectados
+- [x] Arquivo `.pre-commit-config.yaml` criado com hooks:
+  - ruff (lint + format)
+  - mypy (type check)
+  - detect-secrets
+  - pre-commit-hooks (whitespace, eof, yaml, json, toml, merge-conflict, large-files)
+- [x] Configuracao mypy em `pyproject.toml`
+- [x] Arquivo `.secrets.baseline` para detect-secrets
+- [x] Documentacao de instalacao no CONTRIBUTING.md
+- [x] Garantir PARIDADE com CI - mesmas configs do `pyproject.toml`
 
-    - repo: https://github.com/pre-commit/mirrors-mypy
-      rev: v1.13.0
-      hooks:
-        - id: mypy
-          additional_dependencies: [types-all]
+**Arquivos Criados/Modificados:**
+- `.pre-commit-config.yaml` - Configuracao dos hooks
+- `.secrets.baseline` - Baseline para detect-secrets
+- `requirements-dev.txt` - Adicionado pre-commit e detect-secrets
+- `CONTRIBUTING.md` - Documentacao detalhada dos hooks
 
-    - repo: https://github.com/Yelp/detect-secrets
-      rev: v1.5.0
-      hooks:
-        - id: detect-secrets
-          args: ['--baseline', '.secrets.baseline']
+**IMPORTANTE:** Usar as MESMAS configuracoes do CI para garantir paridade:
+```bash
+# CI roda:
+ruff check .
+ruff format --check .
+mypy .
 
-    - repo: https://github.com/pre-commit/pre-commit-hooks
-      rev: v5.0.0
-      hooks:
-        - id: trailing-whitespace
-        - id: end-of-file-fixer
-        - id: check-yaml
-        - id: check-added-large-files
-        - id: check-merge-conflict
-  ```
-- [ ] Arquivo `.ruff.toml` com configuracao
-- [ ] Arquivo `mypy.ini` ou `pyproject.toml` com configuracao mypy
-- [ ] Arquivo `.secrets.baseline` para detect-secrets
-- [ ] Documentacao de instalacao no CONTRIBUTING.md:
-  ```bash
-  pip install pre-commit
-  pre-commit install
-  ```
+# Pre-commit deve rodar os mesmos comandos com mesmas configs
+```
 
 **Dependencias:** DEVOPS-003
 
@@ -1295,7 +1293,7 @@ Configurar hooks de pre-commit para garantir qualidade de codigo antes do commit
 
 **Sprint:** 0
 
-**Prioridade:** Alta
+**Prioridade:** CRITICA (pipeline falhando constantemente por codigo nao conforme)
 
 ---
 

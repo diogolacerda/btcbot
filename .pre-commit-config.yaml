@@ -1,0 +1,85 @@
+# Pre-commit hooks configuration
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# IMPORTANT: These hooks enforce the same checks as CI to prevent
+# commits that would fail the pipeline.
+
+repos:
+  # Ruff - Fast Python linter and formatter
+  # Matches CI: ruff check . && ruff format --check .
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        name: ruff lint
+        description: Run ruff linter with auto-fix
+        args: [--fix]
+      - id: ruff-format
+        name: ruff format
+        description: Run ruff formatter
+
+  # MyPy - Static type checker
+  # Matches CI: mypy . --ignore-missing-imports
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        name: mypy type check
+        description: Run mypy static type checker
+        args: [--ignore-missing-imports]
+        additional_dependencies:
+          - types-requests>=2.31.0
+          - pandas-stubs>=2.0.0
+        # Match pyproject.toml excludes
+        exclude: ^(venv/|tests/)
+
+  # Detect-secrets - Prevent committing secrets
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        name: detect secrets
+        description: Detect secrets in staged files
+        args: ['--baseline', '.secrets.baseline']
+        exclude: package.lock.json
+
+  # General pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: trailing whitespace
+        description: Trim trailing whitespace
+        exclude: ^(\.secrets\.baseline)$
+      - id: end-of-file-fixer
+        name: end of file fixer
+        description: Ensure files end with a newline
+        exclude: ^(\.secrets\.baseline)$
+      - id: check-yaml
+        name: check yaml
+        description: Check YAML syntax
+      - id: check-added-large-files
+        name: check large files
+        description: Prevent large files from being committed
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+        name: check merge conflict
+        description: Check for merge conflict markers
+      - id: check-json
+        name: check json
+        description: Check JSON syntax
+      - id: check-toml
+        name: check toml
+        description: Check TOML syntax
+
+# Configuration
+default_language_version:
+  python: python3.12
+
+# Fail fast - stop on first failure
+fail_fast: false
+
+# Skip certain hooks in CI (already run separately)
+ci:
+  skip: []

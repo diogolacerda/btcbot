@@ -28,8 +28,8 @@ class BingXWebSocket:
         self._ws: Any = None
         self._running = False
         self._subscriptions: dict[str, Callable[[dict[str, Any]], None]] = {}
-        self._reconnect_delay = 1
-        self._max_reconnect_delay = 60
+        self._reconnect_delay: float = 1.0
+        self._max_reconnect_delay: float = 60.0
 
     async def connect(self) -> None:
         """Connect to WebSocket server."""
@@ -47,7 +47,7 @@ class BingXWebSocket:
                     close_timeout=5,
                 ) as ws:
                     self._ws = ws
-                    self._reconnect_delay = 1
+                    self._reconnect_delay = 1.0
                     main_logger.info("WebSocket conectado")
 
                     # Resubscribe to all channels
@@ -230,7 +230,7 @@ class BingXAccountWebSocket:
         self._listen_key = listen_key
         self._ws: Any = None
         self._running = False
-        self._reconnect_delay = 1
+        self._reconnect_delay = 1.0
         self._max_reconnect_delay = 60
         self._listen_key_expired = False
         self._renewal_in_progress = False  # Prevent duplicate renewal calls
@@ -285,7 +285,7 @@ class BingXAccountWebSocket:
                     max_size=10_485_760,  # 10MB max message size
                 ) as ws:
                     self._ws = ws
-                    self._reconnect_delay = 1
+                    self._reconnect_delay = 1.0
                     main_logger.info("Account WebSocket conectado")
 
                     # Process messages
@@ -295,9 +295,11 @@ class BingXAccountWebSocket:
                 # Log disconnections but with more detail for debugging
                 if self._running:
                     # Check if it's a normal close or error
-                    if hasattr(e, 'code') and e.code in [1000, 1001]:
+                    if hasattr(e, "code") and e.code in [1000, 1001]:
                         # Normal close or going away - just debug
-                        main_logger.debug(f"Account WebSocket desconectado normalmente: code={e.code}")
+                        main_logger.debug(
+                            f"Account WebSocket desconectado normalmente: code={e.code}"
+                        )
                     else:
                         # Unexpected disconnection - log as warning for investigation
                         main_logger.info(f"Account WebSocket desconectado: {e}")

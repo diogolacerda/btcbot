@@ -563,7 +563,7 @@ class TradeRecord:
 ### 10.6 Banco de Dados
 | Variavel | Descricao | Exemplo |
 |----------|-----------|---------|
-| DATABASE_URL | Connection string PostgreSQL | postgresql://user:pass@localhost:5432/btcbot |
+| DATABASE_URL | Connection string PostgreSQL | postgresql://user:pass@localhost:5432/btcbot |  <!-- pragma: allowlist secret -->
 | DB_POOL_SIZE | Tamanho do pool de conexoes | 5 |
 
 ---

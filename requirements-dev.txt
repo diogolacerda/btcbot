@@ -1,11 +1,17 @@
 # Development dependencies
 # Install with: pip install -r requirements-dev.txt
 
+# Pre-commit hooks
+pre-commit>=3.6.0
+
 # Linting and formatting
-ruff>=0.1.0
+ruff>=0.8.0
 
 # Type checking
-mypy>=1.0.0
+mypy>=1.14.0
+
+# Security
+detect-secrets>=1.5.0
 
 # Testing
 pytest>=7.0.0
