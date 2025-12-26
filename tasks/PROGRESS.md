@@ -10,9 +10,9 @@
 |---------|-------|
 | **Total de Tasks** | 66 |
 | **Concluidas (DONE)** | 1 |
-| **Em Progresso** | 1 |
+| **Em Review** | 1 |
 | **Pendentes (TODO)** | 64 |
-| **Progresso Geral** | 1.5% |
+| **Progresso Geral** | 3% |
 
 ---
 
@@ -37,7 +37,7 @@
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | ⬜ TODO | - |
-| DEVOPS-001 | DevOps | Criar Dockerfile | 🔄 IN_PROGRESS | staff-devops |
+| DEVOPS-001 | DevOps | Criar Dockerfile | 👀 REVIEW | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
@@ -204,9 +204,9 @@
 ## Proximas Acoes
 
 ### Prioridade Imediata (Sprint 0)
-1. **DEVOPS-016** - Verificar homeserver (Portainer, Watchtower)
-2. **DEVOPS-003** - Criar repositorio GitHub
-3. **DEVOPS-001** - Criar Dockerfile
+1. **DEVOPS-001** - Aguardando Code Review (PR #6)
+2. **DEVOPS-002** - docker-compose.stage.yml (proximo)
+3. **DEVOPS-016** - Setup inicial homeserver
 
 ### Bloqueadores
 *Nenhum bloqueador identificado*
@@ -217,6 +217,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-001 em REVIEW - Dockerfile criado, PR #6 aberto |
 | 26/12/2025 | DEVOPS-003 concluida - Repositorio GitHub + GitFlow configurado |
 | 26/12/2025 | Criacao do arquivo de progresso consolidado |
 
