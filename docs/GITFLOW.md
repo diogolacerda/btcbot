@@ -1,7 +1,7 @@
 # GitFlow - BTC Grid Bot
 
 **Data:** 26 de Dezembro de 2025
-**Versao:** 1.4
+**Versao:** 1.5
 
 ---
 
@@ -316,15 +316,25 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
    git push origin feature/BE-001-implementar-trade-repository
    ```
 4. Abre PR para `main` usando o template apropriado
-5. **OBRIGATORIO:** Atualiza status para `REVIEW` em:
+5. Adiciona label `needs-review` ao PR
+6. **OBRIGATORIO:** Atualiza status para `REVIEW` em:
    - `tasks/PROGRESS.md`
    - `tasks/tasks_<area>.md`
+7. **OBRIGATORIO:** Aciona agente revisor da mesma disciplina:
+   ```
+   Exemplo para DevOps:
+   "Acione o agente staff-devops para revisar o PR #X"
+
+   Exemplo para Backend:
+   "Acione o agente staff-backend-dev para revisar o PR #X"
+   ```
 
 **Regras:**
 - PR deve ter descricao clara do que foi feito
 - Todos os checks de CI devem passar
 - PR deve referenciar a task (ex: `Closes #123` ou `Ref: BE-001`)
 - **O mesmo agente que iniciou a task atualiza o status**
+- **O agente implementador DEVE acionar o agente revisor** (nao esperar passivamente)
 
 ### 3. Code Review
 
@@ -335,11 +345,11 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 
 ```
 1. Agente Implementador cria PR e adiciona label "needs-review"
-2. Agente Revisor (mesma disciplina) e acionado
+2. Agente Implementador ACIONA Agente Revisor (mesma disciplina)
 3. Agente Revisor analisa o codigo e deixa comentario de review
-4. Se aprovado: adiciona label "approved"
-5. Se mudancas necessarias: adiciona label "changes-requested"
-6. Agente Implementador e notificado para fazer merge (se aprovado) ou ajustes
+4. Se aprovado: adiciona label "approved" e RETORNA ao Implementador
+5. Se mudancas necessarias: adiciona label "changes-requested" e RETORNA ao Implementador
+6. Agente Implementador faz merge (se aprovado) ou ajustes (se mudancas)
 ```
 
 **Acoes do Agente Revisor:**
@@ -349,6 +359,7 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
    - `approved` - PR pronto para merge
    - `changes-requested` - Precisa de ajustes
 4. Se mudancas solicitadas, descreve o que precisa mudar
+5. **RETORNA controle ao Agente Implementador** com resultado do review
 
 **Exemplo de Comentario de Review:**
 ```markdown
@@ -1107,4 +1118,4 @@ Rollback imediato se:
 
 ---
 
-*Documento atualizado em 26/12/2025 - Versao 1.4 (Responsabilidade de atualizacao do PROGRESS.md)*
+*Documento atualizado em 26/12/2025 - Versao 1.5 (Agente implementador aciona agente revisor)*
