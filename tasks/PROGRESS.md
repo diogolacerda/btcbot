@@ -10,8 +10,8 @@
 |---------|-------|
 | **Total de Tasks** | 67 |
 | **Concluidas (DONE)** | 3 |
-| **Em Acceptance Testing** | 1 |
-| **Pendentes (TODO)** | 63 |
+| **Em Acceptance Testing** | 2 |
+| **Pendentes (TODO)** | 62 |
 | **Progresso Geral** | 6% |
 
 ---
@@ -22,7 +22,6 @@
 |--------|-------|-----------|
 | `TODO` | ⬜ | Nao iniciada |
 | `IN_PROGRESS` | 🔄 | Em desenvolvimento |
-| `REVIEW` | 👀 | Aguardando code review |
 | `ACCEPTANCE_TESTING` | 🧪 | Testando em Stage |
 | `BLOCKED_BY_BUG` | 🐛 | Bug encontrado no teste |
 | `READY_TO_PROD` | ✅ | Aprovado para producao |
@@ -32,14 +31,14 @@
 
 ## Sprint 0 - Infraestrutura Base
 
-**Progresso:** 4/15 (27%) - 3 DONE, 1 em ACCEPTANCE_TESTING
+**Progresso:** 4/15 (27%) - 3 DONE, 2 em ACCEPTANCE_TESTING
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
 | DEVOPS-016 | DevOps | Setup inicial homeserver | ✔️ DONE | staff-devops |
-| DEVOPS-021 | DevOps | Corrigir issues seguranca PR #9 | ⬜ TODO | - |
+| DEVOPS-021 | DevOps | Corrigir issues seguranca PR #9 | 🔄 IN_PROGRESS | staff-devops |
 | DEVOPS-001 | DevOps | Criar Dockerfile | ✔️ DONE | staff-devops |
-| DEVOPS-002 | DevOps | docker-compose.stage.yml | 👀 REVIEW | staff-devops |
+| DEVOPS-002 | DevOps | docker-compose.stage.yml | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
 | DEVOPS-004 | DevOps | GitHub Actions - CI | ⬜ TODO | - |
@@ -194,20 +193,20 @@
 
 | Area | Total | Done | Em Teste | Pendente | % |
 |------|-------|------|----------|----------|---|
-| DevOps | 21 | 3 | 1 | 17 | 14% |
+| DevOps | 21 | 3 | 2 | 16 | 14% |
 | Database | 11 | 0 | 0 | 11 | 0% |
 | Backend | 20 | 0 | 0 | 20 | 0% |
 | Frontend | 15 | 0 | 0 | 15 | 0% |
-| **Total** | **67** | **3** | **1** | **63** | **6%** |
+| **Total** | **67** | **3** | **2** | **62** | **6%** |
 
 ---
 
 ## Proximas Acoes
 
 ### Prioridade Imediata (Sprint 0)
-1. **DEVOPS-021** - TODO - Corrigir issues seguranca PR #9 (Alta prioridade)
+1. **DEVOPS-021** - IN_PROGRESS - Corrigir issues seguranca PR #9 (Alta prioridade, 13 itens corrigidos)
 2. **DEVOPS-006** - Em ACCEPTANCE_TESTING (PR #7 merged, testar workflow)
-3. **DEVOPS-002** - Em REVIEW (PR aberto, aguardando code review)
+3. **DEVOPS-002** - Em ACCEPTANCE_TESTING (PR #10 merged, aguardando testes em Stage)
 4. **DEVOPS-002B** - docker-compose.prod.yml (proximo)
 
 ### Bloqueadores
@@ -219,6 +218,8 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-021 em IN_PROGRESS - Iniciada correcao de 13 issues de seguranca do PR #9 |
+| 26/12/2025 | DEVOPS-002 em ACCEPTANCE_TESTING - PR #10 merged, testar docker-compose.stage.yml |
 | 26/12/2025 | DEVOPS-021 criada - Issues seguranca do PR #9 (13 itens) |
 | 26/12/2025 | **DEVOPS-016 DONE** - Homeserver setup docs e scripts concluidos |
 | 26/12/2025 | DEVOPS-016 em ACCEPTANCE_TESTING - PR #9 merged, testar setup |
