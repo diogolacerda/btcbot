@@ -217,7 +217,9 @@ class GridManager:
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
-                    wait_time = min(5 * (2 ** attempt), 30)  # Exponential backoff: 5s, 10s, 20s, max 30s
+                    wait_time = min(
+                        5 * (2**attempt), 30
+                    )  # Exponential backoff: 5s, 10s, 20s, max 30s
                     main_logger.info(f"Aguardando {wait_time}s antes de tentar novamente...")
                     await asyncio.sleep(wait_time)
 
@@ -451,8 +453,7 @@ class GridManager:
 
         # Also check local tracker
         levels = [
-            level for level in levels
-            if not self.tracker.has_order_at_price(level.entry_price)
+            level for level in levels if not self.tracker.has_order_at_price(level.entry_price)
         ]
 
         if not levels:
@@ -472,7 +473,9 @@ class GridManager:
                 if "Insufficient margin" in error_msg:
                     self._margin_error = True
                     self._margin_error_time = time.time()
-                    main_logger.warning("Margem insuficiente - pausando criação de ordens por 5 min")
+                    main_logger.warning(
+                        "Margem insuficiente - pausando criação de ordens por 5 min"
+                    )
                     break
                 elif "over 20 error" in error_msg or "rate limit" in error_msg.lower():
                     # Rate limited - backoff for 8 minutes

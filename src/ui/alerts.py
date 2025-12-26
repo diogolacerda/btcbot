@@ -33,7 +33,7 @@ class AudioAlerts:
         try:
             if self.system == "Darwin":  # macOS
                 for _ in range(count):
-                    os.system('afplay /System/Library/Sounds/Glass.aiff &')
+                    os.system("afplay /System/Library/Sounds/Glass.aiff &")
             elif self.system == "Linux":
                 for _ in range(count):
                     subprocess.run(
@@ -42,6 +42,7 @@ class AudioAlerts:
                     )
             elif self.system == "Windows":
                 import winsound
+
                 for _ in range(count):
                     winsound.Beep(1000, duration_ms)  # type: ignore[attr-defined]
             else:

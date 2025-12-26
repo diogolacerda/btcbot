@@ -157,9 +157,7 @@ class OrderTracker:
         order = self._orders.get(order_id)
         if order:
             order.mark_filled()
-            orders_logger.info(
-                f"Order filled: {order_id} @ ${order.entry_price:,.2f}"
-            )
+            orders_logger.info(f"Order filled: {order_id} @ ${order.entry_price:,.2f}")
         return order
 
     def order_tp_hit(self, order_id: str, exit_price: float) -> TradeRecord | None:

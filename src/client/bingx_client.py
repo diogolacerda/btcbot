@@ -24,9 +24,9 @@ class BingXClient:
         # Cache com TTL (time to live) em segundos
         self._cache: dict[str, tuple[float, Any]] = {}
         self._cache_ttl = {
-            "klines": 60,       # Klines: 60s (muda só no candle novo)
-            "balance": 30,      # Balance: 30s
-            "positions": 15,    # Positions: 15s
+            "klines": 60,  # Klines: 60s (muda só no candle novo)
+            "balance": 30,  # Balance: 30s
+            "positions": 15,  # Positions: 15s
             "open_orders": 15,  # Open orders: 15s
         }
 
@@ -46,8 +46,7 @@ class BingXClient:
     def _invalidate_cache(self, *prefixes: str) -> None:
         """Invalidate cache entries matching prefixes."""
         keys_to_delete = [
-            k for k in self._cache
-            if any(k.startswith(p) or k == p for p in prefixes)
+            k for k in self._cache if any(k.startswith(p) or k == p for p in prefixes)
         ]
         for k in keys_to_delete:
             del self._cache[k]
@@ -150,7 +149,7 @@ class BingXClient:
         cache_key = f"klines:{symbol}:{interval}"
         cached = self._get_cached(cache_key)
         if cached is not None:
-            return cached
+            return cached  # type: ignore[no-any-return,unused-ignore]
 
         endpoint = "/openApi/swap/v2/quote/klines"
         params = {
@@ -164,13 +163,15 @@ class BingXClient:
             data,
             columns=["timestamp", "open", "high", "low", "close", "volume", "close_time"],
         )
-        df = df.astype({
-            "open": float,
-            "high": float,
-            "low": float,
-            "close": float,
-            "volume": float,
-        })
+        df = df.astype(
+            {
+                "open": float,
+                "high": float,
+                "low": float,
+                "close": float,
+                "volume": float,
+            }
+        )
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
 
         self._set_cache(cache_key, df)
@@ -266,10 +267,10 @@ class BingXClient:
             params["stopPrice"] = stop_price
 
         if take_profit:
-            params["takeProfit"] = json.dumps(take_profit, separators=(',', ':'))
+            params["takeProfit"] = json.dumps(take_profit, separators=(",", ":"))
 
         if stop_loss:
-            params["stopLoss"] = json.dumps(stop_loss, separators=(',', ':'))
+            params["stopLoss"] = json.dumps(stop_loss, separators=(",", ":"))
 
         data = await self._request("POST", endpoint, params)
 
