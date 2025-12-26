@@ -42,7 +42,7 @@
 | DEVOPS-004 | GitHub Actions - CI | REVIEW | staff-devops |
 | DEVOPS-006 | GitHub Secrets Docker Hub | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-008 | Stack Stage no Portainer | DONE | staff-devops |
-| DEVOPS-014 | Pre-commit hooks (BLOQUEAR commits) | IN_PROGRESS | staff-devops |
+| DEVOPS-014 | Pre-commit hooks (BLOQUEAR commits) | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-015 | Script setup desenvolvimento | TODO | - |
 | DEVOPS-016 | Setup inicial homeserver | DONE | staff-devops |
 | DEVOPS-021 | Corrigir issues seguranca PR #9 | TODO | - |

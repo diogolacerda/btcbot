@@ -44,7 +44,7 @@
 | DEVOPS-004 | DevOps | GitHub Actions - CI | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-008 | DevOps | Stack Stage no Portainer | ✔️ DONE | staff-devops |
-| DEVOPS-014 | DevOps | Pre-commit hooks (BLOQUEAR commits) | 🔄 IN_PROGRESS | staff-devops |
+| DEVOPS-014 | DevOps | Pre-commit hooks (BLOQUEAR commits) | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-015 | DevOps | Script setup desenvolvimento | ⬜ TODO | - |
 | DB-001 | Database | PostgreSQL Docker Compose | ⬜ TODO | - |
 | BE-018 | Backend | Sistema de filtros plugaveis | ⬜ TODO | - |
