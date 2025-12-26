@@ -1,5 +1,5 @@
 import time
-from decimal import Decimal, ROUND_DOWN
+from decimal import ROUND_DOWN, Decimal
 
 
 def current_timestamp_ms() -> int:

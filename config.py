@@ -1,6 +1,7 @@
+import os
 from dataclasses import dataclass
 from enum import Enum
-import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,8 +18,8 @@ class ReactivationMode(Enum):
 
 
 class TradingMode(Enum):
-    DEMO = "demo"      # Uses VST (virtual tokens)
-    LIVE = "live"      # Uses real USDT
+    DEMO = "demo"  # Uses VST (virtual tokens)
+    LIVE = "live"  # Uses real USDT
 
 
 @dataclass
@@ -104,7 +105,5 @@ def load_config() -> Config:
             signal=int(os.getenv("MACD_SIGNAL", "9")),
             timeframe=os.getenv("MACD_TIMEFRAME", "1h"),
         ),
-        reactivation_mode=ReactivationMode(
-            os.getenv("REACTIVATION_MODE", "immediate")
-        ),
+        reactivation_mode=ReactivationMode(os.getenv("REACTIVATION_MODE", "immediate")),
     )

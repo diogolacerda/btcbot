@@ -1,5 +1,5 @@
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
 
 import pandas as pd
 import pandas_ta as ta
@@ -173,10 +173,14 @@ class MACDStrategy:
         """Log state change with MACD values."""
         direction = "↑" if macd.is_histogram_rising else "↓"
         color = "verde" if macd.is_histogram_positive else "vermelho"
-        shade = "escuro" if (
-            (macd.is_histogram_positive and macd.is_histogram_rising) or
-            (macd.is_histogram_negative and macd.is_histogram_falling)
-        ) else "claro"
+        shade = (
+            "escuro"
+            if (
+                (macd.is_histogram_positive and macd.is_histogram_rising)
+                or (macd.is_histogram_negative and macd.is_histogram_falling)
+            )
+            else "claro"
+        )
 
         macd_logger.info(
             f"Estado: {new_state.value.upper()} | "
@@ -236,7 +240,9 @@ class MACDStrategy:
         cycle_status = "🟢" if self._cycle_activated else "🔴"
         descriptions = {
             GridState.ACTIVATE: f"{cycle_status} ATIVANDO - Vermelho claro + MACD negativo",
-            GridState.ACTIVE: f"{cycle_status} ATIVO - Criando ordens" if self._cycle_activated else f"{cycle_status} ATIVO - Aguardando ciclo",
+            GridState.ACTIVE: f"{cycle_status} ATIVO - Criando ordens"
+            if self._cycle_activated
+            else f"{cycle_status} ATIVO - Aguardando ciclo",
             GridState.PAUSE: f"{cycle_status} PAUSADO - Verde claro + MACD positivo",
             GridState.INACTIVE: f"{cycle_status} INATIVO - Cancelando ordens pendentes",
             GridState.WAIT: f"{cycle_status} AGUARDANDO - Condições não atendidas",

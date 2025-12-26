@@ -39,7 +39,7 @@
 | DEVOPS-002 | docker-compose.stage.yml | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-002B | docker-compose.prod.yml | TODO | - |
 | DEVOPS-003 | Repositorio GitHub + GitFlow | DONE | Claude |
-| DEVOPS-004 | GitHub Actions - CI | TODO | - |
+| DEVOPS-004 | GitHub Actions - CI | REVIEW | staff-devops |
 | DEVOPS-006 | GitHub Secrets Docker Hub | ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-008 | Stack Stage no Portainer | TODO | - |
 | DEVOPS-014 | Pre-commit hooks | TODO | - |
@@ -448,7 +448,9 @@ Criar repositorio no GitHub seguindo a estrutura definida no [GitFlow](/docs/GIT
 
 ### DEVOPS-004: Configurar GitHub Actions - CI
 
-**Status:** TODO
+**Status:** REVIEW
+
+**PR:** https://github.com/diogolacerda/btcbot/pull/13
 
 **Descricao:**
 Pipeline de CI que roda em todo push e PR, validando codigo antes do code review.

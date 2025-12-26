@@ -3,13 +3,14 @@ Keyboard handler for dashboard controls.
 
 Reads from stdin - only captures when terminal is focused.
 """
+
+import select
 import sys
+import termios
 import threading
 import time
 import tty
-import termios
-import select
-from typing import Callable
+from collections.abc import Callable
 from enum import Enum
 
 from src.utils.logger import main_logger
@@ -17,6 +18,7 @@ from src.utils.logger import main_logger
 
 class KeyAction(Enum):
     """Available keyboard actions."""
+
     ACTIVATE_CYCLE = "activate"
     DEACTIVATE_CYCLE = "deactivate"
     QUIT = "quit"
@@ -111,13 +113,13 @@ class KeyboardHandler:
         self._last_key_time[char] = current_time
 
         action = None
-        if char == 'a':
+        if char == "a":
             action = KeyAction.ACTIVATE_CYCLE
-        elif char == 'd':
+        elif char == "d":
             action = KeyAction.DEACTIVATE_CYCLE
-        elif char == 'q':
+        elif char == "q":
             action = KeyAction.QUIT
-        elif char == 'r':
+        elif char == "r":
             action = KeyAction.RESTART_GRID
 
         if action:

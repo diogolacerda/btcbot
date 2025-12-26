@@ -13,7 +13,9 @@ class GridLevel:
     level_index: int
 
     def __str__(self) -> str:
-        return f"Level {self.level_index}: Entry ${self.entry_price:,.2f} → TP ${self.tp_price:,.2f}"
+        return (
+            f"Level {self.level_index}: Entry ${self.entry_price:,.2f} → TP ${self.tp_price:,.2f}"
+        )
 
 
 class GridCalculator:
@@ -85,12 +87,12 @@ class GridCalculator:
             List of GridLevel objects
         """
         existing_levels = existing_levels or []
-        existing_set = set(round_price(p) for p in existing_levels)
+        existing_set = {round_price(p) for p in existing_levels}
 
         spacing = self.calculate_spacing(current_price)
         min_price = self.calculate_min_price(current_price)
 
-        levels = []
+        levels: list[GridLevel] = []
         level_index = 1
         price = current_price - spacing
 
@@ -130,10 +132,7 @@ class GridCalculator:
         min_price = self.calculate_min_price(current_price)
 
         # Count only orders WITHIN the current range
-        orders_in_range = [
-            o for o in existing_orders
-            if float(o.get("price", 0)) >= min_price
-        ]
+        orders_in_range = [o for o in existing_orders if float(o.get("price", 0)) >= min_price]
 
         existing_prices = [float(o.get("price", 0)) for o in existing_orders]
         levels = self.calculate_levels(current_price, existing_prices)

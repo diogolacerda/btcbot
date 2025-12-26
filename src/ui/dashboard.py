@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Any
 
 from rich.console import Console
 from rich.layout import Layout
@@ -9,7 +8,7 @@ from rich.table import Table
 from rich.text import Text
 
 from src.grid.grid_manager import GridStatus
-from src.grid.order_tracker import TrackedOrder, TradeRecord, OrderStatus
+from src.grid.order_tracker import TrackedOrder, TradeRecord
 from src.strategy.macd_strategy import GridState
 
 
@@ -167,12 +166,12 @@ class Dashboard:
         spacing = grid_summary.get("spacing", 0)
 
         content.add_row(
-            Text(f"Range: {self._format_price(grid_summary.get('current_price', 0))} - "
-                 f"{self._format_price(min_price)} ({grid_summary.get('range_percent', 0)}% abaixo)")
+            Text(
+                f"Range: {self._format_price(grid_summary.get('current_price', 0))} - "
+                f"{self._format_price(min_price)} ({grid_summary.get('range_percent', 0)}% abaixo)"
+            )
         )
-        content.add_row(
-            Text(f"Espaçamento: ${spacing:,.2f}")
-        )
+        content.add_row(Text(f"Espaçamento: ${spacing:,.2f}"))
 
         if orders:
             prices = sorted([o.entry_price for o in orders[:5]], reverse=True)
@@ -231,15 +230,21 @@ class Dashboard:
         """Create controls hint panel."""
         if cycle_activated:
             controls = Text.assemble(
-                ("[Q]", "bold yellow"), " Sair  ",
-                ("[D]", "bold red"), " Desativar Ciclo  ",
-                ("[R]", "bold yellow"), " Reiniciar  ",
+                ("[Q]", "bold yellow"),
+                " Sair  ",
+                ("[D]", "bold red"),
+                " Desativar Ciclo  ",
+                ("[R]", "bold yellow"),
+                " Reiniciar  ",
             )
         else:
             controls = Text.assemble(
-                ("[Q]", "bold yellow"), " Sair  ",
-                ("[A]", "bold green"), " Ativar Ciclo  ",
-                ("[R]", "bold yellow"), " Reiniciar  ",
+                ("[Q]", "bold yellow"),
+                " Sair  ",
+                ("[A]", "bold green"),
+                " Ativar Ciclo  ",
+                ("[R]", "bold yellow"),
+                " Reiniciar  ",
             )
         return Panel(controls, border_style="dim")
 
@@ -273,9 +278,7 @@ class Dashboard:
             Layout(name="right"),
         )
 
-        layout["main"]["left"].update(
-            self.create_positions_table(positions, status.current_price)
-        )
+        layout["main"]["left"].update(self.create_positions_table(positions, status.current_price))
 
         layout["main"]["right"].split_column(
             Layout(name="orders"),
@@ -284,9 +287,7 @@ class Dashboard:
         layout["main"]["right"]["orders"].update(
             self.create_orders_table(pending_orders, grid_summary)
         )
-        layout["main"]["right"]["history"].update(
-            self.create_history_table(trades)
-        )
+        layout["main"]["right"]["history"].update(self.create_history_table(trades))
 
         layout["summary"].update(self.create_summary(status, win_rate))
         layout["controls"].update(self.create_controls(status.cycle_activated))

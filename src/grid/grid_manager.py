@@ -1,14 +1,14 @@
 import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from config import Config
 from src.client.bingx_client import BingXClient
 from src.client.websocket_client import BingXAccountWebSocket
 from src.grid.grid_calculator import GridCalculator, GridLevel
 from src.grid.order_tracker import OrderTracker
-from src.strategy.macd_strategy import MACDStrategy, GridState
+from src.strategy.macd_strategy import GridState, MACDStrategy
 from src.utils.logger import main_logger, orders_logger
 
 
@@ -217,7 +217,9 @@ class GridManager:
         for attempt in range(max_retries):
             try:
                 if attempt > 0:
-                    wait_time = min(5 * (2 ** attempt), 30)  # Exponential backoff: 5s, 10s, 20s, max 30s
+                    wait_time = min(
+                        5 * (2**attempt), 30
+                    )  # Exponential backoff: 5s, 10s, 20s, max 30s
                     main_logger.info(f"Aguardando {wait_time}s antes de tentar novamente...")
                     await asyncio.sleep(wait_time)
 
@@ -451,8 +453,7 @@ class GridManager:
 
         # Also check local tracker
         levels = [
-            l for l in levels
-            if not self.tracker.has_order_at_price(l.entry_price)
+            level for level in levels if not self.tracker.has_order_at_price(level.entry_price)
         ]
 
         if not levels:
@@ -472,7 +473,9 @@ class GridManager:
                 if "Insufficient margin" in error_msg:
                     self._margin_error = True
                     self._margin_error_time = time.time()
-                    main_logger.warning("Margem insuficiente - pausando criação de ordens por 5 min")
+                    main_logger.warning(
+                        "Margem insuficiente - pausando criação de ordens por 5 min"
+                    )
                     break
                 elif "over 20 error" in error_msg or "rate limit" in error_msg.lower():
                     # Rate limited - backoff for 8 minutes
@@ -538,9 +541,9 @@ class GridManager:
             open_orders = await self.client.get_open_orders(self.symbol)
             cancelled = 0
 
-            for order in open_orders:
-                order_type = order.get("type", "")
-                order_id = str(order.get("orderId", ""))
+            for open_order in open_orders:
+                order_type = open_order.get("type", "")
+                order_id = str(open_order.get("orderId", ""))
 
                 # Only cancel LIMIT orders, preserve TP/SL
                 if order_type == "LIMIT" and order_id:
@@ -551,8 +554,8 @@ class GridManager:
                         pass
 
             # Update tracker
-            for order in self.tracker.pending_orders:
-                self.tracker.cancel_order(order.order_id)
+            for pending_order in self.tracker.pending_orders:
+                self.tracker.cancel_order(pending_order.order_id)
 
             if cancelled > 0:
                 main_logger.info(f"{cancelled} ordem(ns) LIMIT cancelada(s) (INACTIVE)")

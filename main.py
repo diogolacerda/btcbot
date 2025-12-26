@@ -4,28 +4,27 @@ BTC Grid Bot - Sistema de Grid Trading para BingX
 
 Grid trading com estratégia MACD para futuros perpétuos BTC-USDT.
 """
+
 import asyncio
 import sys
-from typing import NoReturn
 
 from rich.console import Console
 from rich.prompt import Confirm
 
 from config import load_config
 from src.client.bingx_client import BingXClient
-from src.grid.grid_manager import GridManager
 from src.grid.grid_calculator import GridCalculator
+from src.grid.grid_manager import GridManager
 from src.strategy.macd_strategy import GridState
+from src.ui.alerts import AudioAlerts
 from src.ui.dashboard import Dashboard
-from src.ui.alerts import AudioAlerts, AlertType
-from src.ui.keyboard_handler import KeyboardHandler, KeyAction
+from src.ui.keyboard_handler import KeyAction, KeyboardHandler
 from src.utils.logger import main_logger
-
 
 console = Console()
 
 
-async def run_bot() -> NoReturn:
+async def run_bot() -> None:
     """Main bot execution loop."""
     config = load_config()
 
@@ -97,15 +96,21 @@ async def run_bot() -> NoReturn:
         console.print("[bold red]⚠️  MODO LIVE - Usando USDT REAL![/bold red]")
         console.print("[bold red]Cuidado: Operações afetarão seus fundos reais![/bold red]\n")
 
-    console.print(f"[bold]Configuração:[/bold]")
-    console.print(f"  Modo: [{'green' if config.trading.is_demo else 'red'}]{config.trading.mode.value.upper()}[/{'green' if config.trading.is_demo else 'red'}]")
+    console.print("[bold]Configuração:[/bold]")
+    console.print(
+        f"  Modo: [{'green' if config.trading.is_demo else 'red'}]{config.trading.mode.value.upper()}[/{'green' if config.trading.is_demo else 'red'}]"
+    )
     console.print(f"  Symbol: [cyan]{config.trading.symbol}[/cyan]")
     console.print(f"  Leverage: [cyan]{config.trading.leverage}x[/cyan]")
     console.print(f"  Order size: [cyan]${config.trading.order_size_usdt} USDT[/cyan]")
-    console.print(f"  Grid spacing: [cyan]{config.grid.spacing_value} ({config.grid.spacing_type.value})[/cyan]")
+    console.print(
+        f"  Grid spacing: [cyan]{config.grid.spacing_value} ({config.grid.spacing_type.value})[/cyan]"
+    )
     console.print(f"  Range: [cyan]{config.grid.range_percent}% abaixo do preço[/cyan]")
     console.print(f"  Take profit: [cyan]{config.grid.take_profit_percent}%[/cyan]")
-    console.print(f"  MACD: [cyan]{config.macd.fast}/{config.macd.slow}/{config.macd.signal} ({config.macd.timeframe})[/cyan]")
+    console.print(
+        f"  MACD: [cyan]{config.macd.fast}/{config.macd.slow}/{config.macd.signal} ({config.macd.timeframe})[/cyan]"
+    )
     console.print()
 
     # Test connection
@@ -146,7 +151,7 @@ async def run_bot() -> NoReturn:
                     try:
                         balance_data = await client.get_balance()
                         balance = float(balance_data.get("balance", {}).get("availableMargin", 0))
-                    except:
+                    except Exception:
                         balance = 0
 
                     # Render dashboard
