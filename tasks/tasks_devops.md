@@ -36,7 +36,7 @@
 ### Sprint 0 - Infraestrutura Base
 | Task | Descricao | Status | Responsavel |
 |------|-----------|--------|-------------|
-| DEVOPS-001 | Criar Dockerfile | TODO | - |
+| DEVOPS-001 | Criar Dockerfile | IN_PROGRESS | staff-devops |
 | DEVOPS-002 | docker-compose.stage.yml | TODO | - |
 | DEVOPS-002B | docker-compose.prod.yml | TODO | - |
 | DEVOPS-003 | Repositorio GitHub + GitFlow | DONE | Claude |
