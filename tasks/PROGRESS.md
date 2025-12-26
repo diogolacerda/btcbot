@@ -37,7 +37,7 @@
 
 | Task | Area | Descricao | Status | Responsavel |
 |------|------|-----------|--------|-------------|
-| DEVOPS-016 | DevOps | Setup inicial homeserver | ⬜ TODO | - |
+| DEVOPS-016 | DevOps | Setup inicial homeserver | 👀 REVIEW | staff-devops |
 | DEVOPS-001 | DevOps | Criar Dockerfile | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | ⬜ TODO | - |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | ⬜ TODO | - |
@@ -219,6 +219,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 26/12/2025 | DEVOPS-016 em REVIEW - Documentacao homeserver, scripts backup/restore |
 | 26/12/2025 | DEVOPS-001 em ACCEPTANCE_TESTING - PR #6 merged, testando build |
 | 26/12/2025 | DEVOPS-006 em REVIEW - Secrets docs e workflow de teste criados |
 | 26/12/2025 | DEVOPS-001 em REVIEW - Dockerfile criado, PR #6 aberto |
