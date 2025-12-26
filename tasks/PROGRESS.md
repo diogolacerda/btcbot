@@ -41,7 +41,7 @@
 | DEVOPS-002 | DevOps | docker-compose.stage.yml | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-002B | DevOps | docker-compose.prod.yml | 🔄 IN_PROGRESS | staff-devops |
 | DEVOPS-003 | DevOps | Repositorio GitHub + GitFlow | ✔️ DONE | Claude |
-| DEVOPS-004 | DevOps | GitHub Actions - CI | ⬜ TODO | - |
+| DEVOPS-004 | DevOps | GitHub Actions - CI | 👀 REVIEW | staff-devops |
 | DEVOPS-006 | DevOps | GitHub Secrets Docker Hub | 🧪 ACCEPTANCE_TESTING | staff-devops |
 | DEVOPS-008 | DevOps | Stack Stage no Portainer | ⬜ TODO | - |
 | DEVOPS-014 | DevOps | Pre-commit hooks | ⬜ TODO | - |
