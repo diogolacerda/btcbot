@@ -1,7 +1,7 @@
 # BTC Grid Bot - Decomposicao de Tarefas
 
-**Data:** 22 de Dezembro de 2025
-**Versao:** 1.4
+**Data:** 26 de Dezembro de 2025
+**Versao:** 1.5
 **Baseado em:** PRD v1.1
 **Infraestrutura:** Homeserver + Portainer + Watchtower + Docker Registry
 
@@ -25,13 +25,14 @@ Este diretorio contem a decomposicao completa das tarefas do roadmap do BTC Grid
 
 | Arquivo | Descricao | Total de Tarefas |
 |---------|-----------|------------------|
+| `PROGRESS.md` | **Visao consolidada do progresso (ATUALIZAR SEMPRE)** | - |
 | `tasks_database.md` | Tarefas de banco de dados (schema, migrations, queries) | 11 tarefas |
 | `tasks_backend.md` | Tarefas de backend Python (API, logica de negocio) | 20 tarefas |
 | `tasks_frontend.md` | Tarefas de frontend/UI (dashboard, visualizacoes) | 15 tarefas |
-| `tasks_devops.md` | Tarefas de DevOps (Docker, CI/CD, Portainer, Watchtower) | 24 tarefas |
+| `tasks_devops.md` | Tarefas de DevOps (Docker, CI/CD, Portainer, Watchtower) | 20 tarefas |
 | `tasks_bugfixes.md` | Bugs encontrados durante Acceptance Testing | Dinamico |
 
-**Total: 70 tarefas (+ bugfixes)**
+**Total: 66 tarefas (+ bugfixes)**
 
 ---
 
@@ -295,6 +296,110 @@ Equipe 4: DEVOPS-008B, DEVOPS-009B, DEVOPS-010, DEVOPS-017, DEVOPS-018
 
 ---
 
+## Atualizacao do PROGRESS.md (Para Agentes)
+
+O arquivo `PROGRESS.md` e o ponto central de acompanhamento do projeto. **Todo agente que trabalhar em uma task DEVE atualizar este arquivo.**
+
+### Quando Atualizar
+
+| Momento | Acao |
+|---------|------|
+| Iniciar task | Mudar status para `🔄 IN_PROGRESS` |
+| Enviar para review | Mudar status para `👀 REVIEW` |
+| Iniciar testes | Mudar status para `🧪 ACCEPTANCE_TESTING` |
+| Bug encontrado | Mudar status para `🐛 BLOCKED_BY_BUG` |
+| Aprovado para prod | Mudar status para `✅ READY_TO_PROD` |
+| Concluir task | Mudar status para `✔️ DONE` |
+
+### Secoes a Atualizar
+
+#### 1. Resumo Executivo (Topo do arquivo)
+```markdown
+| Metrica | Valor |
+|---------|-------|
+| **Total de Tasks** | 66 |
+| **Concluidas (DONE)** | X |      <-- Incrementar quando DONE
+| **Em Progresso** | Y |            <-- Ajustar conforme status
+| **Pendentes (TODO)** | Z |        <-- Decrementar quando sair de TODO
+| **Progresso Geral** | X.X% |      <-- Calcular: (DONE / Total) * 100
+```
+
+#### 2. Tabela do Sprint Correspondente
+Localizar a task na tabela do sprint e atualizar o status:
+```markdown
+| DEVOPS-003 | DevOps | Repositorio GitHub | ✔️ DONE | Claude |
+```
+
+**Icones de Status:**
+- `⬜ TODO`
+- `🔄 IN_PROGRESS`
+- `👀 REVIEW`
+- `🧪 ACCEPTANCE_TESTING`
+- `🐛 BLOCKED_BY_BUG`
+- `✅ READY_TO_PROD`
+- `✔️ DONE`
+
+#### 3. Progresso do Sprint
+Atualizar o contador no inicio da secao do sprint:
+```markdown
+**Progresso:** 1/14 (7%)   <-- Incrementar quando task for DONE
+```
+
+#### 4. Progresso por Area
+Atualizar a tabela de progresso por area (DevOps, Database, Backend, Frontend):
+```markdown
+| Area | Total | Done | Em Progresso | Pendente | % |
+|------|-------|------|--------------|----------|---|
+| DevOps | 20 | 1 | 0 | 19 | 5% |
+```
+
+#### 5. Historico de Atualizacoes
+Adicionar entrada no topo da tabela:
+```markdown
+| Data | Descricao |
+|------|-----------|
+| DD/MM/YYYY | TASK-ID concluida - Descricao breve |
+```
+
+### Arquivos a Atualizar (Sempre em Par)
+
+Ao mudar status de uma task, atualizar **AMBOS** os arquivos:
+
+1. **`tasks/PROGRESS.md`** - Visao consolidada
+2. **`tasks/tasks_<area>.md`** - Arquivo detalhado da area (devops, database, backend, frontend)
+
+### Exemplo Completo de Atualizacao
+
+Ao marcar `DEVOPS-004` como `IN_PROGRESS`:
+
+**1. Em `tasks/tasks_devops.md`:**
+```markdown
+| DEVOPS-004 | GitHub Actions - CI | IN_PROGRESS | Claude |
+```
+
+**2. Em `tasks/PROGRESS.md`:**
+- Resumo Executivo: `Em Progresso: 0 -> 1`
+- Sprint 0: `| DEVOPS-004 | DevOps | GitHub Actions - CI | 🔄 IN_PROGRESS | Claude |`
+
+### Commits de Atualizacao
+
+Ao atualizar status, usar formato:
+```
+docs: Update TASK-ID status to STATUS
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+```
+
+### Branch Protection
+
+Se a branch `main` estiver protegida:
+1. Criar branch: `docs/task-id-status`
+2. Fazer commit
+3. Criar PR
+4. Merge (ou solicitar review se necessario)
+
+---
+
 ## Fluxo de Desenvolvimento
 
 > **Documentacao completa:** [GitFlow - Fluxo de Trabalho](/docs/GITFLOW.md)
@@ -501,4 +606,4 @@ Antes de iniciar algumas tarefas, seria util clarificar:
 
 ---
 
-*Documentacao atualizada em 22/12/2025 - Versao 1.4 (BLOCKED_BY_BUG state + tasks_bugfixes.md)*
+*Documentacao atualizada em 26/12/2025 - Versao 1.5 (Instrucoes para atualizacao do PROGRESS.md)*
