@@ -1,0 +1,129 @@
+# =============================================================================
+# BTC Grid Bot - Docker Compose for Stage Environment
+# =============================================================================
+#
+# Ambiente de Stage para testes e validacao antes de producao.
+# IMPORTANTE: Usar apenas credenciais DEMO/VST neste ambiente.
+#
+# Uso:
+#   docker-compose -f docker-compose.stage.yml up -d
+#
+# Para parar:
+#   docker-compose -f docker-compose.stage.yml down
+#
+# Variaveis de ambiente:
+#   - Copie .env.stage.example para .env.stage e configure suas credenciais
+#   - No homeserver: /opt/btcbot/.env.stage
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Bot Service - BTC Grid Trading Bot (Stage)
+  # ---------------------------------------------------------------------------
+  # Servico principal do bot, configurado para ambiente de Stage.
+  # - Usa imagem btcbot:stage do Docker Hub
+  # - TRADING_MODE=demo (obrigatorio para Stage)
+  # - Watchtower habilitado para auto-update apos merge em main
+  # ---------------------------------------------------------------------------
+  bot-stage:
+    image: docker.io/${DOCKER_USERNAME}/btcbot:stage
+    container_name: btcbot-stage
+    restart: unless-stopped
+
+    # Porta externa 3001 mapeada para 8080 interna (healthcheck)
+    ports:
+      - "3001:8080"
+
+    # Labels para Watchtower - auto-update habilitado
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+    # Healthcheck para Docker, Portainer e Watchtower
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Volumes
+    volumes:
+      # Logs persistidos no host
+      - ./logs-stage:/app/logs
+
+    # Variaveis de ambiente
+    environment:
+      # OBRIGATORIO: Stage sempre usa demo mode
+      - TRADING_MODE=demo
+      # URL de conexao com PostgreSQL
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres-stage:5432/${POSTGRES_DB}
+
+    # Arquivo de ambiente com credenciais
+    env_file:
+      - .env.stage
+
+    # Network isolada para Stage
+    networks:
+      - btcbot-stage-network
+
+    # Aguardar PostgreSQL estar healthy antes de iniciar
+    depends_on:
+      postgres-stage:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Service (Stage)
+  # ---------------------------------------------------------------------------
+  # Banco de dados PostgreSQL para ambiente de Stage.
+  # - Volume persistente para dados
+  # - Watchtower DESABILITADO (nunca auto-update banco de dados)
+  # ---------------------------------------------------------------------------
+  postgres-stage:
+    image: postgres:15
+    container_name: btcbot-postgres-stage
+    restart: unless-stopped
+
+    # Labels para Watchtower - auto-update DESABILITADO
+    # Nunca atualizar automaticamente banco de dados
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+
+    # Healthcheck para garantir que o banco esta pronto
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-btcbot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Volume persistente para dados do banco
+    volumes:
+      - pgdata-stage:/var/lib/postgresql/data
+
+    # Configuracao do PostgreSQL
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-btcbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-btcbot_stage}
+
+    # Network isolada para Stage
+    networks:
+      - btcbot-stage-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # Network bridge isolada para ambiente Stage
+  # Separada da network de producao para evitar conflitos
+  btcbot-stage-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # Volume persistente para dados do PostgreSQL Stage
+  # Dados sao mantidos mesmo apos docker-compose down
+  pgdata-stage:
+    driver: local
