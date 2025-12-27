@@ -1,14 +1,15 @@
 # GitFlow - BTC Grid Bot
 
 **Data:** 26 de Dezembro de 2025
-**Versao:** 1.6
+**Versao:** 1.7
 
 ---
 
 ## Sumario
 
 1. [Visao Geral](#visao-geral)
-2. [Ambientes](#ambientes)
+2. [GitHub Projects](#github-projects)
+3. [Ambientes](#ambientes)
 3. [Diagrama do Fluxo](#diagrama-do-fluxo)
 4. [Estados das Tasks](#estados-das-tasks)
 5. [Fluxo Detalhado](#fluxo-detalhado)
@@ -33,6 +34,68 @@ Este documento define o fluxo de trabalho GitFlow para o projeto BTC Grid Bot. O
 - **Dois ambientes:** Stage (demo) e Production (live)
 - **Deploy automatico para Stage:** Via CD Stage + Watchtower
 - **Deploy manual para Production:** Via CD Prod + Watchtower
+
+---
+
+## GitHub Projects
+
+> **Board Principal:** https://github.com/users/diogolacerda/projects/2
+
+O GitHub Projects e a **fonte da verdade** para o status das tasks. Todos os agentes devem:
+
+### Ao Pegar uma Task
+
+1. **Ler a descricao no GitHub Projects** - A descricao completa da task (criterios de aceite, arquivos a modificar, etc) esta no body do item
+2. **Atualizar status para "In Progress"** no GitHub Projects
+3. Seguir os criterios de aceite definidos na descricao
+
+### Ao Concluir uma Task
+
+1. **Atualizar status para "Done"** no GitHub Projects (ou status apropriado)
+
+> **Nota:** Os arquivos `.md` em `/tasks/` servem apenas como **fonte de importacao** para o GitHub Projects.
+> Nao e mais necessario atualiza-los manualmente. O GitHub Projects e a unica fonte de verdade.
+
+### Comandos Uteis
+
+```bash
+# Listar tasks do projeto
+gh project item-list 2 --owner diogolacerda --limit 100
+
+# Ver detalhes de uma task (obter Draft ID primeiro)
+gh api graphql -f query='
+query {
+  node(id: "PVT_kwHOABvENc4BLYiG") {
+    ... on ProjectV2 {
+      items(first: 100) {
+        nodes {
+          content {
+            ... on DraftIssue {
+              id
+              title
+              body
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+
+# Atualizar status de uma task
+# Status IDs: Todo=f75ad846, In Progress=47fc9ee4, Done=98236657
+gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
+  --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id <STATUS_ID>
+```
+
+### Campos do Projeto
+
+| Campo | ID | Opcoes |
+|-------|-----|--------|
+| Status | `PVTSSF_lAHOABvENc4BLYiGzg6-Uo8` | Todo (`f75ad846`), In Progress (`47fc9ee4`), Done (`98236657`) |
+| Area | `PVTSSF_lAHOABvENc4BLYiGzg6-UrM` | DevOps, Backend, Database, Frontend, Docs |
+| Sprint | `PVTSSF_lAHOABvENc4BLYiGzg6-Usg` | Sprint 0-3, Backlog |
+| Priority | `PVTSSF_lAHOABvENc4BLYiGzg6-Usk` | Critical, High, Medium, Low |
 
 ---
 
@@ -255,37 +318,61 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 
 ## Fluxo Detalhado
 
-> **IMPORTANTE - Responsabilidade de Atualizacao:**
-> O agente/dev que **pega a task** e responsavel por atualizar o `PROGRESS.md` e `tasks_<area>.md` em **todas as transicoes de status**:
-> - `TODO` → `IN_PROGRESS` (ao iniciar)
-> - `IN_PROGRESS` → `ACCEPTANCE_TESTING` (apos merge)
-> - E assim por diante ate `DONE`
+> **IMPORTANTE - GitHub Projects e a Fonte da Verdade:**
+> O agente/dev que **pega a task** e responsavel por:
+> 1. **Ler a descricao da task no GitHub Projects** (criterios de aceite, arquivos, etc)
+> 2. **Atualizar o status no GitHub Projects** em todas as transicoes
+>
+> Os arquivos `.md` em `/tasks/` NAO devem mais ser atualizados. Servem apenas para importacao inicial.
 
 ### 1. Inicio do Desenvolvimento
 
 **Acoes:**
-1. Dev/Agente seleciona uma task em `TODO`
-2. **OBRIGATORIO:** Atualiza status para `IN_PROGRESS` em:
-   - `tasks/PROGRESS.md` (visao consolidada)
-   - `tasks/tasks_<area>.md` (arquivo da area)
-3. Cria branch a partir de `main`:
+1. Dev/Agente seleciona uma task em `TODO` no GitHub Projects
+2. **OBRIGATORIO:** Le a descricao completa da task no GitHub Projects:
+   ```bash
+   # Buscar descricao da task (exemplo para BE-021)
+   gh api graphql -f query='
+   query {
+     node(id: "PVT_kwHOABvENc4BLYiG") {
+       ... on ProjectV2 {
+         items(first: 100) {
+           nodes {
+             content {
+               ... on DraftIssue {
+                 title
+                 body
+               }
+             }
+           }
+         }
+       }
+     }
+   }' | grep -A 100 "BE-021"
+   ```
+3. **OBRIGATORIO:** Atualiza status para `In Progress` no GitHub Projects:
+   ```bash
+   gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
+     --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id 47fc9ee4
+   ```
+4. Cria branch a partir de `main`:
    ```bash
    git checkout main
    git pull origin main
    git checkout -b feature/BE-001-implementar-trade-repository
    ```
-4. Inicia o desenvolvimento
+5. Inicia o desenvolvimento seguindo os **criterios de aceite** da descricao
 
 **Regras:**
-- Cada dev/agente deve ter no maximo 1 task em `IN_PROGRESS`
+- Cada dev/agente deve ter no maximo 1 task em `In Progress`
 - Branch deve seguir a convencao de nomenclatura
 - Commits devem ser atomicos e descritivos
-- **O agente que pega a task e responsavel por atualizar o PROGRESS.md**
+- **Seguir os criterios de aceite definidos na descricao do GitHub Projects**
 
 ### 2. Desenvolvimento Concluido e Merge
 
 **Acoes:**
-1. Dev/Agente finaliza a implementacao
+1. Dev/Agente finaliza a implementacao (seguindo criterios de aceite do GitHub Projects)
 2. Garante que todos os testes passam localmente:
    ```bash
    pytest
@@ -299,15 +386,13 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 4. Abre PR para `main` usando o template apropriado
 5. Verifica que todos os checks de CI passaram
 6. Faz merge do PR para `main`
-7. **OBRIGATORIO:** Atualiza status para `ACCEPTANCE_TESTING` em:
-   - `tasks/PROGRESS.md`
-   - `tasks/tasks_<area>.md`
+7. **OBRIGATORIO:** Atualiza status no GitHub Projects (CD Stage e automatico apos merge)
 
 **Regras:**
 - PR deve ter descricao clara do que foi feito
 - Todos os checks de CI devem passar antes do merge
 - PR deve referenciar a task (ex: `Closes #123` ou `Ref: BE-001`)
-- **O mesmo agente que iniciou a task atualiza o status**
+- **O mesmo agente que iniciou a task atualiza o status no GitHub Projects**
 - Merge pode ser feito diretamente apos CI passar
 
 ### 3. Deploy para Stage
@@ -939,4 +1024,4 @@ Rollback imediato se:
 
 ---
 
-*Documento atualizado em 26/12/2025 - Versao 1.6 (Removido step de review para economizar tokens)*
+*Documento atualizado em 26/12/2025 - Versao 1.7 (Adicionado GitHub Projects como fonte da verdade)*
