@@ -1,7 +1,7 @@
 # GitFlow - BTC Grid Bot
 
-**Data:** 26 de Dezembro de 2025
-**Versao:** 1.7
+**Data:** 27 de Dezembro de 2025
+**Versao:** 1.8
 
 ---
 
@@ -92,7 +92,7 @@ gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
 
 | Campo | ID | Opcoes |
 |-------|-----|--------|
-| Status | `PVTSSF_lAHOABvENc4BLYiGzg6-Uo8` | Todo (`f75ad846`), In Progress (`47fc9ee4`), Done (`98236657`) |
+| Status | `PVTSSF_lAHOABvENc4BLYiGzg6-Uo8` | Todo (`69ea4564`), In Progress (`1609e48b`), Acceptance Testing (`d9f2871e`), Done (`fab1b20b`) |
 | Area | `PVTSSF_lAHOABvENc4BLYiGzg6-UrM` | DevOps, Backend, Database, Frontend, Docs |
 | Sprint | `PVTSSF_lAHOABvENc4BLYiGzg6-Usg` | Sprint 0-3, Backlog |
 | Priority | `PVTSSF_lAHOABvENc4BLYiGzg6-Usk` | Critical, High, Medium, Low |
@@ -142,42 +142,37 @@ gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
          | CD Stage automatico -> btcbot:stage
          v
 +------------------+
-|ACCEPTANCE_TESTING|                    +--------------------+
-|                  |                    |                    |
-|  - Testes Stage  |     Bug?           | tasks_bugfixes.md  |
-|  - Validacao     +-------------------->                    |
-|  - port 3001     |     Tester cria    |  Nova task BUG-X   |
-+--------+---------+     task de bugfix +--------+-----------+
-         |                                       |
-         |                              +--------v-----------+
-         |                              |  BLOCKED_BY_BUG    |
-         |                              |  (task original)   |
-         |                              +--------+-----------+
-         |                                       |
-         | Sem bugs                              | Dev corrige bugfix
-         |                                       | (mesmo fluxo)
-         |                                       |
-         |                              +--------v-----------+
-         |                              | Bugfix DONE        |
-         |                              | Task DESBLOQUEADA  |
-         |                              +--------+-----------+
-         |                                       |
-         |<--------------------------------------+
-         |       Tester retesta task original
-         v
-+------------------+
-|  READY_TO_PROD   |
+|ACCEPTANCE_TESTING|
 |                  |
-|  - CD Prod manual|
-|  - retag -> latest
+|  - Testes Stage  |
+|  - Validacao     |
+|  - port 3001     |
 +--------+---------+
          |
-         | Deploy Production concluido
-         | Watchtower atualiza btcbot-prod
+         +------------------+
+         |                  |
+         | Bug?             | Sem bugs
+         v                  v
++------------------+  +------------------+
+| Task fica em     |  |       DONE       |
+| ACCEPTANCE_TESTING|  +------------------+
+|                  |
+| Tester:          |
+| 1. Comenta task  |
+| 2. Cria Issue    |
++--------+---------+
+         |
+         | Dev corrige
+         | (branch do Issue)
          v
 +------------------+
-|       DONE       |
-+------------------+
+| PR merged        |
+| CD Stage auto    |
++--------+---------+
+         |
+         | Tester retesta
+         v
+   OK? ------> DONE
 ```
 
 ### Fluxo em Mermaid
@@ -187,18 +182,17 @@ stateDiagram-v2
     [*] --> TODO
     TODO --> IN_PROGRESS: Dev pega task
     IN_PROGRESS --> ACCEPTANCE_TESTING: PR mergeado (CD Stage auto)
-    ACCEPTANCE_TESTING --> READY_TO_PROD: Testes OK
-    ACCEPTANCE_TESTING --> BLOCKED_BY_BUG: Bug encontrado
-    BLOCKED_BY_BUG --> ACCEPTANCE_TESTING: Bugfix resolvido
-    READY_TO_PROD --> DONE: CD Prod manual + deploy
+    ACCEPTANCE_TESTING --> DONE: Testes OK
+    ACCEPTANCE_TESTING --> ACCEPTANCE_TESTING: Bug encontrado (Issue criada, task fica aqui)
     DONE --> [*]
 
-    state BLOCKED_BY_BUG {
-        [*] --> BugfixCreated: Tester cria BUG-XXX
-        BugfixCreated --> BugfixInProgress: Dev corrige
-        BugfixInProgress --> BugfixDone: PR mergeado
-        BugfixDone --> [*]: Task desbloqueada
-    }
+    note right of ACCEPTANCE_TESTING
+        Bug Flow:
+        1. Tester comenta na task
+        2. Tester cria GitHub Issue
+        3. Dev corrige via PR
+        4. Tester retesta
+    end note
 ```
 
 ### Fluxo de Branches
@@ -247,23 +241,22 @@ main ─────────────────────────
               |                             |
               v                             v
      +------------------+          +------------------+
-     | OK - Aprovado    |          | Bug Encontrado   |
-     +--------+---------+          +--------+---------+
-              |                             |
-              v                             v
-     +------------------+          +------------------+
-     | CD Prod (manual) |          | Tester cria task |
-     | workflow_dispatch|          | em tasks_bugfix  |
-     | Retag stage ->   |          +--------+---------+
-     | latest           |                   |
-     +--------+---------+                   v
-              |                    +------------------+
-              v                    | Dev corrige      |
-     +------------------+          | (PR)             |
-     | Watchtower Prod  |          +--------+---------+
-     | Auto-update      |                   |
-     | port 3000        |                   v
-     +------------------+          Volta para Acceptance
+     | OK - DONE        |          | Bug Encontrado   |
+     +------------------+          +--------+---------+
+                                            |
+                                            v
+                                   +------------------+
+                                   | Tester comenta   |
+                                   | e/ou cria Issue  |
+                                   +--------+---------+
+                                            |
+                                            v
+                                   +------------------+
+                                   | Dev corrige (PR) |
+                                   +--------+---------+
+                                            |
+                                            v
+                                   Volta para Acceptance
 ```
 
 ---
@@ -276,42 +269,37 @@ main ─────────────────────────
 |--------|-----------|-------------|----------|
 | `TODO` | Task disponivel para ser iniciada | - | - |
 | `IN_PROGRESS` | Desenvolvimento em andamento | Dev | Local |
-| `ACCEPTANCE_TESTING` | Em testes no ambiente Stage | Tester | Stage (:3001) |
-| `BLOCKED_BY_BUG` | Aguardando correcao de bug(s) | Dev | Stage (:3001) |
-| `READY_TO_PROD` | Aprovado, aguardando deploy producao | Dev | - |
-| `DONE` | Concluido e em producao | - | Production (:3000) |
+| `ACCEPTANCE_TESTING` | Em testes no ambiente Stage (inclui correcao de bugs) | Tester/Dev | Stage (:3001) |
+| `DONE` | Concluido e validado em Stage | - | Stage (:3001) |
 
-### Estado BLOCKED_BY_BUG
+### Estado ACCEPTANCE_TESTING
 
-Este e um estado especial que indica que a task original esta **bloqueada** ate que todos os bugfixes relacionados sejam resolvidos.
+Este estado cobre todo o ciclo de testes, incluindo correcoes de bugs:
 
-**Quando uma task entra em BLOCKED_BY_BUG:**
-- Tester encontrou bug durante Acceptance Testing
-- Tester criou task de bugfix em `/tasks/tasks_bugfixes.md`
-- Task original NAO pode avancar para READY_TO_PROD
+**Task entra em ACCEPTANCE_TESTING quando:**
+- PR foi mergeado em main
+- CD Stage fez deploy automatico da nova imagem
 
-**Quando uma task sai de BLOCKED_BY_BUG:**
-- TODOS os bugfixes relacionados foram resolvidos (status DONE)
-- Task volta para ACCEPTANCE_TESTING
-- Tester retesta a task original
-- Se OK, task avanca para READY_TO_PROD
+**Task permanece em ACCEPTANCE_TESTING enquanto:**
+- Tester esta validando a funcionalidade
+- Bugs estao sendo corrigidos (Issues criadas, mas task nao muda de status)
+- Dev esta trabalhando em correcoes
+
+**Task sai de ACCEPTANCE_TESTING para DONE quando:**
+- Todos os criterios de aceite foram validados
+- Nenhum bug pendente
 
 ### Transicoes Permitidas
 
 ```
-TODO ──────────────> IN_PROGRESS
+TODO ──────────────> IN_PROGRESS (Dev pega task)
 IN_PROGRESS ───────> ACCEPTANCE_TESTING (PR mergeado -> CD Stage)
-ACCEPTANCE_TESTING ─> READY_TO_PROD (testes OK, sem bugs)
-ACCEPTANCE_TESTING ─> BLOCKED_BY_BUG (bug encontrado -> criar em tasks_bugfixes.md)
-BLOCKED_BY_BUG ────> ACCEPTANCE_TESTING (todos bugfixes resolvidos)
-READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
+ACCEPTANCE_TESTING ─> DONE (testes OK, sem bugs pendentes)
 ```
 
 ### Transicoes NAO Permitidas
 
 - `DONE` -> qualquer estado (task finalizada)
-- `BLOCKED_BY_BUG` -> `READY_TO_PROD` (deve passar por ACCEPTANCE_TESTING)
-- `BLOCKED_BY_BUG` -> `DONE` (deve passar por ACCEPTANCE_TESTING e READY_TO_PROD)
 - Pular estados (ex: IN_PROGRESS -> DONE)
 
 ---
@@ -415,52 +403,33 @@ READY_TO_PROD ─────> DONE (CD Prod manual + deploy)
 
 **Acoes do Tester:**
 1. Acessa ambiente Stage (porta 3001)
-2. Usa descricao da task para saber o que testar
+2. Usa descricao da task no GitHub Projects para saber o que testar
 3. Executa testes manuais e/ou automatizados
 4. Documenta resultados
 
 **Se bugs forem encontrados:**
-1. Tester cria nova task de bugfix em `/tasks/tasks_bugfixes.md`
-2. Usa o template de bugfix do arquivo
-3. Referencia a task original
-4. **IMPORTANTE:** Tester move a task original para `BLOCKED_BY_BUG`
-5. Dev pega a task de bugfix e segue o mesmo fluxo (branch -> PR -> merge)
-6. Apos merge do bugfix, Tester retesta em Stage
-7. Se bugfix OK: move bugfix para DONE
-8. Se todos bugfixes resolvidos: task original volta para `ACCEPTANCE_TESTING`
-9. Tester retesta task original
+
+A task **permanece em ACCEPTANCE_TESTING** enquanto bugs sao corrigidos.
+
+1. **Comentar na task** (rapido): Adiciona comentario descrevendo o bug
+2. **Criar GitHub Issue** (detalhado): Para bugs criticos ou complexos
+   - Titulo: `[BUG] <descricao curta>`
+   - Usar template de bug (ver secao Processo de Bugfix)
+   - Referenciar a task original
+   - Adicionar Issue ao GitHub Projects manualmente
+3. Dev cria branch a partir da Issue: `bugfix/<issue-number>-<descricao>`
+4. Dev corrige e abre PR com `Fixes #<issue-number>` no corpo (fecha Issue automaticamente no merge)
+5. Apos merge, CD Stage faz deploy automatico
+6. Tester retesta a task original
+7. Se OK: move task para `DONE` (Issues ja foram fechadas pelo PR)
 
 **Se nenhum bug for encontrado:**
-1. Tester move task para `READY_TO_PROD`
+1. Tester move task para `DONE`
 
 **Regras:**
-- Todos os criterios de aceite devem ser verificados
-- Bugs devem ser documentados em `/tasks/tasks_bugfixes.md`
-- Task original fica BLOQUEADA ate todos os bugfixes serem resolvidos
-
-### 5. Ready to Production
-
-**Acoes:**
-1. Dev executa o workflow CD Prod manualmente:
-   ```
-   GitHub Actions -> CD Production -> Run workflow
-   - stage_sha: (deixar vazio para usar stage:latest)
-   - confirm: DEPLOY
-   ```
-2. CD Prod faz retag da imagem:
-   - Pull `btcbot:stage`
-   - Retag para `btcbot:latest`
-   - Push `btcbot:latest`
-3. Watchtower Prod detecta nova imagem
-4. Container btcbot-prod e atualizado
-5. Dev verifica healthcheck em producao (porta 3000)
-6. Move task para `DONE`
-
-**Regras:**
-- Deploy para producao deve ser feito em horario apropriado
-- Verificar que nao ha outras tasks em READY_TO_PROD conflitantes
-- Comunicar time sobre deploy
-- Validar que o bot esta funcionando corretamente
+- Task **nunca** muda de status por causa de bugs (fica em ACCEPTANCE_TESTING)
+- Todos os criterios de aceite devem ser verificados antes de mover para DONE
+- Bugs sao rastreados via GitHub Issues, nao via mudanca de status
 
 ---
 
@@ -539,66 +508,111 @@ Tester aprova em Stage
 
 ### Quando o Tester Encontra um Bug
 
-1. **Documentar o Bug:**
-   - Criar nova task em `/tasks/tasks_bugfixes.md`
-   - Usar o template do arquivo
-   - Incluir: descricao, passos para reproduzir, evidencias, severidade
+O fluxo de bugs e **simples**: a task original permanece em ACCEPTANCE_TESTING e bugs sao rastreados via GitHub Issues.
 
-2. **Bloquear Task Original:**
-   - Mover task original para `BLOCKED_BY_BUG`
-   - Referenciar o BUG-XXX na task original
+1. **Reportar o Bug:**
+   - **Rapido:** Comentar na task do GitHub Projects descrevendo o bug
+   - **Detalhado:** Criar GitHub Issue para bugs criticos ou complexos
 
-3. **Formato do ID:** `BUG-XXX` (ex: BUG-001, BUG-002)
+2. **Task Original NAO Muda de Status:**
+   - Task permanece em `ACCEPTANCE_TESTING`
+   - Bug e rastreado via Issue, nao via mudanca de status
 
-4. **Severidade:**
-   - **Critica:** Sistema inutilizavel, perda de dados, afeta trading
-   - **Alta:** Funcionalidade principal nao funciona
-   - **Media:** Funcionalidade secundaria com problemas
-   - **Baixa:** Problema estetico ou menor
+3. **Severidade (para Issues):**
+   - **Critical:** Sistema inutilizavel, perda de dados, afeta trading
+   - **High:** Funcionalidade principal nao funciona
+   - **Medium:** Funcionalidade secundaria com problemas
+   - **Low:** Problema estetico ou menor
+
+### Template de Issue para Bugs
+
+```markdown
+## [BUG] Titulo descritivo
+
+### Task Relacionada
+- Task: TASK-ID (ex: BE-001)
+- Link: [Link para task no GitHub Projects]
+
+### Descricao
+O que acontece de errado.
+
+### Passos para Reproduzir
+1. Passo 1
+2. Passo 2
+3. Bug aparece
+
+### Comportamento Esperado
+O que deveria acontecer.
+
+### Comportamento Atual
+O que acontece de fato.
+
+### Evidencias
+Screenshots, logs, etc.
+
+### Severidade
+- [ ] Critical
+- [ ] High
+- [ ] Medium
+- [ ] Low
+
+### Ambiente
+- Stage (porta 3001)
+- Versao da imagem: btcbot:stage
+```
 
 ### Fluxo do Bugfix
 
 ```
-1. Tester cria BUG-001 em tasks_bugfixes.md
-2. Tester move task original para BLOCKED_BY_BUG
-3. Dev move BUG-001 para IN_PROGRESS
-4. Dev cria branch: bugfix/BUG-001-fix-pnl-calculation
-5. Dev corrige e abre PR
-6. Merge (apos CI passar) -> CD Stage automatico
-7. Tester retesta bugfix em Stage
-8. Se OK: BUG-001 vai para DONE
-9. Se todos bugfixes resolvidos: task original volta para ACCEPTANCE_TESTING
-10. Tester retesta task original
-11. Se OK: task original vai para READY_TO_PROD
+1. Tester encontra bug durante ACCEPTANCE_TESTING
+2. Tester comenta na task (rapido) e/ou cria Issue (detalhado)
+3. Tester adiciona Issue ao GitHub Projects manualmente
+4. Dev cria branch: bugfix/<issue-number>-<descricao>
+5. Dev corrige e abre PR com "Fixes #123" no corpo
+6. Merge (apos CI passar) -> Issue fechada automaticamente -> CD Stage
+7. Tester retesta task original em Stage
+8. Se OK: task vai para DONE
+9. Se novo bug: repete do passo 2
 ```
 
-### Diagrama de Bloqueio
+> **Dica:** Usar `Fixes #123` ou `Closes #123` no PR fecha a Issue automaticamente no merge.
+
+### Diagrama de Bug Flow
 
 ```
-+------------------+     Bug encontrado     +------------------+
-|ACCEPTANCE_TESTING| ------------------->   |  BLOCKED_BY_BUG  |
-|   (task BE-001)  |                        |   (task BE-001)  |
-+------------------+                        +--------+---------+
-                                                     |
-                                                     | Aguarda bugfix
-                                                     v
-                                            +------------------+
-                                            | tasks_bugfixes.md|
-                                            |   BUG-001: ...   |
-                                            +--------+---------+
-                                                     |
-                                                     | Dev corrige
-                                                     v
-                                            +------------------+
-                                            | BUG-001 DONE     |
-                                            +--------+---------+
-                                                     |
-                                                     | Todos bugs resolvidos
-                                                     v
-+------------------+     Tester retesta     +------------------+
-|  READY_TO_PROD   | <-------------------   |ACCEPTANCE_TESTING|
-|   (task BE-001)  |      Task OK           |   (task BE-001)  |
-+------------------+                        +------------------+
++------------------------+
+|  ACCEPTANCE_TESTING    |
+|  (task BE-001)         |
++----------+-------------+
+           |
+           | Bug encontrado
+           v
++------------------------+     +------------------------+
+| 1. Comentar na task    |---->| 2. Criar GitHub Issue  |
+| (sempre)               |     | (bugs criticos)        |
++------------------------+     +----------+-------------+
+                                          |
+                                          | Adiciona ao Project
+                                          v
+                               +------------------------+
+                               | Dev cria branch:       |
+                               | bugfix/123-fix-bug     |
+                               +----------+-------------+
+                                          |
+                                          | PR com "Fixes #123"
+                                          v
+                               +------------------------+
+                               | Merge                  |
+                               | -> Issue #123 FECHADA  |
+                               | -> CD Stage automatico |
+                               +----------+-------------+
+                                          |
+                                          | Tester retesta
+                                          v
++------------------------+     +------------------------+
+|        DONE            |<----| Task BE-001 OK?        |
+|  (task concluida)      |     |                        |
++------------------------+     +------------------------+
 ```
 
 ### Branch de Bugfix
@@ -606,19 +620,21 @@ Tester aprova em Stage
 ```bash
 git checkout main
 git pull origin main
-git checkout -b bugfix/BUG-001-fix-pnl-calculation
+git checkout -b bugfix/123-fix-pnl-calculation  # 123 = numero da Issue
 ```
 
-### Arquivo tasks_bugfixes.md
+### Adicionar Issue ao GitHub Projects
 
-Localizacao: `/tasks/tasks_bugfixes.md`
+```bash
+# 1. Criar Issue
+gh issue create --title "[BUG] Descricao" --body "..."
 
-Este arquivo contem:
-- Template para criar novos bugs
-- Lista de bugs ativos
-- Lista de bugs resolvidos
-- Estatisticas de bugs
-- SLA por severidade
+# 2. Adicionar ao Project (manual via GitHub UI ou via CLI)
+# Via UI: Abrir Issue -> Projects -> Add to project
+
+# Via CLI (se souber o issue number):
+gh project item-add 2 --owner diogolacerda --url https://github.com/diogolacerda/btcbot/issues/123
+```
 
 ---
 
@@ -695,19 +711,20 @@ chore(deps): atualizar asyncpg para 0.29.0
 |------|-------------------|
 | TODO | Selecionar task apropriada para suas habilidades |
 | IN_PROGRESS | Implementar seguindo padroes, escrever testes, documentar |
-| ACCEPTANCE_TESTING | Corrigir bugs encontrados (criar branch bugfix) |
-| READY_TO_PROD | Executar CD Prod, verificar producao |
+| ACCEPTANCE_TESTING | Corrigir bugs encontrados (criar branch bugfix a partir de Issues) |
 
 ### Tester (Testador)
 
 | Fase | Responsabilidades |
 |------|-------------------|
-| ACCEPTANCE_TESTING | Testar em Stage, **criar bugs em tasks_bugfixes.md**, **bloquear task original**, aprovar para prod |
+| ACCEPTANCE_TESTING | Testar em Stage, **comentar na task** e/ou **criar GitHub Issues**, aprovar para DONE |
 | Qualquer fase | Manter casos de teste atualizados |
 
 **IMPORTANTE:** Quando encontrar bugs, o Tester deve:
-1. Criar a task de bugfix em `/tasks/tasks_bugfixes.md`
-2. Mover a task original para `BLOCKED_BY_BUG`
+1. Comentar na task descrevendo o bug (sempre)
+2. Criar GitHub Issue para bugs criticos (quando necessario)
+3. Adicionar Issue ao GitHub Projects manualmente
+4. Task **NAO** muda de status - permanece em ACCEPTANCE_TESTING
 
 ---
 
@@ -875,9 +892,9 @@ A task so pode ir para `READY_TO_PROD` se:
 4. **Sem regressoes**
    - Funcionalidades existentes continuam funcionando
 
-### Acceptance Testing - Quando Reprovar
+### Acceptance Testing - Quando Reportar Bug
 
-Reprovar, **criar task de bugfix em tasks_bugfixes.md** e **bloquear task original** se:
+Reportar bug (comentar na task e/ou criar Issue) se:
 
 1. **Criterio de aceite nao atendido**
    - Funcionalidade incompleta
@@ -890,6 +907,8 @@ Reprovar, **criar task de bugfix em tasks_bugfixes.md** e **bloquear task origin
 3. **Bug critico**
    - Afeta outras funcionalidades
    - Experiencia do usuario comprometida
+
+**Lembrete:** A task permanece em ACCEPTANCE_TESTING. Nao ha status de "bloqueado".
 
 ---
 
@@ -1003,9 +1022,9 @@ Rollback imediato se:
    - Por que o bug nao foi pego em Stage?
    - O que pode ser melhorado?
 
-3. **Criar task de correcao**
-   - Criar em tasks_bugfixes.md
-   - Prioridade alta
+3. **Criar Issue de correcao**
+   - Criar GitHub Issue com label `Critical`
+   - Adicionar ao GitHub Projects
    - Incluir testes para prevenir regressao
 
 4. **Postmortem (se grave)**
@@ -1018,10 +1037,10 @@ Rollback imediato se:
 
 - [Convencional Commits](https://www.conventionalcommits.org/)
 - [GitHub Flow](https://docs.github.com/en/get-started/quickstart/github-flow)
+- [GitHub Projects Board](https://github.com/users/diogolacerda/projects/2)
 - [Documentacao de Tarefas](/tasks/README.md)
-- [Tasks de Bugfixes](/tasks/tasks_bugfixes.md)
 - [Tasks de DevOps](/tasks/tasks_devops.md)
 
 ---
 
-*Documento atualizado em 26/12/2025 - Versao 1.7 (Adicionado GitHub Projects como fonte da verdade)*
+*Documento atualizado em 27/12/2025 - Versao 1.8 (Fluxo simplificado: ACCEPTANCE_TESTING cobre bugs, GitHub Issues para rastreamento)*

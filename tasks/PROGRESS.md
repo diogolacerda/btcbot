@@ -1,6 +1,6 @@
 # Progresso Geral - BTC Grid Bot
 
-**Ultima Atualizacao:** 26 de Dezembro de 2025
+**Ultima Atualizacao:** 27 de Dezembro de 2025
 
 ---
 
@@ -33,10 +33,11 @@
 |--------|-------|-----------|
 | `TODO` | ⬜ | Nao iniciada |
 | `IN_PROGRESS` | 🔄 | Em desenvolvimento |
-| `ACCEPTANCE_TESTING` | 🧪 | Testando em Stage |
-| `BLOCKED_BY_BUG` | 🐛 | Bug encontrado no teste |
-| `READY_TO_PROD` | ✅ | Aprovado para producao |
-| `DONE` | ✔️ | Concluida e em producao |
+| `ACCEPTANCE_TESTING` | 🧪 | Testando em Stage (inclui correcao de bugs) |
+| `DONE` | ✔️ | Concluida e validada em Stage |
+
+> **Nota:** Tasks permanecem em ACCEPTANCE_TESTING enquanto bugs sao corrigidos.
+> Bugs sao rastreados via GitHub Issues, nao via mudanca de status.
 
 ---
 
@@ -193,11 +194,14 @@
 
 ## Bugs Ativos
 
-| Bug ID | Descricao | Severidade | Task Bloqueada | Status |
-|--------|-----------|------------|----------------|--------|
-| *Nenhum bug ativo* | - | - | - | - |
+Bugs sao rastreados via **GitHub Issues** com label `bug`.
 
-**Arquivo:** [tasks_bugfixes.md](tasks_bugfixes.md)
+```bash
+# Ver bugs ativos
+gh issue list --label bug --state open
+```
+
+> Ver: https://github.com/diogolacerda/btcbot/issues?q=is%3Aissue+is%3Aopen+label%3Abug
 
 ---
 
@@ -231,6 +235,7 @@
 
 | Data | Descricao |
 |------|-----------|
+| 27/12/2025 | **GitFlow simplificado** - Removidos status BLOCKED_BY_BUG e READY_TO_PROD. Bugs rastreados via GitHub Issues. |
 | 26/12/2025 | **GitHub Projects configurado** - Tasks migradas para https://github.com/users/diogolacerda/projects/2 |
 | 26/12/2025 | **DEVOPS-011 DONE** - Healthcheck endpoint implementado (aiohttp, /health, testes) |
 | 26/12/2025 | DEVOPS-007 em ACCEPTANCE_TESTING - PR #16 merged, aguardando secrets DEVOPS-006 |
@@ -261,7 +266,8 @@
 | [tasks_database.md](tasks_database.md) | PostgreSQL, Schema, Migrations | 11 |
 | [tasks_backend.md](tasks_backend.md) | Python, API, Indicadores | 20 |
 | [tasks_frontend.md](tasks_frontend.md) | Dashboard, UI, Interface Web | 15 |
-| [tasks_bugfixes.md](tasks_bugfixes.md) | Bugs encontrados em Stage | 0 |
+
+> **Bugs** sao rastreados via [GitHub Issues](https://github.com/diogolacerda/btcbot/issues?q=is%3Aissue+label%3Abug)
 
 ---
 
