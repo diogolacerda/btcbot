@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ['**']
-  # Removido pull_request para evitar duplicação de runs
-  # O push já cobre todos os casos (feature branches e main)
+    branches:
+      - '**'
+      - '!main'  # Exclui main - CI já passou no PR, só CD Stage é necessário
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
