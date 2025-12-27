@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from config import Config
 from src.client.bingx_client import BingXClient
 from src.client.websocket_client import BingXAccountWebSocket
+from src.filters.macd_filter import MACDFilter
+from src.filters.registry import FilterRegistry
 from src.grid.grid_calculator import GridCalculator, GridLevel
 from src.grid.order_tracker import OrderTracker
 from src.strategy.macd_strategy import GridState, MACDStrategy
@@ -57,6 +59,11 @@ class GridManager:
         self.strategy = MACDStrategy(config.macd)
         self.calculator = GridCalculator(config.grid)
         self.tracker = OrderTracker()
+
+        # Filter system
+        self._filter_registry = FilterRegistry()
+        self._macd_filter = MACDFilter(self.strategy)
+        self._filter_registry.register(self._macd_filter)
 
         self._current_state = GridState.WAIT
         self._current_price = 0.0
@@ -394,6 +401,9 @@ class GridManager:
 
             new_state = self.strategy.get_state(klines)
 
+            # Update MACD filter with current state
+            self._macd_filter.set_current_state(new_state)
+
             # Handle state change
             if new_state != self._current_state:
                 await self._handle_state_change(new_state)
@@ -422,7 +432,8 @@ class GridManager:
 
     async def _execute_state_actions(self) -> None:
         """Execute actions based on current state."""
-        if self.strategy.should_create_orders(self._current_state):
+        # Check if filters allow trade creation
+        if self._filter_registry.should_allow_trade():
             await self._create_grid_orders()
         elif self._current_state == GridState.INACTIVE:
             await self._cancel_all_pending()
@@ -458,6 +469,13 @@ class GridManager:
 
         if not levels:
             return
+
+        # Log if creating orders without active filters
+        filter_states = self._filter_registry.get_all_states()
+        if not filter_states.get("any_enabled", True):
+            orders_logger.info(
+                "Nenhum filtro ativo - criando ordens apenas com base no preço e MAX_ORDERS"
+            )
 
         # Create orders (with rate limiting)
         for level in levels[:10]:  # Max 10 orders per cycle
@@ -637,12 +655,10 @@ class GridManager:
         """
         Recreate an order after take profit is hit.
 
-        Only recreates if MACD state allows.
+        Only recreates if filters allow.
         """
-        if not self.strategy.should_create_orders(self._current_state):
-            main_logger.info(
-                f"Não recriando ordem em ${entry_price:,.2f} - estado: {self._current_state.value}"
-            )
+        if not self._filter_registry.should_allow_trade():
+            main_logger.info(f"Não recriando ordem em ${entry_price:,.2f} - filtros não permitem")
             return
 
         level = GridLevel(
