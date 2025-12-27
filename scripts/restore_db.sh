@@ -84,11 +84,15 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     exit 1
 fi
 
-# Load environment variables
+# Load environment variables (secure parsing - avoids arbitrary code execution)
 ENV_FILE="/opt/btcbot/.env.${ENV}"
 if [[ -f "$ENV_FILE" ]]; then
-    # shellcheck source=/dev/null
-    source "$ENV_FILE"
+    # [MEDIO] Secure parsing: only extract specific variables, no arbitrary code execution
+    POSTGRES_USER=$(grep -E "^POSTGRES_USER=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"' | tr -d "'")
+    POSTGRES_DB=$(grep -E "^POSTGRES_DB=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"' | tr -d "'")
+    # Use defaults if variables are empty
+    POSTGRES_USER="${POSTGRES_USER:-btcbot}"
+    POSTGRES_DB="${POSTGRES_DB:-btcbot_${ENV}}"
 else
     echo "Warning: Environment file $ENV_FILE not found, using defaults"
     POSTGRES_USER="btcbot"
