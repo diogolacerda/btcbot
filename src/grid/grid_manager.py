@@ -456,7 +456,36 @@ class GridManager:
         # Get existing orders from exchange
         exchange_orders = await self.client.get_open_orders(self.symbol)
 
-        # Calculate levels to create
+        # STEP 1: Cancel orders outside range FIRST
+        # This frees up slots for new orders in the same cycle
+        orders_to_cancel = self.calculator.get_orders_to_cancel(
+            self._current_price,
+            exchange_orders,
+        )
+        for order in orders_to_cancel:
+            try:
+                order_price = float(order.get("price", 0))
+                order_id = str(order["orderId"])
+                await self.client.cancel_order(self.symbol, order_id)
+
+                # Log cancellation reason based on mode
+                if self.calculator.anchor_mode.value != "none":
+                    orders_logger.info(
+                        f"Ordem cancelada (muito distante): ${order_price:,.2f} - ID: {order_id}"
+                    )
+                else:
+                    orders_logger.info(
+                        f"Ordem cancelada (fora do range): ${order_price:,.2f} - ID: {order_id}"
+                    )
+            except Exception as e:
+                orders_logger.error(f"Erro ao cancelar ordem: {e}")
+
+        # STEP 2: Refresh orders after cancellations
+        # This ensures get_levels_to_create() sees the freed-up slots
+        if orders_to_cancel:
+            exchange_orders = await self.client.get_open_orders(self.symbol)
+
+        # STEP 3: Calculate levels to create (now with freed-up slots)
         levels = self.calculator.get_levels_to_create(
             self._current_price,
             exchange_orders,
@@ -477,7 +506,7 @@ class GridManager:
                 "Nenhum filtro ativo - criando ordens apenas com base no preço e MAX_ORDERS"
             )
 
-        # Create orders (with rate limiting)
+        # STEP 4: Create orders (with rate limiting)
         for level in levels[:10]:  # Max 10 orders per cycle
             try:
                 await self._create_order(level)
@@ -507,29 +536,6 @@ class GridManager:
                     break
 
                 orders_logger.error(f"Erro ao criar ordem: {e}")
-
-        # Cancel orders outside range
-        orders_to_cancel = self.calculator.get_orders_to_cancel(
-            self._current_price,
-            exchange_orders,
-        )
-        for order in orders_to_cancel:
-            try:
-                order_price = float(order.get("price", 0))
-                order_id = str(order["orderId"])
-                await self.client.cancel_order(self.symbol, order_id)
-
-                # Log cancellation reason based on mode
-                if self.calculator.anchor_mode.value != "none":
-                    orders_logger.info(
-                        f"Ordem cancelada (muito distante): ${order_price:,.2f} - ID: {order_id}"
-                    )
-                else:
-                    orders_logger.info(
-                        f"Ordem cancelada (fora do range): ${order_price:,.2f} - ID: {order_id}"
-                    )
-            except Exception as e:
-                orders_logger.error(f"Erro ao cancelar ordem: {e}")
 
     async def _create_order(self, level: GridLevel) -> None:
         """Create a single grid order."""
