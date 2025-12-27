@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 
+from src.filters.registry import FilterRegistry
 from src.utils.logger import main_logger
 
 if TYPE_CHECKING:
@@ -71,6 +72,9 @@ class HealthServer:
         # Component check timeout in seconds
         self._check_timeout = 5.0
 
+        # Filter registry (singleton)
+        self._filter_registry = FilterRegistry()
+
     def set_grid_manager(self, grid_manager: GridManager) -> None:
         """Set the grid manager reference for status checks."""
         self._grid_manager = grid_manager
@@ -96,6 +100,10 @@ class HealthServer:
 
         self._app = web.Application()
         self._app.router.add_get("/health", self._handle_health)
+        self._app.router.add_get("/filters", self._handle_get_filters)
+        self._app.router.add_post("/filters/{filter_name}", self._handle_toggle_filter)
+        self._app.router.add_post("/filters/disable-all", self._handle_disable_all)
+        self._app.router.add_post("/filters/enable-all", self._handle_enable_all)
 
         self._runner = web.AppRunner(self._app, access_log=None)
         await self._runner.setup()
@@ -283,6 +291,146 @@ class HealthServer:
                 "state": "error",
                 "error": str(e),
             }
+
+    async def _handle_get_filters(self, request: web.Request) -> web.Response:
+        """
+        Handle GET /filters request.
+
+        Returns JSON with state of all filters.
+        """
+        main_logger.debug(f"GET /filters request from {request.remote}")
+
+        try:
+            states = self._filter_registry.get_all_states()
+            return web.json_response(states, status=200)
+
+        except Exception as e:
+            main_logger.error(f"Error getting filter states: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_toggle_filter(self, request: web.Request) -> web.Response:
+        """
+        Handle POST /filters/{filter_name} request.
+
+        Expects JSON body: {"enabled": true/false}
+        Toggles the specified filter on/off.
+        """
+        filter_name = request.match_info["filter_name"]
+        main_logger.debug(f"POST /filters/{filter_name} request from {request.remote}")
+
+        try:
+            # Parse request body
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response(
+                    {"error": 'Invalid JSON body. Expected: {"enabled": true/false}'},
+                    status=400,
+                )
+
+            if "enabled" not in data:
+                return web.json_response(
+                    {"error": "Missing 'enabled' field in request body"},
+                    status=400,
+                )
+
+            enabled = bool(data["enabled"])
+
+            # Check if filter exists
+            if not self._filter_registry.get_filter(filter_name):
+                return web.json_response(
+                    {"error": f"Filter '{filter_name}' not found"},
+                    status=404,
+                )
+
+            # Toggle filter
+            if enabled:
+                success = self._filter_registry.enable_filter(filter_name)
+            else:
+                success = self._filter_registry.disable_filter(filter_name)
+
+            if not success:
+                return web.json_response(
+                    {"error": f"Failed to update filter '{filter_name}'"},
+                    status=500,
+                )
+
+            # Get updated state
+            filter_instance = self._filter_registry.get_filter(filter_name)
+            state = filter_instance.get_state() if filter_instance else None
+
+            response = {
+                "filter": filter_name,
+                "enabled": enabled,
+                "message": f"Filter {filter_name} {'enabled' if enabled else 'disabled'}",
+            }
+
+            if state:
+                response["details"] = state.details
+
+            return web.json_response(response, status=200)
+
+        except Exception as e:
+            main_logger.error(f"Error toggling filter: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_disable_all(self, request: web.Request) -> web.Response:
+        """
+        Handle POST /filters/disable-all request.
+
+        Disables all registered filters.
+        """
+        main_logger.debug(f"POST /filters/disable-all request from {request.remote}")
+
+        try:
+            self._filter_registry.disable_all()
+
+            return web.json_response(
+                {
+                    "message": "All filters disabled",
+                    "filters": self._filter_registry.list_filters(),
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error disabling all filters: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_enable_all(self, request: web.Request) -> web.Response:
+        """
+        Handle POST /filters/enable-all request.
+
+        Enables all registered filters (restores default state).
+        """
+        main_logger.debug(f"POST /filters/enable-all request from {request.remote}")
+
+        try:
+            self._filter_registry.enable_all()
+
+            return web.json_response(
+                {
+                    "message": "All filters enabled",
+                    "filters": self._filter_registry.list_filters(),
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error enabling all filters: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
 
     @property
     def is_running(self) -> bool:
