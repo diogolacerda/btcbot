@@ -497,9 +497,21 @@ class GridManager:
         )
         for order in orders_to_cancel:
             try:
-                await self.client.cancel_order(self.symbol, str(order["orderId"]))
+                order_price = float(order.get("price", 0))
+                order_id = str(order["orderId"])
+                await self.client.cancel_order(self.symbol, order_id)
+
+                # Log cancellation reason based on mode
+                if self.calculator.anchor_mode.value != "none":
+                    orders_logger.info(
+                        f"Ordem cancelada (muito distante): ${order_price:,.2f} - ID: {order_id}"
+                    )
+                else:
+                    orders_logger.info(
+                        f"Ordem cancelada (fora do range): ${order_price:,.2f} - ID: {order_id}"
+                    )
             except Exception as e:
-                orders_logger.error(f"Erro ao cancelar ordem fora do range: {e}")
+                orders_logger.error(f"Erro ao cancelar ordem: {e}")
 
     async def _create_order(self, level: GridLevel) -> None:
         """Create a single grid order."""
@@ -533,7 +545,12 @@ class GridManager:
             if self._on_order_created:
                 self._on_order_created(level)
 
-            orders_logger.info(f"Ordem criada: {level}")
+            # Log with additional context for anchored mode
+            if self.calculator.anchor_mode.value != "none":
+                anchor_level = self.calculator.get_anchor_level(level.entry_price)
+                orders_logger.info(f"Ordem criada (nível ancorado ${anchor_level:,.0f}): {level}")
+            else:
+                orders_logger.info(f"Ordem criada: {level}")
 
     async def _cancel_all_pending(self) -> None:
         """Cancel all pending LIMIT orders (preserves TPs)."""

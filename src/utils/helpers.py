@@ -38,3 +38,30 @@ def format_pnl(pnl: float) -> str:
     """Format PnL with sign and color indicator."""
     sign = "+" if pnl >= 0 else ""
     return f"{sign}${pnl:.2f}"
+
+
+def anchor_price(price: float, anchor_value: float) -> float:
+    """
+    Round price to the nearest anchor value.
+
+    Used for grid anchoring to create orders at clean price levels.
+
+    Args:
+        price: Price to anchor
+        anchor_value: Anchor value (e.g., 100 for hundreds, 1000 for thousands)
+
+    Returns:
+        Price rounded down to nearest anchor value
+
+    Examples:
+        >>> anchor_price(88050, 100)
+        88000.0
+        >>> anchor_price(87932.5, 100)
+        87900.0
+        >>> anchor_price(88150, 100)
+        88100.0
+    """
+    if anchor_value <= 0:
+        return price
+
+    return float(int(price / anchor_value) * anchor_value)
