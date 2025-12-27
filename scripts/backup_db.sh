@@ -32,11 +32,16 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
     exit 1
 fi
 
-# Load environment variables
+# Load environment variables (secure parsing - avoids arbitrary code execution)
 ENV_FILE="/opt/btcbot/.env.${ENV}"
 if [[ -f "$ENV_FILE" ]]; then
-    # shellcheck source=/dev/null
-    source "$ENV_FILE"
+    # [MEDIO] Secure parsing: only extract specific variables, no arbitrary code execution
+    POSTGRES_USER=$(grep -E "^POSTGRES_USER=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"' | tr -d "'")
+    POSTGRES_DB=$(grep -E "^POSTGRES_DB=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"' | tr -d "'")
+    BACKUP_RETENTION=$(grep -E "^BACKUP_RETENTION=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2 | tr -d '"' | tr -d "'")
+    # Use defaults if variables are empty
+    POSTGRES_USER="${POSTGRES_USER:-btcbot}"
+    POSTGRES_DB="${POSTGRES_DB:-btcbot_${ENV}}"
 else
     echo "Warning: Environment file $ENV_FILE not found, using defaults"
     POSTGRES_USER="btcbot"
@@ -70,12 +75,13 @@ fi
 BACKUP_SIZE=$(ls -lh "$BACKUP_DIR/$BACKUP_FILE" | awk '{print $5}')
 echo "[$(date)] Backup created and validated: $BACKUP_FILE ($BACKUP_SIZE)"
 
-# Cleanup old backups (keep last 30)
+# [BAIXO] Cleanup old backups (configurable retention via BACKUP_RETENTION env var)
+RETENTION_COUNT="${BACKUP_RETENTION:-30}"
 BACKUP_COUNT=$(find "$BACKUP_DIR" -name "*.sql.gz" -type f 2>/dev/null | wc -l)
-if [[ "$BACKUP_COUNT" -gt 30 ]]; then
-    echo "[$(date)] Cleaning up old backups (keeping last 30)..."
-    ls -t "$BACKUP_DIR"/*.sql.gz 2>/dev/null | tail -n +31 | xargs -r rm -f
-    DELETED=$((BACKUP_COUNT - 30))
+if [[ "$BACKUP_COUNT" -gt "$RETENTION_COUNT" ]]; then
+    echo "[$(date)] Cleaning up old backups (keeping last $RETENTION_COUNT)..."
+    ls -t "$BACKUP_DIR"/*.sql.gz 2>/dev/null | tail -n +"$((RETENTION_COUNT + 1))" | xargs -r rm -f
+    DELETED=$((BACKUP_COUNT - RETENTION_COUNT))
     echo "[$(date)] Deleted $DELETED old backup(s)"
 fi
 
