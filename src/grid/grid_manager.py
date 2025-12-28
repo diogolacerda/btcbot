@@ -453,8 +453,19 @@ class GridManager:
         if time.time() < self._rate_limited_until:
             return  # Still rate limited
 
-        # Get existing orders from exchange
+        # Get existing orders AND positions from exchange
         exchange_orders = await self.client.get_open_orders(self.symbol)
+        positions = await self.client.get_positions(self.symbol)
+
+        # BUG-003 FIX: Build set of prices with open positions (filled orders awaiting TP)
+        # This prevents creating duplicate orders at same price before TP is hit
+        position_prices: set[float] = set()
+        for pos in positions:
+            avg_price = float(pos.get("avgPrice", 0))
+            position_amt = float(pos.get("positionAmt", 0))
+            if position_amt != 0 and avg_price > 0:
+                # Round to 2 decimals for comparison (same as round_price)
+                position_prices.add(round(avg_price, 2))
 
         # STEP 1: Cancel orders outside range FIRST
         # This frees up slots for new orders in the same cycle
@@ -491,9 +502,16 @@ class GridManager:
             exchange_orders,
         )
 
-        # Also check local tracker
+        # Also check local tracker AND open positions (BUG-003 FIX)
+        # This triple-check ensures no duplicates:
+        # 1. get_levels_to_create() already filters by exchange LIMIT orders
+        # 2. has_order_at_price() filters by local tracker (pending + filled)
+        # 3. position_prices filters by actual exchange positions
         levels = [
-            level for level in levels if not self.tracker.has_order_at_price(level.entry_price)
+            level
+            for level in levels
+            if not self.tracker.has_order_at_price(level.entry_price)
+            and round(level.entry_price, 2) not in position_prices
         ]
 
         if not levels:
