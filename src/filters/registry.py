@@ -41,6 +41,7 @@ class FilterRegistry:
 
         self._filters: dict[str, Filter] = {}
         self._initialized = True
+        self._on_filter_change_callback: Any | None = None
         main_logger.info("FilterRegistry initialized")
 
     def register(self, filter_instance: Filter) -> None:
@@ -73,6 +74,15 @@ class FilterRegistry:
         """
         return self._filters.get(name)
 
+    def set_on_filter_change_callback(self, callback: Any) -> None:
+        """
+        Set callback to be called when filter state changes.
+
+        Args:
+            callback: Callable to invoke on filter state change
+        """
+        self._on_filter_change_callback = callback
+
     def enable_filter(self, name: str) -> bool:
         """
         Enable a specific filter.
@@ -88,8 +98,14 @@ class FilterRegistry:
             main_logger.warning(f"Cannot enable unknown filter: {name}")
             return False
 
+        was_enabled = filter_instance.enabled
         filter_instance.enable()
         main_logger.info(f"Filter enabled: {name}")
+
+        # Trigger callback if state changed
+        if not was_enabled and self._on_filter_change_callback:
+            self._on_filter_change_callback(name, "enabled")
+
         return True
 
     def disable_filter(self, name: str) -> bool:
@@ -107,21 +123,41 @@ class FilterRegistry:
             main_logger.warning(f"Cannot disable unknown filter: {name}")
             return False
 
+        was_enabled = filter_instance.enabled
         filter_instance.disable()
         main_logger.info(f"Filter disabled: {name}")
+
+        # Trigger callback if state changed
+        if was_enabled and self._on_filter_change_callback:
+            self._on_filter_change_callback(name, "disabled")
+
         return True
 
     def enable_all(self) -> None:
         """Enable all registered filters."""
+        any_changed = False
         for filter_instance in self._filters.values():
+            if not filter_instance.enabled:
+                any_changed = True
             filter_instance.enable()
         main_logger.info("All filters enabled")
 
+        # Trigger callback if any filter changed
+        if any_changed and self._on_filter_change_callback:
+            self._on_filter_change_callback("all", "enabled")
+
     def disable_all(self) -> None:
         """Disable all registered filters."""
+        any_changed = False
         for filter_instance in self._filters.values():
+            if filter_instance.enabled:
+                any_changed = True
             filter_instance.disable()
         main_logger.info("All filters disabled")
+
+        # Trigger callback if any filter changed
+        if any_changed and self._on_filter_change_callback:
+            self._on_filter_change_callback("all", "disabled")
 
     def should_allow_trade(self) -> bool:
         """

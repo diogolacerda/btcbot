@@ -65,6 +65,10 @@ class GridManager:
         self._macd_filter = MACDFilter(self.strategy)
         self._filter_registry.register(self._macd_filter)
 
+        # Register callbacks for filter state changes
+        self._filter_registry.set_on_filter_change_callback(self._on_filter_change)
+        self._macd_filter.set_on_state_change_callback(self._on_macd_state_change)
+
         self._current_state = GridState.WAIT
         self._current_price = 0.0
         self._last_macd_line = 0.0
@@ -594,8 +598,13 @@ class GridManager:
             else:
                 orders_logger.info(f"Ordem criada: {level}")
 
-    async def _cancel_all_pending(self) -> None:
-        """Cancel all pending LIMIT orders (preserves TPs)."""
+    async def _cancel_all_limit_orders(self, reason: str = "filter change") -> None:
+        """
+        Cancel all pending LIMIT orders (preserves TPs).
+
+        Args:
+            reason: Reason for cancellation (for logging)
+        """
         try:
             open_orders = await self.client.get_open_orders(self.symbol)
             cancelled = 0
@@ -617,9 +626,13 @@ class GridManager:
                 self.tracker.cancel_order(pending_order.order_id)
 
             if cancelled > 0:
-                main_logger.info(f"{cancelled} ordem(ns) LIMIT cancelada(s) (INACTIVE)")
+                main_logger.info(f"{cancelled} ordem(ns) LIMIT cancelada(s) ({reason})")
         except Exception as e:
             main_logger.error(f"Erro ao cancelar ordens: {e}")
+
+    async def _cancel_all_pending(self) -> None:
+        """Cancel all pending LIMIT orders (preserves TPs)."""
+        await self._cancel_all_limit_orders(reason="INACTIVE")
 
     async def _sync_with_exchange(self) -> None:
         """Sync local state with exchange."""
@@ -696,3 +709,47 @@ class GridManager:
             main_logger.info(f"Ordem recriada após TP: ${entry_price:,.2f}")
         except Exception as e:
             main_logger.error(f"Erro ao recriar ordem: {e}")
+
+    def _on_filter_change(self, filter_name: str, action: str) -> None:
+        """
+        Callback when filter state changes via API.
+
+        Args:
+            filter_name: Name of the filter that changed
+            action: 'enabled' or 'disabled'
+        """
+        main_logger.info(f"Filter '{filter_name}' {action} - scheduling order cancellation")
+        # Schedule cancellation in event loop (only if running)
+        try:
+            asyncio.create_task(self._cancel_all_limit_orders(reason=f"filter {action}"))
+        except RuntimeError:
+            # No event loop running (e.g., during tests without async context)
+            main_logger.debug("No event loop running - skipping async cancellation")
+
+    def _on_macd_state_change(self, old_state: GridState, new_state: GridState) -> None:
+        """
+        Callback when MACD state changes.
+
+        Cancels orders when transitioning from ACTIVATE/ACTIVE to PAUSE/INACTIVE/WAIT.
+
+        Args:
+            old_state: Previous MACD state
+            new_state: New MACD state
+        """
+        # States that allow trading
+        active_states = {GridState.ACTIVATE, GridState.ACTIVE}
+
+        # States that don't allow trading
+        inactive_states = {GridState.PAUSE, GridState.INACTIVE, GridState.WAIT}
+
+        # Cancel orders if transitioning from active to inactive
+        if old_state in active_states and new_state in inactive_states:
+            main_logger.info(
+                f"MACD state change {old_state.value} -> {new_state.value} - scheduling order cancellation"
+            )
+            # Schedule cancellation in event loop (only if running)
+            try:
+                asyncio.create_task(self._cancel_all_limit_orders(reason=f"MACD {new_state.value}"))
+            except RuntimeError:
+                # No event loop running (e.g., during tests without async context)
+                main_logger.debug("No event loop running - skipping async cancellation")

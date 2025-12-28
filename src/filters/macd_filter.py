@@ -36,6 +36,16 @@ class MACDFilter(Filter):
         )
         self._strategy = strategy
         self._current_state = GridState.WAIT
+        self._on_state_change_callback = None
+
+    def set_on_state_change_callback(self, callback) -> None:
+        """
+        Set callback to be called when MACD state changes.
+
+        Args:
+            callback: Callable to invoke on state change (old_state, new_state)
+        """
+        self._on_state_change_callback = callback
 
     def set_current_state(self, state: GridState) -> None:
         """
@@ -46,7 +56,12 @@ class MACDFilter(Filter):
         Args:
             state: Current GridState from MACD calculation
         """
+        old_state = self._current_state
         self._current_state = state
+
+        # Trigger callback on state change
+        if old_state != state and self._on_state_change_callback:
+            self._on_state_change_callback(old_state, state)
 
     def should_allow_trade(self) -> bool:
         """
