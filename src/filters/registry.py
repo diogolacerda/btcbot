@@ -87,6 +87,9 @@ class FilterRegistry:
         """
         Enable a specific filter.
 
+        When enabling, cancels orders ONLY if the filter is already in a
+        negative state (blocking trades).
+
         Args:
             name: Filter name
 
@@ -99,18 +102,30 @@ class FilterRegistry:
             return False
 
         was_enabled = filter_instance.enabled
-        filter_instance.enable()
-        main_logger.info(f"Filter enabled: {name}")
 
-        # Trigger callback if state changed
-        if not was_enabled and self._on_filter_change_callback:
-            self._on_filter_change_callback(name, "enabled")
+        # Check if filter would block trades BEFORE enabling
+        # We need to temporarily enable to check, then restore if needed
+        if not was_enabled:
+            filter_instance.enable()
+            is_negative_state = not filter_instance.should_allow_trade()
+            # Filter is now enabled - keep it that way
+            main_logger.info(f"Filter enabled: {name}")
+
+            # Trigger callback only if in negative state
+            if is_negative_state and self._on_filter_change_callback:
+                self._on_filter_change_callback(name, "enabled")
+        else:
+            # Already enabled, nothing to do
+            main_logger.info(f"Filter enabled: {name}")
 
         return True
 
     def disable_filter(self, name: str) -> bool:
         """
         Disable a specific filter.
+
+        Disabling a filter means ignoring it - orders are NOT cancelled.
+        The system can continue operating without this filter's restrictions.
 
         Args:
             name: Filter name
@@ -123,41 +138,48 @@ class FilterRegistry:
             main_logger.warning(f"Cannot disable unknown filter: {name}")
             return False
 
-        was_enabled = filter_instance.enabled
         filter_instance.disable()
         main_logger.info(f"Filter disabled: {name}")
 
-        # Trigger callback if state changed
-        if was_enabled and self._on_filter_change_callback:
-            self._on_filter_change_callback(name, "disabled")
-
+        # Do NOT trigger callback - disabling doesn't cancel orders
         return True
 
     def enable_all(self) -> None:
-        """Enable all registered filters."""
+        """
+        Enable all registered filters.
+
+        Cancels orders ONLY if any filter is in a negative state after enabling.
+        """
         any_changed = False
+        has_negative_state = False
+
         for filter_instance in self._filters.values():
-            if not filter_instance.enabled:
+            was_enabled = filter_instance.enabled
+            if not was_enabled:
                 any_changed = True
-            filter_instance.enable()
+                filter_instance.enable()
+
+                # Check if this newly enabled filter is in negative state
+                if not filter_instance.should_allow_trade():
+                    has_negative_state = True
+
         main_logger.info("All filters enabled")
 
-        # Trigger callback if any filter changed
-        if any_changed and self._on_filter_change_callback:
+        # Trigger callback if any filter changed AND at least one is negative
+        if any_changed and has_negative_state and self._on_filter_change_callback:
             self._on_filter_change_callback("all", "enabled")
 
     def disable_all(self) -> None:
-        """Disable all registered filters."""
-        any_changed = False
+        """
+        Disable all registered filters.
+
+        Disabling means ignoring filters - orders are NOT cancelled.
+        """
         for filter_instance in self._filters.values():
-            if filter_instance.enabled:
-                any_changed = True
             filter_instance.disable()
         main_logger.info("All filters disabled")
 
-        # Trigger callback if any filter changed
-        if any_changed and self._on_filter_change_callback:
-            self._on_filter_change_callback("all", "disabled")
+        # Do NOT trigger callback - disabling doesn't cancel orders
 
     def should_allow_trade(self) -> bool:
         """
