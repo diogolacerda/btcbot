@@ -105,9 +105,9 @@ class TestBug003DuplicateOrders:
         # 2. position_prices set - exchange positions
         # Both should block creation at this price
 
-        assert tracker.has_order_at_price(
-            88500.0
-        ), "Tracker should block duplicate order at price with open position"
+        assert tracker.has_order_at_price(88500.0), (
+            "Tracker should block duplicate order at price with open position"
+        )
 
     def test_multiple_positions_partial_close(self):
         """
