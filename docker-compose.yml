@@ -1,0 +1,72 @@
+# =============================================================================
+# BTC Grid Bot - Docker Compose for Local Development
+# =============================================================================
+#
+# Ambiente de desenvolvimento local com PostgreSQL.
+# O bot roda diretamente com `python main.py` enquanto o banco roda no Docker.
+#
+# Uso:
+#   docker-compose up -d          # Inicia PostgreSQL
+#   docker-compose down           # Para PostgreSQL
+#   docker-compose logs -f        # Ver logs do PostgreSQL
+#
+# Variaveis de ambiente:
+#   - Copie .env.example para .env e configure suas credenciais
+#   - As variaveis de banco sao opcionais (tem defaults)
+#
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Service (Development)
+  # ---------------------------------------------------------------------------
+  # Banco de dados PostgreSQL para desenvolvimento local.
+  # - Volume persistente para dados
+  # - Porta 5432 exposta para conexao local
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15
+    container_name: btcbot-postgres-dev
+    restart: unless-stopped
+
+    # Porta exposta para conexao local
+    # Usa 5433 para evitar conflito com PostgreSQL local na 5432
+    ports:
+      - "5433:5432"
+
+    # Healthcheck para garantir que o banco esta pronto
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-btcbot}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Volume persistente para dados do banco
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    # Configuracao do PostgreSQL
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-btcbot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-btcbot_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-btcbot_dev}
+
+    # Network para desenvolvimento
+    networks:
+      - btcbot-dev-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  btcbot-dev-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # Volume persistente para dados do PostgreSQL
+  # Dados sao mantidos mesmo apos docker-compose down
+  pgdata:
+    driver: local
