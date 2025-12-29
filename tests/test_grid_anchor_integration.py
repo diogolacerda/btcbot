@@ -17,7 +17,7 @@ class TestGridAnchorIntegration:
             spacing_value=100,
             range_percent=5,
             take_profit_percent=1.0,
-            max_orders=10,
+            max_total_orders=10,
             anchor_mode=GridAnchorMode.HUNDRED,
             anchor_value=100,
         )
@@ -279,7 +279,7 @@ class TestGridAnchorIntegration:
                     }
                 )
 
-            # Should always have at most max_orders (10)
+            # Should always have at most max_total_orders (10)
             assert len(existing_orders) <= 10
 
             # All orders should be at anchor points

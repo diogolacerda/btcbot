@@ -30,7 +30,7 @@ class GridCalculator:
         self.spacing_value = config.spacing_value
         self.range_percent = config.range_percent
         self.tp_percent = config.take_profit_percent
-        self.max_orders = config.max_orders
+        self.max_total_orders = config.max_total_orders
         self.anchor_mode = config.anchor_mode
         self.anchor_value = config.anchor_value
 
@@ -95,6 +95,7 @@ class GridCalculator:
         self,
         current_price: float,
         existing_levels: list[float] | None = None,
+        max_levels: int | None = None,
     ) -> list[GridLevel]:
         """
         Calculate all grid levels for the current price.
@@ -105,6 +106,7 @@ class GridCalculator:
         Args:
             current_price: Current market price
             existing_levels: List of existing entry prices (to avoid duplicates)
+            max_levels: Override for max levels (used for dynamic slot calculation)
 
         Returns:
             List of GridLevel objects
@@ -114,6 +116,9 @@ class GridCalculator:
 
         min_price = self.calculate_min_price(current_price)
 
+        # Use provided max_levels or fall back to max_total_orders
+        effective_max = max_levels if max_levels is not None else self.max_total_orders
+
         levels: list[GridLevel] = []
         level_index = 1
 
@@ -122,7 +127,7 @@ class GridCalculator:
             spacing = self.calculate_spacing(current_price)
             price = current_price - spacing
 
-            while price >= min_price and len(levels) < self.max_orders:
+            while price >= min_price and len(levels) < effective_max:
                 rounded_price = round_price(price)
 
                 if rounded_price not in existing_set:
@@ -149,7 +154,7 @@ class GridCalculator:
 
             price = current_anchor
 
-            while price >= min_price and len(levels) < self.max_orders:
+            while price >= min_price and len(levels) < effective_max:
                 rounded_price = round_price(price)
 
                 if rounded_price not in existing_set:
@@ -171,13 +176,18 @@ class GridCalculator:
         self,
         current_price: float,
         existing_orders: list[dict],
+        open_positions_count: int = 0,
     ) -> list[GridLevel]:
         """
         Get grid levels that need to be created.
 
+        The total number of orders is limited by:
+        available_slots = max_total_orders - open_positions_count - pending_limit_orders
+
         Args:
             current_price: Current market price
             existing_orders: List of existing orders with 'price' key
+            open_positions_count: Number of open positions (filled orders awaiting TP)
 
         Returns:
             List of GridLevel objects to create
@@ -190,8 +200,10 @@ class GridCalculator:
             existing_prices = [float(o.get("price", 0)) for o in existing_orders]
             levels = self.calculate_levels(current_price, existing_prices)
 
-            # Limit based on orders IN RANGE (not total orders)
-            remaining_slots = max(0, self.max_orders - len(orders_in_range))
+            # Limit based on orders IN RANGE + open positions (BE-008)
+            remaining_slots = max(
+                0, self.max_total_orders - len(orders_in_range) - open_positions_count
+            )
             return levels[:remaining_slots]
 
         else:
@@ -200,24 +212,28 @@ class GridCalculator:
             existing_prices = [float(o.get("price", 0)) for o in limit_orders]
             levels = self.calculate_levels(current_price, existing_prices)
 
-            # Limit based on total LIMIT orders (grid orders)
-            remaining_slots = max(0, self.max_orders - len(limit_orders))
+            # Limit based on total LIMIT orders + open positions (BE-008)
+            remaining_slots = max(
+                0, self.max_total_orders - len(limit_orders) - open_positions_count
+            )
             return levels[:remaining_slots]
 
     def get_orders_to_cancel(
         self,
         current_price: float,
         existing_orders: list[dict],
+        open_positions_count: int = 0,
     ) -> list[dict]:
         """
         Get orders that are outside the current range and should be cancelled.
 
-        In anchored mode, this maintains exactly N orders (max_orders) by canceling
-        the furthest orders when price rises and new anchor levels become available.
+        In anchored mode, this maintains exactly N orders (max_total_orders - positions)
+        by canceling the furthest orders when price rises and new anchor levels become available.
 
         Args:
             current_price: Current market price
             existing_orders: List of existing orders
+            open_positions_count: Number of open positions (filled orders awaiting TP)
 
         Returns:
             List of orders to cancel
@@ -227,6 +243,9 @@ class GridCalculator:
 
         min_price = self.calculate_min_price(current_price)
         orders_to_cancel = []
+
+        # Calculate available slots for LIMIT orders (BE-008)
+        max_limit_orders = max(0, self.max_total_orders - open_positions_count)
 
         if self.anchor_mode == GridAnchorMode.NONE:
             # Original behavior: cancel orders outside range
@@ -248,9 +267,9 @@ class GridCalculator:
                 limit_orders, key=lambda o: float(o.get("price", 0)), reverse=True
             )
 
-            # Cancel if we have more than max_orders
-            if len(sorted_orders) > self.max_orders:
-                orders_to_cancel = sorted_orders[self.max_orders :]
+            # Cancel if we have more than available slots (BE-008)
+            if len(sorted_orders) > max_limit_orders:
+                orders_to_cancel = sorted_orders[max_limit_orders:]
 
             # Also cancel any orders below min_price (outside range)
             for order in sorted_orders:
@@ -258,9 +277,9 @@ class GridCalculator:
                 if order_price < min_price and order not in orders_to_cancel:
                     orders_to_cancel.append(order)
 
-            # If we have exactly max_orders, check if new anchor levels are available
+            # If we have exactly max slots, check if new anchor levels are available
             # and cancel the furthest order to make room
-            if len(sorted_orders) == self.max_orders and len(orders_to_cancel) == 0:
+            if len(sorted_orders) == max_limit_orders and len(orders_to_cancel) == 0:
                 # Calculate the highest anchor level below current price
                 anchor_below_price = self.get_anchor_level(current_price)
                 if abs(anchor_below_price - current_price) < 0.01:
@@ -275,12 +294,13 @@ class GridCalculator:
 
         return orders_to_cancel
 
-    def get_grid_summary(self, current_price: float) -> dict:
+    def get_grid_summary(self, current_price: float, open_positions_count: int = 0) -> dict:
         """
         Get summary of grid configuration.
 
         Args:
             current_price: Current market price
+            open_positions_count: Number of open positions (for available slots calc)
 
         Returns:
             Dictionary with grid summary
@@ -288,7 +308,8 @@ class GridCalculator:
         spacing = self.calculate_spacing(current_price)
         min_price = self.calculate_min_price(current_price)
         levels_by_range = int((current_price - min_price) / spacing)
-        max_levels = min(levels_by_range, self.max_orders)
+        available_slots = max(0, self.max_total_orders - open_positions_count)
+        max_levels = min(levels_by_range, available_slots)
 
         return {
             "current_price": current_price,
@@ -297,5 +318,8 @@ class GridCalculator:
             "spacing_type": self.spacing_type.value,
             "range_percent": self.range_percent,
             "tp_percent": self.tp_percent,
+            "max_total_orders": self.max_total_orders,
+            "open_positions": open_positions_count,
+            "available_slots": available_slots,
             "max_levels": max_levels,
         }

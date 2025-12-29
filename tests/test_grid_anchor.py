@@ -48,7 +48,7 @@ class TestGridCalculatorAnchored:
             spacing_value=100,  # Not used in anchored mode
             range_percent=5,
             take_profit_percent=1.0,
-            max_orders=10,
+            max_total_orders=10,
             anchor_mode=GridAnchorMode.HUNDRED,
             anchor_value=100,
         )
@@ -61,7 +61,7 @@ class TestGridCalculatorAnchored:
             spacing_value=100,
             range_percent=5,
             take_profit_percent=1.0,
-            max_orders=10,
+            max_total_orders=10,
             anchor_mode=GridAnchorMode.NONE,
             anchor_value=100,
         )
@@ -90,7 +90,7 @@ class TestGridCalculatorAnchored:
         levels = calculator.calculate_levels(current_price)
 
         # Should create orders at: 88000, 87900, 87800, etc
-        assert len(levels) == 10  # max_orders
+        assert len(levels) == 10  # max_total_orders
 
         # Check first few levels are at anchor points
         assert levels[0].entry_price == 88000.0

@@ -442,6 +442,27 @@ class GridManager:
         elif self._current_state == GridState.INACTIVE:
             await self._cancel_all_pending()
 
+    def _count_open_positions(self, positions: list[dict]) -> int:
+        """
+        Count open positions (BUY entries awaiting TP).
+
+        Only counts positions with non-zero quantity, representing
+        filled orders that are waiting for take profit.
+
+        Args:
+            positions: List of position data from exchange
+
+        Returns:
+            Number of open positions
+        """
+        count = 0
+        for pos in positions:
+            position_amt = float(pos.get("positionAmt", 0))
+            # Only count positions with actual quantity (LONG positions have positive amt)
+            if position_amt > 0:
+                count += 1
+        return count
+
     async def _create_grid_orders(self) -> None:
         """Create grid orders based on current price."""
         # Check for margin error (reset after 5 minutes)
@@ -461,6 +482,9 @@ class GridManager:
         exchange_orders = await self.client.get_open_orders(self.symbol)
         positions = await self.client.get_positions(self.symbol)
 
+        # BE-008: Count open positions for dynamic slot calculation
+        open_positions_count = self._count_open_positions(positions)
+
         # BUG-003 FIX: Build set of prices with open positions (filled orders awaiting TP)
         # This prevents creating duplicate orders at same price before TP is hit
         position_prices: set[float] = set()
@@ -476,6 +500,7 @@ class GridManager:
         orders_to_cancel = self.calculator.get_orders_to_cancel(
             self._current_price,
             exchange_orders,
+            open_positions_count,  # BE-008: pass positions count
         )
         for order in orders_to_cancel:
             try:
@@ -501,9 +526,11 @@ class GridManager:
             exchange_orders = await self.client.get_open_orders(self.symbol)
 
         # STEP 3: Calculate levels to create (now with freed-up slots)
+        # BE-008: Pass open_positions_count to limit new orders
         levels = self.calculator.get_levels_to_create(
             self._current_price,
             exchange_orders,
+            open_positions_count,
         )
 
         # Also check local tracker AND open positions (BUG-003 FIX)
@@ -521,11 +548,20 @@ class GridManager:
         if not levels:
             return
 
+        # BE-008: Log available slots
+        max_total = self.config.grid.max_total_orders
+        limit_orders_count = len([o for o in exchange_orders if o.get("type") == "LIMIT"])
+        available_slots = max(0, max_total - open_positions_count - limit_orders_count)
+        orders_logger.info(
+            f"Slots: {available_slots}/{max_total} disponíveis "
+            f"({open_positions_count} posições abertas, {limit_orders_count} ordens LIMIT)"
+        )
+
         # Log if creating orders without active filters
         filter_states = self._filter_registry.get_all_states()
         if not filter_states.get("any_enabled", True):
             orders_logger.info(
-                "Nenhum filtro ativo - criando ordens apenas com base no preço e MAX_ORDERS"
+                "Nenhum filtro ativo - criando ordens apenas com base no preço e MAX_TOTAL_ORDERS"
             )
 
         # STEP 4: Create orders (with rate limiting)
