@@ -442,26 +442,23 @@ class GridManager:
         elif self._current_state == GridState.INACTIVE:
             await self._cancel_all_pending()
 
-    def _count_open_positions(self, positions: list[dict]) -> int:
+    def _count_filled_orders_awaiting_tp(self, orders: list[dict]) -> int:
         """
-        Count open positions (BUY entries awaiting TP).
+        Count filled orders awaiting TP by counting TP orders.
 
-        Only counts positions with non-zero quantity, representing
-        filled orders that are waiting for take profit.
+        BingX consolidates multiple filled LIMIT orders into a single position
+        with average price, but creates a separate TP for each fill. Therefore,
+        counting TP orders gives the accurate count of filled orders awaiting
+        take profit execution.
 
         Args:
-            positions: List of position data from exchange
+            orders: List of open orders from exchange
 
         Returns:
-            Number of open positions
+            Number of filled orders awaiting TP (count of TP orders)
         """
-        count = 0
-        for pos in positions:
-            position_amt = float(pos.get("positionAmt", 0))
-            # Only count positions with actual quantity (LONG positions have positive amt)
-            if position_amt > 0:
-                count += 1
-        return count
+        tp_orders = [o for o in orders if "TAKE_PROFIT" in o.get("type", "")]
+        return len(tp_orders)
 
     async def _create_grid_orders(self) -> None:
         """Create grid orders based on current price."""
@@ -482,8 +479,10 @@ class GridManager:
         exchange_orders = await self.client.get_open_orders(self.symbol)
         positions = await self.client.get_positions(self.symbol)
 
-        # BE-008: Count open positions for dynamic slot calculation
-        open_positions_count = self._count_open_positions(positions)
+        # BE-008: Count filled orders awaiting TP for dynamic slot calculation
+        # Note: We count TP orders, not positions, because BingX consolidates
+        # multiple fills into one position but keeps separate TPs
+        filled_orders_count = self._count_filled_orders_awaiting_tp(exchange_orders)
 
         # BUG-003 FIX: Build set of prices with open positions (filled orders awaiting TP)
         # This prevents creating duplicate orders at same price before TP is hit
@@ -500,7 +499,7 @@ class GridManager:
         orders_to_cancel = self.calculator.get_orders_to_cancel(
             self._current_price,
             exchange_orders,
-            open_positions_count,  # BE-008: pass positions count
+            filled_orders_count,  # BE-008: pass filled orders (TP count)
         )
         for order in orders_to_cancel:
             try:
@@ -526,11 +525,11 @@ class GridManager:
             exchange_orders = await self.client.get_open_orders(self.symbol)
 
         # STEP 3: Calculate levels to create (now with freed-up slots)
-        # BE-008: Pass open_positions_count to limit new orders
+        # BE-008: Pass filled_orders_count to limit new orders
         levels = self.calculator.get_levels_to_create(
             self._current_price,
             exchange_orders,
-            open_positions_count,
+            filled_orders_count,
         )
 
         # Also check local tracker AND open positions (BUG-003 FIX)
@@ -551,10 +550,10 @@ class GridManager:
         # BE-008: Log available slots
         max_total = self.config.grid.max_total_orders
         limit_orders_count = len([o for o in exchange_orders if o.get("type") == "LIMIT"])
-        available_slots = max(0, max_total - open_positions_count - limit_orders_count)
+        available_slots = max(0, max_total - filled_orders_count - limit_orders_count)
         orders_logger.info(
             f"Slots: {available_slots}/{max_total} disponíveis "
-            f"({open_positions_count} posições abertas, {limit_orders_count} ordens LIMIT)"
+            f"({filled_orders_count} aguardando TP, {limit_orders_count} ordens LIMIT)"
         )
 
         # Log if creating orders without active filters
