@@ -35,6 +35,15 @@ docker build -t btcbot .
 python main.py
 ```
 
+## Task Management Rules
+
+**IMPORTANT:** The markdown files in `tasks/` folder (`tasks_backend.md`, `tasks_database.md`, `tasks_devops.md`, etc.) are **historical reference only** and should **NEVER be updated**. All task management must be done exclusively through **GitHub Projects**.
+
+- **DO NOT** update status in markdown task files
+- **DO NOT** add new tasks to markdown task files
+- **ALWAYS** use GitHub Projects API to update task status
+- **ALWAYS** use GitHub Projects API to create new tasks
+
 ## Task Execution Workflow
 
 GitHub Projects is the **source of truth** for task status. Follow this workflow for every task:
