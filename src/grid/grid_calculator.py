@@ -176,18 +176,18 @@ class GridCalculator:
         self,
         current_price: float,
         existing_orders: list[dict],
-        open_positions_count: int = 0,
+        filled_orders_count: int = 0,
     ) -> list[GridLevel]:
         """
         Get grid levels that need to be created.
 
         The total number of orders is limited by:
-        available_slots = max_total_orders - open_positions_count - pending_limit_orders
+        available_slots = max_total_orders - filled_orders_count - pending_limit_orders
 
         Args:
             current_price: Current market price
             existing_orders: List of existing orders with 'price' key
-            open_positions_count: Number of open positions (filled orders awaiting TP)
+            filled_orders_count: Number of filled orders awaiting TP (count of TP orders)
 
         Returns:
             List of GridLevel objects to create
@@ -200,9 +200,9 @@ class GridCalculator:
             existing_prices = [float(o.get("price", 0)) for o in existing_orders]
             levels = self.calculate_levels(current_price, existing_prices)
 
-            # Limit based on orders IN RANGE + open positions (BE-008)
+            # Limit based on orders IN RANGE + filled orders (BE-008)
             remaining_slots = max(
-                0, self.max_total_orders - len(orders_in_range) - open_positions_count
+                0, self.max_total_orders - len(orders_in_range) - filled_orders_count
             )
             return levels[:remaining_slots]
 
@@ -212,9 +212,9 @@ class GridCalculator:
             existing_prices = [float(o.get("price", 0)) for o in limit_orders]
             levels = self.calculate_levels(current_price, existing_prices)
 
-            # Limit based on total LIMIT orders + open positions (BE-008)
+            # Limit based on total LIMIT orders + filled orders (BE-008)
             remaining_slots = max(
-                0, self.max_total_orders - len(limit_orders) - open_positions_count
+                0, self.max_total_orders - len(limit_orders) - filled_orders_count
             )
             return levels[:remaining_slots]
 
@@ -222,18 +222,18 @@ class GridCalculator:
         self,
         current_price: float,
         existing_orders: list[dict],
-        open_positions_count: int = 0,
+        filled_orders_count: int = 0,
     ) -> list[dict]:
         """
         Get orders that are outside the current range and should be cancelled.
 
-        In anchored mode, this maintains exactly N orders (max_total_orders - positions)
+        In anchored mode, this maintains exactly N orders (max_total_orders - filled_orders)
         by canceling the furthest orders when price rises and new anchor levels become available.
 
         Args:
             current_price: Current market price
             existing_orders: List of existing orders
-            open_positions_count: Number of open positions (filled orders awaiting TP)
+            filled_orders_count: Number of filled orders awaiting TP (count of TP orders)
 
         Returns:
             List of orders to cancel
@@ -245,7 +245,7 @@ class GridCalculator:
         orders_to_cancel = []
 
         # Calculate available slots for LIMIT orders (BE-008)
-        max_limit_orders = max(0, self.max_total_orders - open_positions_count)
+        max_limit_orders = max(0, self.max_total_orders - filled_orders_count)
 
         if self.anchor_mode == GridAnchorMode.NONE:
             # Original behavior: cancel orders outside range
