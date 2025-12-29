@@ -28,6 +28,7 @@ class BingXClient:
             "balance": 30,  # Balance: 30s
             "positions": 15,  # Positions: 15s
             "open_orders": 15,  # Open orders: 15s
+            "funding_rate": 300,  # Funding rate: 5min (não muda frequentemente)
         }
 
     def _get_cached(self, key: str) -> Any | None:
@@ -370,6 +371,35 @@ class BingXClient:
             "side": side,
         }
         return await self._request("POST", endpoint, params)
+
+    async def get_funding_rate(self, symbol: str) -> dict[str, Any]:
+        """
+        Get current funding rate for a symbol (cached for 5 min).
+
+        Returns:
+            dict with:
+                - lastFundingRate: Current funding rate (e.g., 0.0001 = 0.01%)
+                - nextFundingTime: Timestamp of next funding settlement
+                - markPrice: Current mark price
+        """
+        cache_key = f"funding_rate:{symbol}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached  # type: ignore[no-any-return]
+
+        endpoint = "/openApi/swap/v2/quote/premiumIndex"
+        params = {"symbol": symbol}
+        data = await self._request("GET", endpoint, params, signed=False)
+
+        result = {
+            "symbol": symbol,
+            "lastFundingRate": float(data.get("lastFundingRate", 0)),
+            "nextFundingTime": int(data.get("nextFundingTime", 0)),
+            "markPrice": float(data.get("markPrice", 0)),
+        }
+
+        self._set_cache(cache_key, result)
+        return result
 
     async def generate_listen_key(self) -> str:
         """Generate a listenKey for WebSocket account updates."""

@@ -1,0 +1,234 @@
+"""Dynamic Take Profit Manager based on funding rate."""
+
+import asyncio
+from dataclasses import dataclass
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from config import DynamicTPConfig
+from src.utils.logger import orders_logger
+
+if TYPE_CHECKING:
+    from src.client.bingx_client import BingXClient
+    from src.grid.order_tracker import OrderTracker, TrackedOrder
+
+
+@dataclass
+class PositionTPUpdate:
+    """Record of a TP update for a position."""
+
+    order_id: str
+    old_tp_percent: float
+    new_tp_percent: float
+    funding_accumulated: float
+    updated_at: datetime
+
+
+class DynamicTPManager:
+    """
+    Manages dynamic Take Profit adjustments based on funding rate.
+
+    Periodically checks open positions and adjusts TP to cover:
+    - Base TP percentage
+    - Accumulated funding costs
+    - Safety margin
+    """
+
+    # Settlement frequency: 3x per day = every 8 hours
+    FUNDING_SETTLEMENT_HOURS = 8
+
+    def __init__(
+        self,
+        config: DynamicTPConfig,
+        client: "BingXClient",
+        order_tracker: "OrderTracker",
+        symbol: str,
+    ):
+        self.config = config
+        self.client = client
+        self.order_tracker = order_tracker
+        self.symbol = symbol
+        self._running = False
+        self._task: asyncio.Task | None = None
+        self._last_update: dict[str, datetime] = {}  # order_id -> last update time
+        self._update_history: list[PositionTPUpdate] = []
+
+    @property
+    def is_enabled(self) -> bool:
+        """Check if dynamic TP is enabled."""
+        return self.config.enabled
+
+    async def start(self) -> None:
+        """Start the dynamic TP monitoring task."""
+        if not self.config.enabled:
+            orders_logger.info("Dynamic TP is disabled")
+            return
+
+        if self._running:
+            return
+
+        self._running = True
+        self._task = asyncio.create_task(self._monitor_loop())
+        orders_logger.info(
+            f"Dynamic TP Manager started (check every {self.config.check_interval_minutes}min)"
+        )
+
+    async def stop(self) -> None:
+        """Stop the dynamic TP monitoring task."""
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+            self._task = None
+        orders_logger.info("Dynamic TP Manager stopped")
+
+    async def _monitor_loop(self) -> None:
+        """Main monitoring loop."""
+        while self._running:
+            try:
+                await self._check_and_update_positions()
+            except Exception as e:
+                orders_logger.error(f"Error in dynamic TP monitor: {e}")
+
+            # Wait for next check interval
+            await asyncio.sleep(self.config.check_interval_minutes * 60)
+
+    async def _check_and_update_positions(self) -> None:
+        """Check all open positions and update TPs if needed."""
+        filled_orders = self.order_tracker.filled_orders
+        if not filled_orders:
+            return
+
+        # Get current funding rate
+        try:
+            funding_data = await self.client.get_funding_rate(self.symbol)
+            funding_rate = funding_data["lastFundingRate"]
+        except Exception as e:
+            orders_logger.error(f"Failed to get funding rate: {e}")
+            return
+
+        orders_logger.debug(f"Current funding rate: {funding_rate:.6f} ({funding_rate * 100:.4f}%)")
+
+        for order in filled_orders:
+            await self._check_position(order, funding_rate)
+
+    async def _check_position(self, order: "TrackedOrder", funding_rate: float) -> None:
+        """Check a single position and update TP if needed."""
+        # Rate limit: don't update same position more than once per 30 min
+        last_update = self._last_update.get(order.order_id)
+        if last_update:
+            minutes_since_update = (datetime.now() - last_update).total_seconds() / 60
+            if minutes_since_update < 30:
+                return
+
+        # Calculate time position has been open
+        if not order.filled_at:
+            return
+
+        hours_open = (datetime.now() - order.filled_at).total_seconds() / 3600
+
+        # Calculate accumulated funding cost
+        # Funding is charged every 8 hours
+        funding_settlements = hours_open / self.FUNDING_SETTLEMENT_HOURS
+        funding_accumulated = funding_settlements * abs(funding_rate) * 100  # Convert to %
+
+        # Calculate new TP percentage
+        new_tp_percent = self._calculate_new_tp(funding_accumulated)
+
+        # Calculate current TP percentage from order
+        current_tp_percent = ((order.tp_price - order.entry_price) / order.entry_price) * 100
+
+        # Only update if new TP is significantly higher (> 0.02% difference)
+        if new_tp_percent <= current_tp_percent + 0.02:
+            return
+
+        # Don't update if price is already close to current TP (within 0.1%)
+        try:
+            current_price = await self.client.get_price(self.symbol)
+            distance_to_tp = ((order.tp_price - current_price) / current_price) * 100
+            if distance_to_tp < 0.1:
+                orders_logger.debug(
+                    f"Position {order.order_id[:8]} too close to TP ({distance_to_tp:.2f}%), skipping update"
+                )
+                return
+        except Exception:
+            pass  # Continue with update if price check fails
+
+        orders_logger.info(
+            f"Position {order.order_id[:8]}: {hours_open:.1f}h open, "
+            f"funding accumulated: {funding_accumulated:.4f}%, "
+            f"TP: {current_tp_percent:.2f}% -> {new_tp_percent:.2f}%"
+        )
+
+        # Record the update (actual TP update would be done by GridManager)
+        self._last_update[order.order_id] = datetime.now()
+        self._update_history.append(
+            PositionTPUpdate(
+                order_id=order.order_id,
+                old_tp_percent=current_tp_percent,
+                new_tp_percent=new_tp_percent,
+                funding_accumulated=funding_accumulated,
+                updated_at=datetime.now(),
+            )
+        )
+
+    def _calculate_new_tp(self, funding_accumulated: float) -> float:
+        """
+        Calculate new TP percentage based on accumulated funding.
+
+        Args:
+            funding_accumulated: Accumulated funding cost as percentage
+
+        Returns:
+            New TP percentage (clamped between min and max)
+        """
+        new_tp = self.config.base_percent + funding_accumulated + self.config.safety_margin
+
+        # Clamp to min/max
+        new_tp = max(self.config.min_percent, new_tp)
+        new_tp = min(self.config.max_percent, new_tp)
+
+        return new_tp
+
+    def get_recommended_tp(self, hours_open: float, funding_rate: float) -> float:
+        """
+        Get recommended TP for a position based on time open and funding rate.
+
+        This can be used by GridManager to set TP when creating orders.
+
+        Args:
+            hours_open: How many hours the position has been open
+            funding_rate: Current funding rate (e.g., 0.0001 = 0.01%)
+
+        Returns:
+            Recommended TP percentage
+        """
+        funding_settlements = hours_open / self.FUNDING_SETTLEMENT_HOURS
+        funding_accumulated = funding_settlements * abs(funding_rate) * 100
+
+        return self._calculate_new_tp(funding_accumulated)
+
+    def get_positions_needing_update(self) -> list[str]:
+        """Get list of order IDs that need TP update."""
+        return [update.order_id for update in self._update_history[-10:]]
+
+    def get_stats(self) -> dict:
+        """Get statistics about TP updates."""
+        return {
+            "enabled": self.config.enabled,
+            "running": self._running,
+            "total_updates": len(self._update_history),
+            "recent_updates": [
+                {
+                    "order_id": u.order_id[:8],
+                    "old_tp": f"{u.old_tp_percent:.2f}%",
+                    "new_tp": f"{u.new_tp_percent:.2f}%",
+                    "funding": f"{u.funding_accumulated:.4f}%",
+                    "time": u.updated_at.isoformat(),
+                }
+                for u in self._update_history[-5:]
+            ],
+        }

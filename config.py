@@ -77,11 +77,24 @@ class MACDConfig:
 
 
 @dataclass
+class DynamicTPConfig:
+    """Configuration for dynamic take profit based on funding rate."""
+
+    enabled: bool = False
+    base_percent: float = 0.3  # Base TP percentage
+    min_percent: float = 0.3  # Minimum TP (never below this)
+    max_percent: float = 1.0  # Maximum TP (cap)
+    safety_margin: float = 0.05  # Extra margin above funding cost (%)
+    check_interval_minutes: int = 60  # How often to check positions
+
+
+@dataclass
 class Config:
     bingx: BingXConfig
     trading: TradingConfig
     grid: GridConfig
     macd: MACDConfig
+    dynamic_tp: DynamicTPConfig
     reactivation_mode: ReactivationMode
 
 
@@ -113,6 +126,14 @@ def load_config() -> Config:
             slow=int(os.getenv("MACD_SLOW", "26")),
             signal=int(os.getenv("MACD_SIGNAL", "9")),
             timeframe=os.getenv("MACD_TIMEFRAME", "1h"),
+        ),
+        dynamic_tp=DynamicTPConfig(
+            enabled=os.getenv("TP_DYNAMIC_ENABLED", "false").lower() == "true",
+            base_percent=float(os.getenv("TP_BASE_PERCENT", "0.3")),
+            min_percent=float(os.getenv("TP_MIN_PERCENT", "0.3")),
+            max_percent=float(os.getenv("TP_MAX_PERCENT", "1.0")),
+            safety_margin=float(os.getenv("TP_SAFETY_MARGIN", "0.05")),
+            check_interval_minutes=int(os.getenv("TP_CHECK_INTERVAL_MIN", "60")),
         ),
         reactivation_mode=ReactivationMode(os.getenv("REACTIVATION_MODE", "immediate")),
     )
