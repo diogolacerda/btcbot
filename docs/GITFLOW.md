@@ -83,7 +83,7 @@ query {
 }'
 
 # Atualizar status de uma task
-# Status IDs: Todo=f75ad846, In Progress=47fc9ee4, Done=98236657
+# Status IDs: Todo=69ea4564, In Progress=1609e48b, Acceptance Testing=d9f2871e, Done=fab1b20b
 gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
   --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id <STATUS_ID>
 ```
@@ -92,7 +92,7 @@ gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
 
 | Campo | ID | Opcoes |
 |-------|-----|--------|
-| Status | `PVTSSF_lAHOABvENc4BLYiGzg6-Uo8` | Todo (`69ea4564`), In Progress (`1609e48b`), Acceptance Testing (`d9f2871e`), Done (`fab1b20b`) |
+| Status | `PVTSSF_lAHOABvENc4BLYiGzg6-Uo8` | Todo (`69ea4564`), **In Progress** (`1609e48b`), Acceptance Testing (`d9f2871e`), Done (`fab1b20b`) |
 | Area | `PVTSSF_lAHOABvENc4BLYiGzg6-UrM` | DevOps, Backend, Database, Frontend, Docs |
 | Sprint | `PVTSSF_lAHOABvENc4BLYiGzg6-Usg` | Sprint 0-3, Backlog |
 | Priority | `PVTSSF_lAHOABvENc4BLYiGzg6-Usk` | Critical, High, Medium, Low |
@@ -341,7 +341,7 @@ ACCEPTANCE_TESTING ─> DONE (testes OK, sem bugs pendentes)
 3. **OBRIGATORIO:** Atualiza status para `In Progress` no GitHub Projects:
    ```bash
    gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
-     --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id 47fc9ee4
+     --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id 1609e48b
    ```
 4. Cria branch a partir de `main`:
    ```bash
