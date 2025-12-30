@@ -96,9 +96,11 @@ class MACDStrategy:
         Returns:
             MACDValues with current indicator values
         """
-        if len(klines) < self.slow + self.signal:
+        # Need extra candles because we use iloc[-2] and iloc[-3] (closed candles only)
+        min_candles = self.slow + self.signal + 2
+        if len(klines) < min_candles:
             macd_logger.warning(
-                f"Not enough data for MACD calculation. Need {self.slow + self.signal}, got {len(klines)}"
+                f"Not enough data for MACD calculation. Need {min_candles}, got {len(klines)}"
             )
             return None
 
@@ -147,11 +149,14 @@ class MACDStrategy:
                 except (ValueError, OverflowError):
                     return 0.0
 
+            # Use closed candles only (iloc[-2] and iloc[-3])
+            # iloc[-1] is the current candle still in formation - ignore it
+            # This prevents false signals during candle formation
             return MACDValues(
-                macd_line=safe_float(macd_df[macd_col].iloc[-1]),
-                signal_line=safe_float(macd_df[signal_col].iloc[-1]),
-                histogram=safe_float(macd_df[hist_col].iloc[-1]),
-                prev_histogram=safe_float(macd_df[hist_col].iloc[-2]),
+                macd_line=safe_float(macd_df[macd_col].iloc[-2]),
+                signal_line=safe_float(macd_df[signal_col].iloc[-2]),
+                histogram=safe_float(macd_df[hist_col].iloc[-2]),
+                prev_histogram=safe_float(macd_df[hist_col].iloc[-3]),
             )
         except Exception as e:
             macd_logger.error(f"Error calculating MACD: {e}")
