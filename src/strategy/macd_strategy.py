@@ -16,11 +16,11 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, message="overflow enc
 class GridState(Enum):
     """Estados do grid baseado no MACD."""
 
-    ACTIVATE = "activate"  # Vermelho claro + MACD < 0 → começa criar ordens
-    ACTIVE = "active"  # Verde escuro ou verde claro com MACD <= 0 → continua criando
-    PAUSE = "pause"  # Verde claro + MACD > 0 → para de criar, mantém existentes
+    ACTIVATE = "activate"  # Vermelho claro + ambas linhas < 0 → começa criar ordens
+    ACTIVE = "active"  # Verde escuro → continua criando
+    PAUSE = "pause"  # Verde claro → para de criar, mantém existentes
     INACTIVE = "inactive"  # Vermelho escuro → cancela ordens pendentes
-    WAIT = "wait"  # Vermelho claro + MACD >= 0 → aguarda
+    WAIT = "wait"  # Vermelho claro + alguma linha >= 0 → aguarda
 
 
 @dataclass
@@ -56,16 +56,26 @@ class MACDValues:
     def is_macd_positive(self) -> bool:
         return self.macd_line > 0
 
+    @property
+    def is_signal_negative(self) -> bool:
+        return self.signal_line < 0
+
+    @property
+    def are_both_lines_negative(self) -> bool:
+        """Check if both MACD and Signal lines are below zero."""
+        return self.is_macd_negative and self.is_signal_negative
+
 
 class MACDStrategy:
     """
     Estratégia baseada no MACD para controlar o grid.
 
-    Regras:
-    - ATIVAR: hist < 0 e subindo, MACD < 0
-    - PAUSA: hist > 0 e descendo, MACD > 0
-    - Se verde claro mas MACD <= 0 → continua ATIVO
-    - Se vermelho claro mas MACD >= 0 → ESPERA
+    Regras simplificadas baseadas no histograma:
+    - ATIVAR: hist < 0 e subindo (vermelho claro), MACD < 0 E Signal < 0
+    - ATIVO: hist > 0 e subindo (verde escuro)
+    - PAUSA: hist > 0 e descendo (verde claro) - sempre pausa
+    - INATIVO: hist < 0 e descendo (vermelho escuro)
+    - ESPERA: hist < 0 e subindo (vermelho claro), mas MACD >= 0 ou Signal >= 0
     """
 
     def __init__(self, config: MACDConfig):
@@ -187,10 +197,10 @@ class MACDStrategy:
 
         # Histograma negativo e subindo (vermelho claro)
         if macd.is_histogram_negative and macd.is_histogram_rising:
-            if macd.is_macd_negative:
-                return GridState.ACTIVATE  # Vermelho claro + MACD < 0 → ATIVA
+            if macd.are_both_lines_negative:
+                return GridState.ACTIVATE  # Vermelho claro + ambas linhas < 0 → ATIVA
             else:
-                return GridState.WAIT  # Vermelho claro + MACD >= 0 → ESPERA
+                return GridState.WAIT  # Vermelho claro + alguma linha >= 0 → ESPERA
 
         # Histograma positivo e subindo (verde escuro)
         elif macd.is_histogram_positive and macd.is_histogram_rising:
@@ -198,10 +208,7 @@ class MACDStrategy:
 
         # Histograma positivo e descendo (verde claro)
         elif macd.is_histogram_positive and macd.is_histogram_falling:
-            if macd.is_macd_positive:
-                return GridState.PAUSE  # Verde claro + MACD > 0 → PAUSA
-            else:
-                return GridState.ACTIVE  # Verde claro + MACD <= 0 → continua ATIVO
+            return GridState.PAUSE  # Verde claro → sempre PAUSA
 
         # Histograma negativo e descendo (vermelho escuro)
         else:
@@ -277,11 +284,11 @@ class MACDStrategy:
         """Get human-readable description of state."""
         cycle_status = "🟢" if self._cycle_activated else "🔴"
         descriptions = {
-            GridState.ACTIVATE: f"{cycle_status} ATIVANDO - Vermelho claro + MACD negativo",
+            GridState.ACTIVATE: f"{cycle_status} ATIVANDO - Vermelho claro + linhas negativas",
             GridState.ACTIVE: f"{cycle_status} ATIVO - Criando ordens"
             if self._cycle_activated
             else f"{cycle_status} ATIVO - Aguardando ciclo",
-            GridState.PAUSE: f"{cycle_status} PAUSADO - Verde claro + MACD positivo",
+            GridState.PAUSE: f"{cycle_status} PAUSADO - Verde claro",
             GridState.INACTIVE: f"{cycle_status} INATIVO - Cancelando ordens pendentes",
             GridState.WAIT: f"{cycle_status} AGUARDANDO - Condições não atendidas",
         }
