@@ -1,7 +1,7 @@
 """create accounts table
 
 Revision ID: 788c951939a4
-Revises: a162c33f6eea
+Revises: fecd00227ca9
 Create Date: 2025-12-30 13:35:45.001739
 
 """
@@ -13,7 +13,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "788c951939a4"  # pragma: allowlist secret
-down_revision: str | Sequence[str] | None = "a162c33f6eea"  # pragma: allowlist secret
+down_revision: str | Sequence[str] | None = "fecd00227ca9"  # pragma: allowlist secret
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
