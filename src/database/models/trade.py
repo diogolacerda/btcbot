@@ -1,6 +1,6 @@
 """Trade model for storing executed trades and their results."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -96,7 +96,7 @@ class Trade(Base):
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False,
         server_default=func.now(),
-        onupdate=lambda: datetime.now(UTC),
+        onupdate=datetime.utcnow,
     )
 
     # Composite indexes for efficient queries

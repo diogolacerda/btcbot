@@ -1,6 +1,6 @@
 """TP Adjustment model for tracking Take Profit adjustments made by Dynamic TP."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -54,7 +54,7 @@ class TPAdjustment(Base):
     hours_open: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Timestamp
-    adjusted_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
+    adjusted_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
 
     # Indexes for efficient queries
     __table_args__ = (

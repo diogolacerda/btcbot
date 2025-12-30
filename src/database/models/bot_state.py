@@ -1,6 +1,6 @@
 """BotState model for persisting MACD cycle state across restarts."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
@@ -55,11 +55,11 @@ class BotState(Base):
     last_state_change_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     # Timestamps
-    created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
     )
 
     # Relationships
