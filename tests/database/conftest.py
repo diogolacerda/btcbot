@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.database.base import Base
@@ -23,11 +24,19 @@ async def async_engine():
     """Create async test database engine.
 
     Uses in-memory SQLite for fast isolated tests.
+    Foreign key constraints are enabled for proper FK testing.
     """
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         echo=False,
     )
+
+    # Enable foreign key constraints for SQLite
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
     # Create all tables
     async with engine.begin() as conn:

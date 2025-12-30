@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import Index, Integer, Numeric, String, text
+from sqlalchemy import Index, Integer, Numeric, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -89,13 +89,13 @@ class Trade(Base):
     grid_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Timestamps
-    opened_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("NOW()"))
+    opened_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     filled_at: Mapped[datetime | None] = mapped_column(nullable=True)
     closed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("NOW()"))
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False,
-        server_default=text("NOW()"),
+        server_default=func.now(),
         onupdate=lambda: datetime.now(UTC),
     )
 
