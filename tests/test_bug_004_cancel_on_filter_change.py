@@ -206,9 +206,10 @@ async def test_filter_enabled_when_negative_cancels_orders(grid_manager, mock_cl
 @pytest.mark.asyncio
 async def test_filter_enabled_when_positive_does_not_cancel(grid_manager, mock_client):
     """Test that orders are NOT cancelled when filter is enabled with indicator in positive state."""
-    # Setup: Set MACD to ACTIVE (positive state) AND activate cycle
+    # Setup: Set MACD to ACTIVE (positive state) AND activate cycle and trigger
     grid_manager._macd_filter._current_state = GridState.ACTIVE
     grid_manager._macd_filter._strategy._cycle_activated = True  # Activate cycle
+    grid_manager._macd_filter._strategy._trigger_activated = True  # Activate trigger (BE-029)
 
     # Setup: disable filter (state remains ACTIVE)
     grid_manager._filter_registry.disable_filter("macd")
@@ -283,9 +284,10 @@ async def test_enable_all_filters_when_negative_cancels_orders(grid_manager, moc
 @pytest.mark.asyncio
 async def test_enable_all_filters_when_positive_does_not_cancel(grid_manager, mock_client):
     """Test that orders are NOT cancelled when all filters enabled with positive state."""
-    # Setup: Set MACD to ACTIVE (positive state) AND activate cycle
+    # Setup: Set MACD to ACTIVE (positive state) AND activate cycle and trigger
     grid_manager._macd_filter._current_state = GridState.ACTIVE
     grid_manager._macd_filter._strategy._cycle_activated = True  # Activate cycle
+    grid_manager._macd_filter._strategy._trigger_activated = True  # Activate trigger (BE-029)
 
     # Setup: disable all (state remains ACTIVE)
     grid_manager._filter_registry.disable_all()

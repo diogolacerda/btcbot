@@ -85,6 +85,7 @@ class MACDStrategy:
         self.timeframe = config.timeframe
         self._prev_state: GridState | None = None
         self._cycle_activated: bool = False  # Só True após passar por ACTIVATE
+        self._trigger_activated: bool = False  # Can be manually overridden via API
 
     def calculate_macd(self, klines: pd.DataFrame) -> MACDValues | None:
         """
@@ -180,15 +181,21 @@ class MACDStrategy:
         # Determinar estado baseado nas regras
         state = self._determine_state(macd)
 
-        # Controlar flag do ciclo
+        # Controlar flag do ciclo e trigger
         if state == GridState.ACTIVATE:
             if not self._cycle_activated:
                 self._cycle_activated = True
                 macd_logger.info("Ciclo ATIVADO - Ordens podem ser criadas")
+            if not self._trigger_activated:
+                self._trigger_activated = True
+                macd_logger.info("Trigger ATIVADO automaticamente (ACTIVATE detectado)")
         elif state == GridState.INACTIVE:
             if self._cycle_activated:
                 self._cycle_activated = False
                 macd_logger.info("Ciclo DESATIVADO - Aguardando novo ACTIVATE")
+            if self._trigger_activated:
+                self._trigger_activated = False
+                macd_logger.info("Trigger DESATIVADO automaticamente (INACTIVE detectado)")
 
         # Log mudanças de estado
         if state != self._prev_state:
@@ -243,9 +250,51 @@ class MACDStrategy:
         """Check if cycle has been activated (passed through ACTIVATE state)."""
         return self._cycle_activated
 
+    @property
+    def is_trigger_activated(self) -> bool:
+        """Check if trigger has been activated (manually or automatically)."""
+        return self._trigger_activated
+
+    def set_trigger(self, activated: bool) -> bool:
+        """
+        Manually set trigger state.
+
+        This allows manual override of the trigger, useful when the app starts
+        after the ACTIVATE signal already happened.
+
+        Args:
+            activated: True to activate, False to deactivate
+
+        Returns:
+            True if set successfully, False if not allowed
+        """
+        if activated:
+            # Don't allow trigger activation in INACTIVE state (market falling)
+            if self._prev_state == GridState.INACTIVE:
+                macd_logger.warning("Não é possível ativar trigger em INACTIVE (mercado em queda)")
+                return False
+
+            if not self._trigger_activated:
+                self._trigger_activated = True
+                macd_logger.info("Trigger ATIVADO MANUALMENTE pelo usuário")
+            else:
+                macd_logger.info("Trigger já está ativo")
+            return True
+        else:
+            # Deactivate trigger
+            if self._trigger_activated:
+                self._trigger_activated = False
+                macd_logger.info("Trigger DESATIVADO MANUALMENTE pelo usuário")
+            else:
+                macd_logger.info("Trigger já está inativo")
+            return True
+
     def manual_activate(self) -> bool:
         """
-        Manually activate the cycle.
+        Manually activate the cycle and trigger.
+
+        When manually activating, we also activate the trigger to avoid
+        requiring two separate manual actions.
 
         Returns:
             True if activated successfully, False if not allowed
@@ -257,10 +306,12 @@ class MACDStrategy:
         if not self._cycle_activated:
             self._cycle_activated = True
             macd_logger.info("Ciclo ATIVADO MANUALMENTE pelo usuário")
-            return True
-        else:
-            macd_logger.info("Ciclo já está ativo")
-            return True
+
+        if not self._trigger_activated:
+            self._trigger_activated = True
+            macd_logger.info("Trigger ATIVADO MANUALMENTE pelo usuário")
+
+        return True
 
     def manual_deactivate(self) -> None:
         """Manually deactivate the cycle."""
@@ -271,9 +322,15 @@ class MACDStrategy:
             macd_logger.info("Ciclo já está inativo")
 
     def should_create_orders(self, state: GridState) -> bool:
-        """Check if grid should create new orders."""
-        # Só cria ordens se o ciclo foi ativado (passou por ACTIVATE)
-        if not self._cycle_activated:
+        """
+        Check if grid should create new orders.
+
+        Requires both:
+        1. Cycle activated (automatically or manually via manual_activate())
+        2. Trigger activated (automatically when ACTIVATE detected, or manually via set_trigger())
+        """
+        # Só cria ordens se o ciclo E o trigger foram ativados
+        if not self._cycle_activated or not self._trigger_activated:
             return False
         return state in [GridState.ACTIVATE, GridState.ACTIVE]
 

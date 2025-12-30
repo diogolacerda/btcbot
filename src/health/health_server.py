@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from aiohttp import web
 
+from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 from src.utils.logger import main_logger
 
@@ -104,6 +105,7 @@ class HealthServer:
         self._app.router.add_post("/filters/{filter_name}", self._handle_toggle_filter)
         self._app.router.add_post("/filters/disable-all", self._handle_disable_all)
         self._app.router.add_post("/filters/enable-all", self._handle_enable_all)
+        self._app.router.add_post("/filters/macd/trigger", self._handle_set_trigger)
 
         self._runner = web.AppRunner(self._app, access_log=None)
         await self._runner.setup()
@@ -427,6 +429,79 @@ class HealthServer:
 
         except Exception as e:
             main_logger.error(f"Error enabling all filters: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_set_trigger(self, request: web.Request) -> web.Response:
+        """
+        Handle POST /filters/macd/trigger request.
+
+        Expects JSON body: {"activated": true/false}
+        Sets the MACD trigger state (manual override).
+        """
+        main_logger.debug(f"POST /filters/macd/trigger request from {request.remote}")
+
+        try:
+            # Parse request body
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response(
+                    {"error": 'Invalid JSON body. Expected: {"activated": true/false}'},
+                    status=400,
+                )
+
+            if "activated" not in data:
+                return web.json_response(
+                    {"error": "Missing 'activated' field in request body"},
+                    status=400,
+                )
+
+            activated = bool(data["activated"])
+
+            # Get MACD filter
+            macd_filter = self._filter_registry.get_filter("macd")
+            if not macd_filter:
+                return web.json_response(
+                    {"error": "MACD filter not found"},
+                    status=404,
+                )
+
+            # Check if filter is MACDFilter (type check)
+            if not isinstance(macd_filter, MACDFilter):
+                return web.json_response(
+                    {"error": "MACD filter does not support trigger control"},
+                    status=500,
+                )
+
+            # Set trigger state (macd_filter is now typed as MACDFilter)
+            success = macd_filter.set_trigger(activated)
+
+            if not success:
+                return web.json_response(
+                    {
+                        "error": "Failed to set trigger state (might be in INACTIVE state)",
+                        "activated": activated,
+                    },
+                    status=400,
+                )
+
+            # Get updated state
+            state = macd_filter.get_state()
+
+            return web.json_response(
+                {
+                    "message": f"MACD trigger {'activated' if activated else 'deactivated'}",
+                    "activated": activated,
+                    "details": state.details,
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error setting MACD trigger: {e}")
             return web.json_response(
                 {"error": str(e)},
                 status=500,
