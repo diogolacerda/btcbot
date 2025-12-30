@@ -133,6 +133,24 @@ class GridManager:
         except Exception as e:
             main_logger.warning(f"Falha ao configurar leverage: {e}")
 
+        # Set margin mode
+        try:
+            # Get current margin mode
+            current_mode = await self.client.get_margin_mode(self.symbol)
+            desired_mode = self.config.trading.margin_mode.value
+
+            if current_mode != desired_mode:
+                # Only try to change if different
+                await self.client.set_margin_mode(self.symbol, desired_mode)
+                main_logger.info(f"Modo de margem configurado: {desired_mode}")
+            else:
+                main_logger.info(f"Modo de margem já está configurado: {current_mode}")
+        except Exception as e:
+            main_logger.warning(
+                f"Falha ao configurar modo de margem: {e}. "
+                "Certifique-se de que não há posições abertas ao alterar o modo de margem."
+            )
+
         # Load existing positions and orders
         try:
             positions = await self.client.get_positions(self.symbol)
