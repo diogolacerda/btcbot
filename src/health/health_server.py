@@ -105,7 +105,8 @@ class HealthServer:
         self._app.router.add_post("/filters/{filter_name}", self._handle_toggle_filter)
         self._app.router.add_post("/filters/disable-all", self._handle_disable_all)
         self._app.router.add_post("/filters/enable-all", self._handle_enable_all)
-        self._app.router.add_post("/filters/macd/trigger", self._handle_set_trigger)
+        self._app.router.add_post("/api/macd/activate", self._handle_activate_macd)
+        self._app.router.add_post("/api/macd/deactivate", self._handle_deactivate_macd)
 
         self._runner = web.AppRunner(self._app, access_log=None)
         await self._runner.setup()
@@ -434,33 +435,15 @@ class HealthServer:
                 status=500,
             )
 
-    async def _handle_set_trigger(self, request: web.Request) -> web.Response:
+    async def _handle_activate_macd(self, request: web.Request) -> web.Response:
         """
-        Handle POST /filters/macd/trigger request.
+        Handle POST /api/macd/activate request.
 
-        Expects JSON body: {"activated": true/false}
-        Sets the MACD trigger state (manual override).
+        Manually activates the MACD cycle and trigger, and persists the state to database.
         """
-        main_logger.debug(f"POST /filters/macd/trigger request from {request.remote}")
+        main_logger.debug(f"POST /api/macd/activate request from {request.remote}")
 
         try:
-            # Parse request body
-            try:
-                data = await request.json()
-            except Exception:
-                return web.json_response(
-                    {"error": 'Invalid JSON body. Expected: {"activated": true/false}'},
-                    status=400,
-                )
-
-            if "activated" not in data:
-                return web.json_response(
-                    {"error": "Missing 'activated' field in request body"},
-                    status=400,
-                )
-
-            activated = bool(data["activated"])
-
             # Get MACD filter
             macd_filter = self._filter_registry.get_filter("macd")
             if not macd_filter:
@@ -472,18 +455,18 @@ class HealthServer:
             # Check if filter is MACDFilter (type check)
             if not isinstance(macd_filter, MACDFilter):
                 return web.json_response(
-                    {"error": "MACD filter does not support trigger control"},
+                    {"error": "MACD filter does not support manual activation"},
                     status=500,
                 )
 
-            # Set trigger state (macd_filter is now typed as MACDFilter)
-            success = macd_filter.set_trigger(activated)
+            # Activate via filter (which will trigger strategy.manual_activate())
+            success = macd_filter.set_trigger(True)
 
             if not success:
                 return web.json_response(
                     {
-                        "error": "Failed to set trigger state (might be in INACTIVE state)",
-                        "activated": activated,
+                        "error": "Failed to activate MACD (might be in INACTIVE state)",
+                        "message": "Cannot activate in INACTIVE state (market falling)",
                     },
                     status=400,
                 )
@@ -493,15 +476,69 @@ class HealthServer:
 
             return web.json_response(
                 {
-                    "message": f"MACD trigger {'activated' if activated else 'deactivated'}",
-                    "activated": activated,
+                    "message": "MACD cycle and trigger activated successfully",
+                    "activated": True,
+                    "persisted": True,
                     "details": state.details,
                 },
                 status=200,
             )
 
         except Exception as e:
-            main_logger.error(f"Error setting MACD trigger: {e}")
+            main_logger.error(f"Error activating MACD: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_deactivate_macd(self, request: web.Request) -> web.Response:
+        """
+        Handle POST /api/macd/deactivate request.
+
+        Manually deactivates the MACD cycle and trigger, and persists the state to database.
+        """
+        main_logger.debug(f"POST /api/macd/deactivate request from {request.remote}")
+
+        try:
+            # Get MACD filter
+            macd_filter = self._filter_registry.get_filter("macd")
+            if not macd_filter:
+                return web.json_response(
+                    {"error": "MACD filter not found"},
+                    status=404,
+                )
+
+            # Check if filter is MACDFilter (type check)
+            if not isinstance(macd_filter, MACDFilter):
+                return web.json_response(
+                    {"error": "MACD filter does not support manual deactivation"},
+                    status=500,
+                )
+
+            # Deactivate via filter
+            success = macd_filter.set_trigger(False)
+
+            if not success:
+                return web.json_response(
+                    {"error": "Failed to deactivate MACD"},
+                    status=400,
+                )
+
+            # Get updated state
+            state = macd_filter.get_state()
+
+            return web.json_response(
+                {
+                    "message": "MACD cycle and trigger deactivated successfully",
+                    "activated": False,
+                    "persisted": True,
+                    "details": state.details,
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error deactivating MACD: {e}")
             return web.json_response(
                 {"error": str(e)},
                 status=500,

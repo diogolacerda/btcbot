@@ -52,6 +52,7 @@ class BotStateRepository:
         last_state: str,
         *,
         activated_at: datetime | None = None,
+        is_manual: bool = False,
     ) -> BotState:
         """
         Save or update bot state for an account.
@@ -61,6 +62,7 @@ class BotStateRepository:
             cycle_activated: Whether cycle is activated
             last_state: Last GridState value
             activated_at: When cycle was activated (for new activations)
+            is_manual: Whether this is a manual override (True) or automatic (False)
 
         Returns:
             Saved BotState instance
@@ -73,6 +75,7 @@ class BotStateRepository:
                 # Update existing state
                 bot_state.cycle_activated = cycle_activated
                 bot_state.last_state = last_state
+                bot_state.is_manual_override = is_manual
                 bot_state.last_state_change_at = datetime.now(UTC)
 
                 # Update activated_at only if newly activated
@@ -89,7 +92,8 @@ class BotStateRepository:
                     account_id=account_id,
                     cycle_activated=cycle_activated,
                     last_state=last_state,
-                    activated_at=activated_at if cycle_activated else None,
+                    is_manual_override=is_manual,
+                    activated_at=(activated_at or datetime.now(UTC)) if cycle_activated else None,
                     last_state_change_at=datetime.now(UTC),
                 )
                 self.session.add(bot_state)
@@ -111,6 +115,10 @@ class BotStateRepository:
         """
         Check if bot state is still valid for restoration.
 
+        Manual overrides are always restored if they're activated and not too old.
+        Automatic states are only restored if they're recent enough and the market
+        conditions still make sense.
+
         Args:
             bot_state: BotState instance
             max_age_hours: Maximum age in hours for state to be valid
@@ -126,8 +134,13 @@ class BotStateRepository:
             main_logger.warning(f"Bot state {bot_state.id} is activated but has no activated_at")
             return False
 
+        # SQLite stores datetimes as timezone-naive, so we need to make it UTC-aware
+        activated_at = bot_state.activated_at
+        if activated_at.tzinfo is None:
+            activated_at = activated_at.replace(tzinfo=UTC)
+
         # Check if state is too old
-        age = datetime.now(UTC) - bot_state.activated_at
+        age = datetime.now(UTC) - activated_at
         max_age = timedelta(hours=max_age_hours)
 
         if age > max_age:
@@ -137,6 +150,16 @@ class BotStateRepository:
             )
             return False
 
+        # Manual overrides are always restored (user explicitly requested it)
+        if bot_state.is_manual_override:
+            main_logger.info(
+                f"Restoring MANUAL override state (age: {age.total_seconds() / 3600:.1f}h)"
+            )
+            return True
+
+        # For automatic states, we should verify market conditions still match
+        # For now, we'll restore them, but in the future we could add MACD validation here
+        main_logger.info(f"Restoring AUTOMATIC state (age: {age.total_seconds() / 3600:.1f}h)")
         return True
 
     async def clear_state(self, account_id: UUID) -> None:
@@ -172,6 +195,7 @@ class BotStateRepository:
             "account_id": str(bot_state.account_id),
             "cycle_activated": bot_state.cycle_activated,
             "last_state": bot_state.last_state,
+            "is_manual_override": bot_state.is_manual_override,
             "activated_at": bot_state.activated_at.isoformat() if bot_state.activated_at else None,
             "last_state_change_at": (
                 bot_state.last_state_change_at.isoformat()

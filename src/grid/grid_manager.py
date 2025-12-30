@@ -2,6 +2,8 @@ import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+from uuid import UUID
 
 from config import Config
 from src.client.bingx_client import BingXClient
@@ -12,6 +14,9 @@ from src.grid.grid_calculator import GridCalculator, GridLevel
 from src.grid.order_tracker import OrderTracker
 from src.strategy.macd_strategy import GridState, MACDStrategy
 from src.utils.logger import main_logger, orders_logger
+
+if TYPE_CHECKING:
+    from src.database.repositories.bot_state_repository import BotStateRepository
 
 
 @dataclass
@@ -50,13 +55,19 @@ class GridManager:
         on_order_filled: Callable | None = None,
         on_tp_hit: Callable | None = None,
         on_state_change: Callable | None = None,
+        account_id: UUID | None = None,
+        bot_state_repository: "BotStateRepository | None" = None,
     ):
         self.config = config
         self.client = client
         self.symbol = config.trading.symbol
         self.order_size = config.trading.order_size_usdt
 
-        self.strategy = MACDStrategy(config.macd)
+        self.strategy = MACDStrategy(
+            config.macd,
+            account_id=account_id,
+            bot_state_repository=bot_state_repository,
+        )
         self.calculator = GridCalculator(config.grid)
         self.tracker = OrderTracker()
 

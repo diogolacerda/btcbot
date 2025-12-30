@@ -24,6 +24,8 @@ class BotState(Base):
         account_id: Foreign key to accounts table (one-to-one relationship).
         cycle_activated: Whether the MACD cycle has been activated.
         last_state: Last known GridState (WAIT, ACTIVATE, ACTIVE, PAUSE, INACTIVE).
+        is_manual_override: Whether the activation was manual (True) or automatic (False).
+            Manual activations are restored more aggressively on restart.
         activated_at: Timestamp when cycle was first activated.
         last_state_change_at: Timestamp of last state change.
         created_at: Timestamp of record creation.
@@ -46,6 +48,7 @@ class BotState(Base):
     # MACD cycle state
     cycle_activated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     last_state: Mapped[str] = mapped_column(String(20), nullable=False, default="WAIT")
+    is_manual_override: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     # Timestamps for state tracking
     activated_at: Mapped[datetime | None] = mapped_column(nullable=True)
