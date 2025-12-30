@@ -64,6 +64,10 @@ WORKDIR /app
 # Copiar codigo da aplicacao
 COPY --chown=btcbot:btcbot . .
 
+# Copiar e configurar entrypoint
+COPY --chown=btcbot:btcbot entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Criar diretorio de logs
 RUN mkdir -p /app/logs && chown -R btcbot:btcbot /app/logs
 
@@ -85,5 +89,5 @@ ENV PYTHONUNBUFFERED=1 \
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Comando de entrada
-CMD ["python", "main.py"]
+# Entrypoint executa migrations e inicia o bot
+ENTRYPOINT ["/app/entrypoint.sh"]
