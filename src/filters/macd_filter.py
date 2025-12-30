@@ -89,6 +89,7 @@ class MACDFilter(Filter):
         details = {
             "current_state": self._current_state.value,
             "cycle_activated": self._strategy.is_cycle_activated,
+            "trigger_activated": self._strategy.is_trigger_activated,
             "state_description": self._strategy.get_state_description(self._current_state),
         }
 
@@ -114,3 +115,19 @@ class MACDFilter(Filter):
         """Manually deactivate the MACD cycle."""
         self._strategy.manual_deactivate()
         main_logger.info("MACD filter cycle manually deactivated")
+
+    def set_trigger(self, activated: bool) -> bool:
+        """
+        Manually set trigger state.
+
+        Args:
+            activated: True to activate trigger, False to deactivate
+
+        Returns:
+            True if set successfully, False if not allowed
+        """
+        success = self._strategy.set_trigger(activated)
+        if success:
+            action = "activated" if activated else "deactivated"
+            main_logger.info(f"MACD filter trigger manually {action}")
+        return success

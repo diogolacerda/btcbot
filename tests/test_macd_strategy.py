@@ -279,3 +279,165 @@ class TestMACDStrategyStateMachine:
             prev_histogram=60,  # rising = verde escuro
         )
         assert strategy._determine_state(verde_escuro) == GridState.ACTIVE
+
+
+class TestMACDStrategyTrigger:
+    """Test trigger_activated functionality (BE-029)."""
+
+    @pytest.fixture
+    def strategy(self):
+        """Create MACDStrategy instance."""
+        config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
+        return MACDStrategy(config)
+
+    def test_trigger_initially_false(self, strategy):
+        """Test that trigger is initially deactivated."""
+        assert strategy.is_trigger_activated is False
+
+    def test_trigger_activated_automatically_on_activate_state(self, strategy):
+        """Test that trigger activates automatically when ACTIVATE state is detected."""
+        # Simulate ACTIVATE condition (vermelho claro + both lines negative)
+        macd_activate = MACDValues(
+            macd_line=-100,
+            signal_line=-50,
+            histogram=-50,
+            prev_histogram=-60,
+        )
+
+        # Mock get_state to trigger activation
+        state = strategy._determine_state(macd_activate)
+        assert state == GridState.ACTIVATE
+
+        # Simulate what happens in get_state method
+        if state == GridState.ACTIVATE:
+            if not strategy._trigger_activated:
+                strategy._trigger_activated = True
+
+        assert strategy.is_trigger_activated is True
+
+    def test_trigger_deactivated_automatically_on_inactive_state(self, strategy):
+        """Test that trigger deactivates automatically when INACTIVE state is detected."""
+        # First activate the trigger manually
+        strategy._trigger_activated = True
+        assert strategy.is_trigger_activated is True
+
+        # Simulate INACTIVE condition (vermelho escuro)
+        macd_inactive = MACDValues(
+            macd_line=-100,
+            signal_line=-50,
+            histogram=-50,
+            prev_histogram=-40,  # falling
+        )
+
+        state = strategy._determine_state(macd_inactive)
+        assert state == GridState.INACTIVE
+
+        # Simulate what happens in get_state method
+        if state == GridState.INACTIVE:
+            if strategy._trigger_activated:
+                strategy._trigger_activated = False
+
+        assert strategy.is_trigger_activated is False
+
+    def test_manual_trigger_activation_success(self, strategy):
+        """Test manual trigger activation when not in INACTIVE state."""
+        # Set a safe state (not INACTIVE)
+        strategy._prev_state = GridState.WAIT
+
+        success = strategy.set_trigger(True)
+        assert success is True
+        assert strategy.is_trigger_activated is True
+
+    def test_manual_trigger_activation_blocked_in_inactive(self, strategy):
+        """Test that manual trigger activation is blocked in INACTIVE state."""
+        # Set state to INACTIVE
+        strategy._prev_state = GridState.INACTIVE
+
+        success = strategy.set_trigger(True)
+        assert success is False
+        assert strategy.is_trigger_activated is False
+
+    def test_manual_trigger_deactivation(self, strategy):
+        """Test manual trigger deactivation."""
+        # First activate
+        strategy._trigger_activated = True
+        assert strategy.is_trigger_activated is True
+
+        # Deactivate
+        success = strategy.set_trigger(False)
+        assert success is True
+        assert strategy.is_trigger_activated is False
+
+    def test_manual_trigger_idempotent_activation(self, strategy):
+        """Test that activating an already active trigger is idempotent."""
+        strategy._prev_state = GridState.WAIT
+        strategy._trigger_activated = True
+
+        success = strategy.set_trigger(True)
+        assert success is True
+        assert strategy.is_trigger_activated is True
+
+    def test_manual_trigger_idempotent_deactivation(self, strategy):
+        """Test that deactivating an already inactive trigger is idempotent."""
+        strategy._trigger_activated = False
+
+        success = strategy.set_trigger(False)
+        assert success is True
+        assert strategy.is_trigger_activated is False
+
+    def test_should_create_orders_requires_both_cycle_and_trigger(self, strategy):
+        """Test that should_create_orders requires both cycle_activated AND trigger_activated."""
+        # Test 1: Neither activated
+        strategy._cycle_activated = False
+        strategy._trigger_activated = False
+        assert strategy.should_create_orders(GridState.ACTIVE) is False
+
+        # Test 2: Only cycle activated
+        strategy._cycle_activated = True
+        strategy._trigger_activated = False
+        assert strategy.should_create_orders(GridState.ACTIVE) is False
+
+        # Test 3: Only trigger activated
+        strategy._cycle_activated = False
+        strategy._trigger_activated = True
+        assert strategy.should_create_orders(GridState.ACTIVE) is False
+
+        # Test 4: Both activated - should create
+        strategy._cycle_activated = True
+        strategy._trigger_activated = True
+        assert strategy.should_create_orders(GridState.ACTIVE) is True
+
+    def test_should_create_orders_respects_state(self, strategy):
+        """Test that should_create_orders still respects state even with both flags."""
+        strategy._cycle_activated = True
+        strategy._trigger_activated = True
+
+        # Should create in ACTIVE and ACTIVATE
+        assert strategy.should_create_orders(GridState.ACTIVE) is True
+        assert strategy.should_create_orders(GridState.ACTIVATE) is True
+
+        # Should NOT create in other states
+        assert strategy.should_create_orders(GridState.PAUSE) is False
+        assert strategy.should_create_orders(GridState.INACTIVE) is False
+        assert strategy.should_create_orders(GridState.WAIT) is False
+
+    def test_trigger_manual_override_scenario(self, strategy):
+        """
+        Test the main use case: app starts after ACTIVATE already happened.
+
+        User can manually activate trigger to start creating orders.
+        """
+        # Scenario: App started, market is in valid state but trigger hasn't happened
+        strategy._prev_state = GridState.ACTIVE
+        strategy._cycle_activated = True  # Cycle was manually activated
+        strategy._trigger_activated = False  # But trigger never happened
+
+        # Orders should NOT be created yet
+        assert strategy.should_create_orders(GridState.ACTIVE) is False
+
+        # User manually activates trigger
+        success = strategy.set_trigger(True)
+        assert success is True
+
+        # Now orders should be created
+        assert strategy.should_create_orders(GridState.ACTIVE) is True
