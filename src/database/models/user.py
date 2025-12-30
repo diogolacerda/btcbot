@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
 
@@ -47,6 +47,9 @@ class User(Base):
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
     )
+
+    # Relationships
+    accounts: Mapped[list["Account"]] = relationship("Account", back_populates="user")  # noqa: F821
 
     def __repr__(self) -> str:
         """String representation of User."""
