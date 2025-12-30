@@ -180,6 +180,20 @@ All config via environment variables (see `.env.example`):
 - `config.py` loads into dataclasses: `BingXConfig`, `TradingConfig`, `GridConfig`, `MACDConfig`, `DynamicTPConfig`, `ReactivationConfig`
 - Three env templates: `.env.example`, `.env.stage.example`, `.env.prod.example`
 
+## Environments
+
+| Environment | Port | Config Source | Trading Mode |
+|-------------|------|---------------|--------------|
+| Local | - | `.env` file | demo |
+| Stage | 3001 | **Portainer env vars** | demo |
+| Prod | 3000 | **Portainer env vars** | live |
+
+**IMPORTANT**: Stage and Prod environments do NOT use `.env` files. Environment variables are configured directly in Portainer. The `.env.stage.example` and `.env.prod.example` files are just templates for reference.
+
+Current Stage config (Portainer):
+- `TAKE_PROFIT_PERCENT=0.5`
+- `TRADING_MODE=demo`
+
 ## CI/CD Pipeline
 
 GitHub Actions workflow (`.github/workflows/ci.yml`):
