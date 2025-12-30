@@ -1,12 +1,16 @@
 """Account model for multi-exchange and multi-mode trading accounts."""
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
+
+if TYPE_CHECKING:
+    from .user import User
 
 
 class Account(Base):
@@ -53,7 +57,7 @@ class Account(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship("User", back_populates="accounts")  # noqa: F821
+    user: Mapped["User"] = relationship("User", back_populates="accounts")
 
     # Constraints
     __table_args__ = (

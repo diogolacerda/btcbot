@@ -1,12 +1,16 @@
 """User model for authentication and user management."""
 
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
+
+if TYPE_CHECKING:
+    from .account import Account
 
 
 class User(Base):
@@ -49,7 +53,7 @@ class User(Base):
     )
 
     # Relationships
-    accounts: Mapped[list["Account"]] = relationship("Account", back_populates="user")  # noqa: F821
+    accounts: Mapped[list["Account"]] = relationship("Account", back_populates="user")
 
     def __repr__(self) -> str:
         """String representation of User."""
