@@ -12,7 +12,7 @@ from rich.console import Console
 
 from config import load_config
 from src.client.bingx_client import BingXClient
-from src.database.connection import get_async_session
+from src.database.engine import get_async_session
 from src.database.helpers import get_or_create_account
 from src.database.repositories.bot_state_repository import BotStateRepository
 from src.grid.grid_calculator import GridCalculator
