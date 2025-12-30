@@ -460,6 +460,40 @@ class GridManager:
         tp_orders = [o for o in orders if "TAKE_PROFIT" in o.get("type", "")]
         return len(tp_orders)
 
+    def _get_entry_prices_from_tp_orders(self, orders: list[dict]) -> set[float]:
+        """
+        Calculate entry prices from TP orders by reverse calculation.
+
+        BUG-004 FIX: BingX consolidates multiple fills into a single position
+        with average price, but keeps separate TP orders for each fill.
+        We can reverse-calculate the original entry price from each TP:
+
+            entry_price = tp_price / (1 + TAKE_PROFIT_PERCENT / 100)
+
+        This allows us to know which price levels are "occupied" even after
+        bot restart, without needing to persist data locally.
+
+        Args:
+            orders: List of open orders from exchange
+
+        Returns:
+            Set of entry prices that have fills awaiting TP
+        """
+        occupied_prices: set[float] = set()
+        tp_multiplier = 1 + (self.config.grid.take_profit_percent / 100)
+
+        for order in orders:
+            if "TAKE_PROFIT" in order.get("type", ""):
+                # TP orders use stopPrice field
+                tp_price = float(order.get("stopPrice", 0))
+                if tp_price > 0:
+                    # Reverse calculate the entry price
+                    entry_price = tp_price / tp_multiplier
+                    # Round to 2 decimals for comparison (same as round_price default)
+                    occupied_prices.add(round(entry_price, 2))
+
+        return occupied_prices
+
     async def _create_grid_orders(self) -> None:
         """Create grid orders based on current price."""
         # Check for margin error (reset after 5 minutes)
@@ -475,24 +509,19 @@ class GridManager:
         if time.time() < self._rate_limited_until:
             return  # Still rate limited
 
-        # Get existing orders AND positions from exchange
+        # Get existing orders from exchange
         exchange_orders = await self.client.get_open_orders(self.symbol)
-        positions = await self.client.get_positions(self.symbol)
 
         # BE-008: Count filled orders awaiting TP for dynamic slot calculation
         # Note: We count TP orders, not positions, because BingX consolidates
         # multiple fills into one position but keeps separate TPs
         filled_orders_count = self._count_filled_orders_awaiting_tp(exchange_orders)
 
-        # BUG-003 FIX: Build set of prices with open positions (filled orders awaiting TP)
-        # This prevents creating duplicate orders at same price before TP is hit
-        position_prices: set[float] = set()
-        for pos in positions:
-            avg_price = float(pos.get("avgPrice", 0))
-            position_amt = float(pos.get("positionAmt", 0))
-            if position_amt != 0 and avg_price > 0:
-                # Round to 2 decimals for comparison (same as round_price)
-                position_prices.add(round(avg_price, 2))
+        # BUG-004 FIX: Calculate entry prices from TP orders
+        # BingX consolidates multiple fills into one position with avgPrice,
+        # but keeps separate TPs. We reverse-calculate entry prices from TPs
+        # to know which levels are occupied, even after bot restart.
+        occupied_entry_prices = self._get_entry_prices_from_tp_orders(exchange_orders)
 
         # STEP 1: Cancel orders outside range FIRST
         # This frees up slots for new orders in the same cycle
@@ -532,16 +561,16 @@ class GridManager:
             filled_orders_count,
         )
 
-        # Also check local tracker AND open positions (BUG-003 FIX)
+        # Also check local tracker AND TP-derived entry prices (BUG-003 + BUG-004 FIX)
         # This triple-check ensures no duplicates:
         # 1. get_levels_to_create() already filters by exchange LIMIT orders
         # 2. has_order_at_price() filters by local tracker (pending + filled)
-        # 3. position_prices filters by actual exchange positions
+        # 3. occupied_entry_prices filters by reverse-calculated entry prices from TPs
         levels = [
             level
             for level in levels
             if not self.tracker.has_order_at_price(level.entry_price)
-            and round(level.entry_price, 2) not in position_prices
+            and round(level.entry_price, 2) not in occupied_entry_prices
         ]
 
         if not levels:
