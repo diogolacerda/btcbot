@@ -194,6 +194,37 @@ Current Stage config (Portainer):
 - `TAKE_PROFIT_PERCENT=0.5`
 - `TRADING_MODE=demo`
 
+## Homeserver Access
+
+| Item | Valor |
+|------|-------|
+| **IP Local** | `192.168.68.99` |
+| **SSH** | `ssh diogo@192.168.68.99` |
+| **Portainer** | `http://192.168.68.99:9000` |
+| **Stage URL** | `http://192.168.68.99:3001` |
+| **Prod URL** | `http://192.168.68.99:3000` |
+
+### Common Commands
+
+```bash
+# SSH into homeserver
+ssh diogo@192.168.68.99
+
+# View Stage logs
+ssh diogo@192.168.68.99 "docker logs btcbot-stage --tail 100"
+
+# View Prod logs
+ssh diogo@192.168.68.99 "docker logs btcbot-prod --tail 100"
+
+# Restart Stage container
+ssh diogo@192.168.68.99 "docker restart btcbot-stage"
+
+# Check container status
+ssh diogo@192.168.68.99 "docker ps --filter 'name=btcbot'"
+```
+
+See `docs/HOMESERVER_SETUP.md` for complete setup instructions.
+
 ## CI/CD Pipeline
 
 GitHub Actions workflow (`.github/workflows/ci.yml`):
