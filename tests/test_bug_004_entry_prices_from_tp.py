@@ -248,3 +248,145 @@ class TestBug004ScenarioRestart:
         # $99,600 and $99,400 should be allowed (no existing fills)
         assert 99600.0 in allowed_levels
         assert 99400.0 in allowed_levels
+
+
+class TestBug004AnchorModeRounding:
+    """
+    Test cases for anchor mode rounding fix.
+
+    Problem discovered in acceptance testing:
+    - Grid creates order at $87,800 (anchor mode $100)
+    - TP calculated: $87,800 × 1.005 = $88,239.00
+    - TP saved in BingX: $88,238.90 (slight rounding difference)
+    - Reverse calculation: $88,238.90 / 1.005 = $87,799.90 ≠ $87,800.00
+    - Without anchor rounding: $87,800 not in {$87,799.90} → allows duplicate!
+
+    Fix: Round calculated entry to nearest anchor value.
+    """
+
+    def _get_entry_prices_with_anchor(
+        self,
+        orders: list[dict],
+        tp_percent: float,
+        anchor_value: float = 0,
+    ) -> set[float]:
+        """
+        Implementation with anchor mode rounding.
+        """
+        occupied_prices: set[float] = set()
+        tp_multiplier = 1 + (tp_percent / 100)
+        use_anchor = anchor_value > 0
+
+        for order in orders:
+            if "TAKE_PROFIT" in order.get("type", ""):
+                tp_price = float(order.get("stopPrice", 0))
+                if tp_price > 0:
+                    entry_price = tp_price / tp_multiplier
+
+                    if use_anchor:
+                        rounded_price = round(entry_price / anchor_value) * anchor_value
+                    else:
+                        rounded_price = round(entry_price, 2)
+
+                    occupied_prices.add(rounded_price)
+
+        return occupied_prices
+
+    def test_anchor_rounding_fixes_bingx_difference(self):
+        """
+        Test that anchor rounding handles BingX's slight price differences.
+
+        Real scenario from Stage:
+        - Entry: $87,800 (anchor $100)
+        - TP with 0.5%: $87,800 * 1.005 = $88,239.00
+        - BingX saved: $88,238.90 (difference of $0.10)
+        - Without fix: $88,238.90 / 1.005 = $87,799.90 (doesn't match!)
+        - With fix: round($87,799.90 / 100) * 100 = $87,800.00 ✓
+        """
+        tp_percent = 0.5
+        anchor_value = 100
+
+        # Real TP price from BingX (slightly different from calculated)
+        orders = [
+            {"orderId": "tp1", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88238.90"},
+        ]
+
+        result = self._get_entry_prices_with_anchor(orders, tp_percent, anchor_value)
+
+        # Should round to $87,800 (the actual grid level)
+        assert 87800.0 in result
+        # Should NOT contain the raw calculation
+        assert 87799.9 not in result
+
+    def test_multiple_tps_with_anchor_rounding(self):
+        """Test multiple TPs are all rounded to anchor values."""
+        tp_percent = 0.5
+        anchor_value = 100
+
+        # Real TPs from Stage environment
+        orders = [
+            {"orderId": "tp1", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88238.90"},
+            {"orderId": "tp2", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88339.40"},
+            {"orderId": "tp3", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88439.90"},
+            {"orderId": "tp4", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88540.40"},
+        ]
+
+        result = self._get_entry_prices_with_anchor(orders, tp_percent, anchor_value)
+
+        # All should be rounded to $100 multiples
+        assert 87800.0 in result
+        assert 87900.0 in result
+        assert 88000.0 in result
+        assert 88100.0 in result
+
+        # All values should be multiples of anchor_value
+        for price in result:
+            assert price % anchor_value == 0, f"{price} is not a multiple of {anchor_value}"
+
+    def test_prevents_duplicates_with_anchor_mode(self):
+        """Test that duplicates are prevented when anchor mode is enabled."""
+        tp_percent = 0.5
+        anchor_value = 100
+
+        # Existing TP from BingX
+        exchange_orders = [
+            {"orderId": "tp1", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88238.90"},
+        ]
+
+        occupied = self._get_entry_prices_with_anchor(exchange_orders, tp_percent, anchor_value)
+
+        # Grid wants to create order at $87,800
+        proposed_level = 87800.0
+
+        # Should be blocked because $87,800 is in occupied set
+        assert proposed_level in occupied
+
+    def test_no_anchor_mode_uses_2_decimal_rounding(self):
+        """Test that without anchor mode, regular 2 decimal rounding is used."""
+        tp_percent = 0.5
+
+        orders = [
+            {"orderId": "tp1", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88238.90"},
+        ]
+
+        # Without anchor (anchor_value=0)
+        result = self._get_entry_prices_with_anchor(orders, tp_percent, anchor_value=0)
+
+        # Should use 2 decimal rounding: $87,799.90
+        assert 87799.9 in result
+        # Should NOT round to $87,800
+        assert 87800.0 not in result
+
+    def test_anchor_value_1000(self):
+        """Test with anchor value of $1000."""
+        tp_percent = 0.5
+        anchor_value = 1000
+
+        orders = [
+            {"orderId": "tp1", "type": "TAKE_PROFIT_MARKET", "stopPrice": "88238.90"},
+        ]
+
+        result = self._get_entry_prices_with_anchor(orders, tp_percent, anchor_value)
+
+        # $87,799.90 rounds to $88,000 with anchor $1000
+        assert 88000.0 in result

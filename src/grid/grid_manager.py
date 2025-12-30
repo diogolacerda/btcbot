@@ -473,6 +473,11 @@ class GridManager:
         This allows us to know which price levels are "occupied" even after
         bot restart, without needing to persist data locally.
 
+        Note: When anchor mode is enabled, the entry price is rounded to the
+        nearest anchor value (e.g., $100 multiples) to match the grid levels.
+        This is necessary because BingX may round the TP price slightly
+        differently than our calculation.
+
         Args:
             orders: List of open orders from exchange
 
@@ -482,6 +487,10 @@ class GridManager:
         occupied_prices: set[float] = set()
         tp_multiplier = 1 + (self.config.grid.take_profit_percent / 100)
 
+        # Check if anchor mode is enabled
+        use_anchor = self.calculator.anchor_mode.value != "none"
+        anchor_value = self.calculator.anchor_value if use_anchor else 0
+
         for order in orders:
             if "TAKE_PROFIT" in order.get("type", ""):
                 # TP orders use stopPrice field
@@ -489,8 +498,15 @@ class GridManager:
                 if tp_price > 0:
                     # Reverse calculate the entry price
                     entry_price = tp_price / tp_multiplier
-                    # Round to 2 decimals for comparison (same as round_price default)
-                    occupied_prices.add(round(entry_price, 2))
+
+                    # Round to anchor value if anchor mode is enabled
+                    # This handles BingX rounding differences (e.g., $87,799.90 → $87,800)
+                    if use_anchor and anchor_value > 0:
+                        rounded_price = round(entry_price / anchor_value) * anchor_value
+                    else:
+                        rounded_price = round(entry_price, 2)
+
+                    occupied_prices.add(rounded_price)
 
         return occupied_prices
 
