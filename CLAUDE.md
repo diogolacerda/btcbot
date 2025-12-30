@@ -253,3 +253,86 @@ Types: feat, fix, refactor, test, docs, chore
 ```
 
 See `docs/GITFLOW.md` for complete workflow details.
+
+## Git Worktrees (Parallel Development)
+
+Git worktrees allow multiple agents to work on different tasks simultaneously, each in an independent working directory with its own branch.
+
+### Directory Structure
+
+```
+/Users/diogolacerda/Sites/
+├── btcbot/                          # Main repo (main branch)
+│   └── .git/                        # Shared git database
+│
+└── btcbot-worktrees/                # Parallel worktrees
+    ├── feature-BE-XXX/              # Agent 1 worktree
+    ├── feature-DB-YYY/              # Agent 2 worktree
+    └── bugfix-ZZZ/                  # Agent 3 worktree
+```
+
+### Creating a Worktree
+
+```bash
+# From main repo
+cd /Users/diogolacerda/Sites/btcbot
+
+# Create worktree with new branch
+git worktree add ../btcbot-worktrees/feature-TASK-ID -b feature/TASK-ID-desc main
+
+# Or for existing branch
+git worktree add ../btcbot-worktrees/feature-TASK-ID feature/TASK-ID-desc
+```
+
+### Setup Environment in Worktree
+
+```bash
+cd /Users/diogolacerda/Sites/btcbot-worktrees/feature-TASK-ID
+
+# Create venv
+python3.12 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt -r requirements-dev.txt
+
+# Install pre-commit hooks
+pre-commit install
+
+# Copy .env
+cp /Users/diogolacerda/Sites/btcbot/.env .env
+```
+
+### Managing Worktrees
+
+```bash
+# List active worktrees
+git worktree list
+
+# Remove worktree after task completion
+git worktree remove ../btcbot-worktrees/feature-TASK-ID
+
+# Force remove (if uncommitted changes)
+git worktree remove --force ../btcbot-worktrees/feature-TASK-ID
+```
+
+### Workflow per Agent
+
+1. **Check available worktrees**: `git worktree list`
+2. **Update main**: `git checkout main && git pull origin main`
+3. **Create worktree**: `git worktree add ../btcbot-worktrees/TASK-ID -b feature/TASK-ID main`
+4. **Setup environment**: venv, deps, pre-commit, .env
+5. **Develop**: edit, test (`pytest`), commit, push
+6. **Create PR** and wait for merge
+7. **Cleanup**: `git worktree remove ../btcbot-worktrees/TASK-ID`
+
+### Important Notes
+
+- **Database**: All worktrees share the same PostgreSQL (port 5432)
+- **Health server**: Only one bot can run locally at a time (port 8080)
+- **Migrations**: Run `alembic upgrade head` when switching worktrees
+- **Merge order**: Merge PRs sequentially; rebase other branches after merge:
+  ```bash
+  git fetch origin main && git rebase origin/main
+  ```
+- **Limitations**: A branch can only be checked out in one worktree at a time
