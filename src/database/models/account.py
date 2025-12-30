@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.database.base import Base
 
 if TYPE_CHECKING:
+    from .bot_state import BotState
     from .user import User
 
 
@@ -58,6 +59,9 @@ class Account(Base):
 
     # Relationships
     user: Mapped["User"] = relationship("User", back_populates="accounts")
+    bot_state: Mapped["BotState | None"] = relationship(
+        "BotState", back_populates="account", uselist=False
+    )
 
     # Constraints
     __table_args__ = (

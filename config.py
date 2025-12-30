@@ -95,6 +95,13 @@ class DynamicTPConfig:
 
 
 @dataclass
+class BotStateConfig:
+    """Configuration for bot state persistence."""
+
+    restore_max_age_hours: int = 24  # Maximum hours to restore state after
+
+
+@dataclass
 class Config:
     bingx: BingXConfig
     trading: TradingConfig
@@ -102,6 +109,7 @@ class Config:
     macd: MACDConfig
     dynamic_tp: DynamicTPConfig
     reactivation_mode: ReactivationMode
+    bot_state: BotStateConfig
 
 
 def load_config() -> Config:
@@ -143,4 +151,7 @@ def load_config() -> Config:
             check_interval_minutes=int(os.getenv("TP_CHECK_INTERVAL_MIN", "60")),
         ),
         reactivation_mode=ReactivationMode(os.getenv("REACTIVATION_MODE", "immediate")),
+        bot_state=BotStateConfig(
+            restore_max_age_hours=int(os.getenv("STATE_RESTORE_MAX_AGE_HOURS", "24")),
+        ),
     )

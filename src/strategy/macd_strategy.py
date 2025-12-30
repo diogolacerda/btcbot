@@ -1,6 +1,10 @@
+import asyncio
 import warnings
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import Enum
+from typing import TYPE_CHECKING
+from uuid import UUID
 
 import numpy as np
 import pandas as pd
@@ -8,6 +12,9 @@ import pandas_ta as ta
 
 from config import MACDConfig
 from src.utils.logger import macd_logger
+
+if TYPE_CHECKING:
+    from src.database.repositories.bot_state_repository import BotStateRepository
 
 # Suppress numpy overflow warnings - we'll handle them explicitly
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="overflow encountered")
@@ -78,7 +85,12 @@ class MACDStrategy:
     - ESPERA: hist < 0 e subindo (vermelho claro), mas MACD >= 0 ou Signal >= 0
     """
 
-    def __init__(self, config: MACDConfig):
+    def __init__(
+        self,
+        config: MACDConfig,
+        account_id: UUID | None = None,
+        bot_state_repository: "BotStateRepository | None" = None,
+    ):
         self.fast = config.fast
         self.slow = config.slow
         self.signal = config.signal
@@ -86,6 +98,48 @@ class MACDStrategy:
         self._prev_state: GridState | None = None
         self._cycle_activated: bool = False  # Só True após passar por ACTIVATE
         self._trigger_activated: bool = False  # Can be manually overridden via API
+        self._account_id = account_id
+        self._bot_state_repository = bot_state_repository
+
+    def _schedule_persist_state(
+        self, cycle_activated: bool, last_state: str, *, is_manual: bool = False
+    ) -> None:
+        """
+        Schedule state persistence to database (non-blocking).
+
+        Args:
+            cycle_activated: Whether cycle is activated
+            last_state: Last GridState value
+            is_manual: Whether this is a manual override (True) or automatic (False)
+        """
+        if not self._bot_state_repository or not self._account_id:
+            return
+
+        async def _do_persist():
+            try:
+                activated_at = datetime.now(UTC) if cycle_activated else None
+                await self._bot_state_repository.save_state(
+                    account_id=self._account_id,
+                    cycle_activated=cycle_activated,
+                    last_state=last_state,
+                    activated_at=activated_at,
+                    is_manual=is_manual,
+                )
+                source = "manual" if is_manual else "automatic"
+                macd_logger.debug(
+                    f"Persisted state ({source}): cycle_activated={cycle_activated}, "
+                    f"last_state={last_state}"
+                )
+            except Exception as e:
+                macd_logger.error(f"Failed to persist bot state: {e}")
+
+        # Schedule the coroutine in the event loop
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(_do_persist())
+        except RuntimeError:
+            # No event loop running, skip persistence
+            macd_logger.warning("No event loop running, skipping state persistence")
 
     def calculate_macd(self, klines: pd.DataFrame) -> MACDValues | None:
         """
@@ -182,25 +236,38 @@ class MACDStrategy:
         state = self._determine_state(macd)
 
         # Controlar flag do ciclo e trigger
+        state_changed = False
         if state == GridState.ACTIVATE:
             if not self._cycle_activated:
                 self._cycle_activated = True
+                state_changed = True
                 macd_logger.info("Ciclo ATIVADO - Ordens podem ser criadas")
             if not self._trigger_activated:
                 self._trigger_activated = True
+                state_changed = True
                 macd_logger.info("Trigger ATIVADO automaticamente (ACTIVATE detectado)")
         elif state == GridState.INACTIVE:
             if self._cycle_activated:
                 self._cycle_activated = False
+                state_changed = True
                 macd_logger.info("Ciclo DESATIVADO - Aguardando novo ACTIVATE")
             if self._trigger_activated:
                 self._trigger_activated = False
+                state_changed = True
                 macd_logger.info("Trigger DESATIVADO automaticamente (INACTIVE detectado)")
 
         # Log mudanças de estado
         if state != self._prev_state:
             self._log_state_change(macd, state)
             self._prev_state = state
+            state_changed = True
+
+        # Persist state changes to database
+        if state_changed:
+            self._schedule_persist_state(
+                cycle_activated=self._cycle_activated,
+                last_state=state.value,
+            )
 
         return state
 
@@ -277,6 +344,12 @@ class MACDStrategy:
             if not self._trigger_activated:
                 self._trigger_activated = True
                 macd_logger.info("Trigger ATIVADO MANUALMENTE pelo usuário")
+                # Persist state change
+                self._schedule_persist_state(
+                    cycle_activated=self._cycle_activated,
+                    last_state=self._prev_state.value if self._prev_state else "WAIT",
+                    is_manual=True,
+                )
             else:
                 macd_logger.info("Trigger já está ativo")
             return True
@@ -285,6 +358,12 @@ class MACDStrategy:
             if self._trigger_activated:
                 self._trigger_activated = False
                 macd_logger.info("Trigger DESATIVADO MANUALMENTE pelo usuário")
+                # Persist state change
+                self._schedule_persist_state(
+                    cycle_activated=self._cycle_activated,
+                    last_state=self._prev_state.value if self._prev_state else "WAIT",
+                    is_manual=True,
+                )
             else:
                 macd_logger.info("Trigger já está inativo")
             return True
@@ -303,13 +382,24 @@ class MACDStrategy:
             macd_logger.warning("Não é possível ativar manualmente em INACTIVE (mercado em queda)")
             return False
 
+        state_changed = False
         if not self._cycle_activated:
             self._cycle_activated = True
+            state_changed = True
             macd_logger.info("Ciclo ATIVADO MANUALMENTE pelo usuário")
 
         if not self._trigger_activated:
             self._trigger_activated = True
+            state_changed = True
             macd_logger.info("Trigger ATIVADO MANUALMENTE pelo usuário")
+
+        # Persist state change
+        if state_changed:
+            self._schedule_persist_state(
+                cycle_activated=self._cycle_activated,
+                last_state=self._prev_state.value if self._prev_state else "WAIT",
+                is_manual=True,
+            )
 
         return True
 
@@ -318,8 +408,40 @@ class MACDStrategy:
         if self._cycle_activated:
             self._cycle_activated = False
             macd_logger.info("Ciclo DESATIVADO MANUALMENTE pelo usuário")
+            # Persist state change
+            self._schedule_persist_state(
+                cycle_activated=self._cycle_activated,
+                last_state=self._prev_state.value if self._prev_state else "WAIT",
+                is_manual=True,
+            )
         else:
             macd_logger.info("Ciclo já está inativo")
+
+    def restore_state(self, cycle_activated: bool, last_state: str) -> None:
+        """
+        Restore bot state from persisted data.
+
+        This method is called during startup to restore the previous state
+        if it's still valid (< 24h old).
+
+        Args:
+            cycle_activated: Whether cycle was activated
+            last_state: Last GridState value
+        """
+        self._cycle_activated = cycle_activated
+        self._trigger_activated = cycle_activated  # Restore trigger state as well
+
+        # Try to convert last_state to GridState enum
+        try:
+            self._prev_state = GridState(last_state.lower())
+        except ValueError:
+            macd_logger.warning(f"Invalid last_state '{last_state}', defaulting to WAIT")
+            self._prev_state = GridState.WAIT
+
+        macd_logger.info(
+            f"Estado restaurado: cycle_activated={cycle_activated}, "
+            f"trigger_activated={self._trigger_activated}, last_state={last_state}"
+        )
 
     def should_create_orders(self, state: GridState) -> bool:
         """

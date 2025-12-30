@@ -12,6 +12,9 @@ from rich.console import Console
 
 from config import load_config
 from src.client.bingx_client import BingXClient
+from src.database.connection import get_async_session
+from src.database.helpers import get_or_create_account
+from src.database.repositories.bot_state_repository import BotStateRepository
 from src.grid.grid_calculator import GridCalculator
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
@@ -45,6 +48,48 @@ async def run_bot() -> None:
     health_server.set_bingx_client(client)
     await health_server.start()
 
+    # Initialize database and restore state
+    account_id = None
+    restored_state = None
+    try:
+        # Get/create account
+        async with get_async_session() as session:
+            account_id = await get_or_create_account(
+                session=session,
+                bingx_config=config.bingx,
+                trading_config=config.trading,
+            )
+            main_logger.info(f"Using account ID: {account_id}")
+
+        # Try to restore previous state (using a new session)
+        async with get_async_session() as session:
+            bot_state_repository = BotStateRepository(session)
+            bot_state = await bot_state_repository.get_by_account(account_id)
+            if bot_state and await bot_state_repository.is_state_valid(
+                bot_state, max_age_hours=config.bot_state.restore_max_age_hours
+            ):
+                main_logger.info(
+                    f"Restaurando estado anterior: cycle_activated={bot_state.cycle_activated}, "
+                    f"last_state={bot_state.last_state}"
+                )
+                # Save state for restoration after GridManager init
+                restored_state = {
+                    "cycle_activated": bot_state.cycle_activated,
+                    "last_state": bot_state.last_state,
+                }
+            else:
+                if bot_state:
+                    main_logger.info(
+                        "Estado anterior encontrado mas é muito antigo, começando do zero"
+                    )
+                else:
+                    main_logger.info("Nenhum estado anterior encontrado, começando do zero")
+    except Exception as e:
+        main_logger.warning(
+            f"Erro ao inicializar banco de dados: {e}. Continuando sem persistência."
+        )
+        account_id = None
+
     # Grid Manager with callbacks
     def on_state_change(old_state: GridState, new_state: GridState):
         if new_state == GridState.ACTIVATE:
@@ -60,13 +105,42 @@ async def run_bot() -> None:
     def on_tp_hit(trade):
         alerts.tp_hit()
 
+    # Create bot state repository for GridManager (will create sessions as needed)
+    # Note: We pass None here because repository needs a session, which will be created
+    # when needed via get_async_session() inside MACDStrategy._schedule_persist_state
     grid_manager = GridManager(
         config=config,
         client=client,
         on_state_change=on_state_change,
         on_order_filled=on_order_filled,
         on_tp_hit=on_tp_hit,
+        account_id=account_id,
+        bot_state_repository=None,  # Will be set after
     )
+
+    # Set up bot state repository with a session factory
+    if account_id:
+        # Create a wrapper repository that creates sessions on demand
+        async def _save_state_with_session(account_id, cycle_activated, last_state, **kwargs):
+            """Helper to save state with a new session."""
+            async with get_async_session() as session:
+                repo = BotStateRepository(session)
+                return await repo.save_state(account_id, cycle_activated, last_state, **kwargs)
+
+        # Monkey-patch the repository into the strategy
+        # This is a workaround since we can't pass a session directly
+        grid_manager.strategy._bot_state_repository = type(
+            "BotStateRepositoryWrapper",
+            (),
+            {"save_state": lambda self, *args, **kwargs: _save_state_with_session(*args, **kwargs)},
+        )()
+
+    # Restore state if available
+    if restored_state:
+        grid_manager.strategy.restore_state(
+            cycle_activated=bool(restored_state["cycle_activated"]),
+            last_state=str(restored_state["last_state"]),
+        )
 
     # Link grid manager to health server for status reporting
     health_server.set_grid_manager(grid_manager)
