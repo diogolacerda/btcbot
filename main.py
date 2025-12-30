@@ -12,7 +12,7 @@ from rich.console import Console
 
 from config import load_config
 from src.client.bingx_client import BingXClient
-from src.database.engine import get_async_session
+from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
 from src.database.repositories.bot_state_repository import BotStateRepository
 from src.grid.grid_calculator import GridCalculator
@@ -53,7 +53,7 @@ async def run_bot() -> None:
     restored_state = None
     try:
         # Get/create account
-        async with get_async_session() as session:
+        async for session in get_session():
             account_id = await get_or_create_account(
                 session=session,
                 bingx_config=config.bingx,
@@ -62,7 +62,8 @@ async def run_bot() -> None:
             main_logger.info(f"Using account ID: {account_id}")
 
         # Try to restore previous state (using a new session)
-        async with get_async_session() as session:
+        assert account_id is not None, "Account ID must be set before restoring state"
+        async for session in get_session():
             bot_state_repository = BotStateRepository(session)
             bot_state = await bot_state_repository.get_by_account(account_id)
             if bot_state and await bot_state_repository.is_state_valid(
@@ -107,7 +108,7 @@ async def run_bot() -> None:
 
     # Create bot state repository for GridManager (will create sessions as needed)
     # Note: We pass None here because repository needs a session, which will be created
-    # when needed via get_async_session() inside MACDStrategy._schedule_persist_state
+    # when needed via get_session() inside MACDStrategy._schedule_persist_state
     grid_manager = GridManager(
         config=config,
         client=client,
@@ -123,7 +124,7 @@ async def run_bot() -> None:
         # Create a wrapper repository that creates sessions on demand
         async def _save_state_with_session(account_id, cycle_activated, last_state, **kwargs):
             """Helper to save state with a new session."""
-            async with get_async_session() as session:
+            async for session in get_session():
                 repo = BotStateRepository(session)
                 return await repo.save_state(account_id, cycle_activated, last_state, **kwargs)
 
