@@ -372,6 +372,48 @@ class BingXClient:
         }
         return await self._request("POST", endpoint, params)
 
+    async def set_margin_mode(self, symbol: str, margin_type: str) -> dict:
+        """
+        Set margin mode for a symbol.
+
+        Args:
+            symbol: Trading symbol (e.g., BTC-USDT)
+            margin_type: CROSSED or ISOLATED
+
+        Returns:
+            API response dict
+
+        Note:
+            Cannot change margin mode when positions are open.
+        """
+        endpoint = "/openApi/swap/v2/trade/marginType"
+        params = {
+            "symbol": symbol,
+            "marginType": margin_type,
+        }
+        return await self._request("POST", endpoint, params)
+
+    async def get_margin_mode(self, symbol: str) -> str:
+        """
+        Get current margin mode for a symbol.
+
+        Args:
+            symbol: Trading symbol (e.g., BTC-USDT)
+
+        Returns:
+            Current margin mode: CROSSED or ISOLATED
+        """
+        # Get position info which includes margin mode
+        positions = await self.get_positions(symbol)
+
+        # If no positions, return CROSSED as default (BingX default)
+        if not positions:
+            return "CROSSED"
+
+        # Return margin type from first position
+        margin_type = positions[0].get("marginType", "CROSSED")
+        return str(margin_type)
+
     async def get_funding_rate(self, symbol: str) -> dict[str, Any]:
         """
         Get current funding rate for a symbol (cached for 5 min).

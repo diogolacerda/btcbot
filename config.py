@@ -27,6 +27,11 @@ class TradingMode(Enum):
     LIVE = "live"  # Uses real USDT
 
 
+class MarginMode(Enum):
+    CROSSED = "CROSSED"  # All positions share the same margin
+    ISOLATED = "ISOLATED"  # Each position has separate margin
+
+
 @dataclass
 class BingXConfig:
     api_key: str
@@ -51,6 +56,7 @@ class TradingConfig:
     leverage: int
     order_size_usdt: float  # Order size in USDT
     mode: TradingMode
+    margin_mode: MarginMode = MarginMode.CROSSED
 
     @property
     def is_demo(self) -> bool:
@@ -111,6 +117,7 @@ def load_config() -> Config:
             leverage=int(os.getenv("LEVERAGE", "10")),
             order_size_usdt=float(os.getenv("ORDER_SIZE_USDT", "100")),
             mode=TradingMode(os.getenv("TRADING_MODE", "demo")),
+            margin_mode=MarginMode(os.getenv("MARGIN_MODE", "CROSSED")),
         ),
         grid=GridConfig(
             spacing_type=SpacingType(os.getenv("GRID_SPACING_TYPE", "fixed")),
