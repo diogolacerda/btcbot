@@ -3,20 +3,15 @@ Tests for BUG-002 fixes.
 
 Tests:
 1. MACD calculation handles overflow gracefully
-2. Dashboard calculations handle extreme values
-3. WebSocket configuration doesn't use conflicting ping settings
+2. WebSocket configuration doesn't use conflicting ping settings
 """
-
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from config import MACDConfig
-from src.grid.order_tracker import OrderStatus, TrackedOrder, TradeRecord
 from src.strategy.macd_strategy import MACDStrategy
-from src.ui.dashboard import Dashboard
 
 
 class TestMACDOverflowFix:
@@ -100,74 +95,6 @@ class TestMACDOverflowFix:
         assert result is not None, "Should calculate MACD for normal prices"
         assert isinstance(result.macd_line, float), "MACD line should be a float"
         assert isinstance(result.histogram, float), "Histogram should be a float"
-
-
-class TestDashboardOverflowFix:
-    """Test dashboard calculation overflow protection."""
-
-    def test_dashboard_positions_with_extreme_values(self):
-        """Test dashboard positions table with extreme price values."""
-        dashboard = Dashboard()
-
-        # Create a position with extreme values
-        position = TrackedOrder(
-            order_id="test123",
-            entry_price=1e15,  # Extreme price
-            tp_price=1e15 * 1.01,
-            quantity=0.001,
-            status=OrderStatus.FILLED,
-            filled_at=datetime.now(),
-        )
-
-        current_price = 1e15
-
-        # Should not raise overflow error
-        try:
-            panel = dashboard.create_positions_table([position], current_price)
-            assert panel is not None, "Should create panel without error"
-        except OverflowError:
-            pytest.fail("Dashboard should not raise overflow error")
-
-    def test_dashboard_history_with_extreme_pnl(self):
-        """Test dashboard history table with extreme PnL values."""
-        dashboard = Dashboard()
-
-        # Create a trade with values that could cause overflow
-        trade = TradeRecord(
-            entry_price=100000.0,
-            exit_price=100001.0,
-            quantity=1e10,  # Extreme quantity
-            pnl=1e15,  # Extreme PnL
-            entry_time=datetime.now(),
-            exit_time=datetime.now(),
-        )
-
-        # Should not raise overflow error
-        try:
-            panel = dashboard.create_history_table([trade])
-            assert panel is not None, "Should create panel without error"
-        except (OverflowError, ZeroDivisionError):
-            pytest.fail("Dashboard should handle extreme values gracefully")
-
-    def test_dashboard_normal_values(self):
-        """Test dashboard with normal trading values."""
-        dashboard = Dashboard()
-
-        # Create a position with normal values
-        position = TrackedOrder(
-            order_id="test123",
-            entry_price=95000.0,
-            tp_price=95500.0,
-            quantity=0.001,
-            status=OrderStatus.FILLED,
-            filled_at=datetime.now(),
-        )
-
-        current_price = 95250.0
-
-        # Should create panel successfully
-        panel = dashboard.create_positions_table([position], current_price)
-        assert panel is not None, "Should create panel for normal values"
 
 
 class TestWebSocketConfiguration:

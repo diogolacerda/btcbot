@@ -135,9 +135,8 @@ main.py (Entry Point)
     │   ├─ macd_filter.py      # MACD-based trading filter
     │   └─ registry.py         # Filter registry pattern
     │
-    ├─ Dashboard (src/ui/)
-    │   ├─ dashboard.py        # Rich terminal UI
-    │   └─ keyboard_handler.py # A/D/Q keyboard controls
+    ├─ UI (src/ui/)
+    │   └─ alerts.py           # Audio alerts for events
     │
     └─ HealthServer (src/health/)
         └─ health_server.py    # HTTP :8080 for Docker healthcheck
@@ -152,7 +151,7 @@ main.py (Entry Point)
 4. Check filters (MACDFilter)
 5. Create/manage LIMIT orders at grid levels
 6. Process fills via WebSocket callbacks
-7. Calculate P&L, render dashboard
+7. Calculate P&L and log status
 
 ## Key Concepts
 
