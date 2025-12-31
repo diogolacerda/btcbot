@@ -4,11 +4,14 @@ Integration tests for filter API endpoints.
 Tests the HTTP endpoints in HealthServer for managing filters.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
 from src.filters.base import Filter, FilterState
+from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 from src.health.health_server import HealthServer
 
@@ -300,3 +303,145 @@ async def test_filter_state_volatility():
 
     # Cleanup
     registry.clear()
+
+
+class TestMACDTriggerAPI(AioHTTPTestCase):
+    """Test MACD trigger API endpoint."""
+
+    async def get_application(self):
+        """Create test application with MACD trigger route."""
+        # Reset registry
+        registry = FilterRegistry()
+        registry.clear()
+
+        # Create mock MACD filter
+        mock_macd = MagicMock(spec=MACDFilter)
+        mock_macd.name = "macd"
+        mock_macd.description = "MACD Filter"
+        mock_macd.enabled = True
+        mock_macd.set_trigger = MagicMock(return_value=True)
+        mock_macd.get_state = MagicMock(
+            return_value=FilterState(
+                enabled=True,
+                description="MACD Filter",
+                details={"trigger_activated": True},
+            )
+        )
+        registry.register(mock_macd)
+
+        # Create health server
+        self.health_server = HealthServer(port=8889)
+        self.mock_macd = mock_macd
+
+        # Create app with MACD trigger route
+        app = web.Application()
+        app.router.add_post("/filters/macd/trigger", self.health_server._handle_macd_trigger)
+
+        return app
+
+    async def tearDownAsync(self):
+        """Cleanup after tests."""
+        registry = FilterRegistry()
+        registry.clear()
+
+    @unittest_run_loop
+    async def test_macd_trigger_activate(self):
+        """Test POST /filters/macd/trigger with activated=true."""
+        resp = await self.client.post(
+            "/filters/macd/trigger",
+            json={"activated": True},
+        )
+        assert resp.status == 200
+
+        data = await resp.json()
+        assert data["activated"] is True
+        assert data["persisted"] is True
+        assert "activated successfully" in data["message"]
+        assert "details" in data
+
+        # Verify set_trigger was called with True
+        self.mock_macd.set_trigger.assert_called_once_with(True)
+
+    @unittest_run_loop
+    async def test_macd_trigger_deactivate(self):
+        """Test POST /filters/macd/trigger with activated=false."""
+        resp = await self.client.post(
+            "/filters/macd/trigger",
+            json={"activated": False},
+        )
+        assert resp.status == 200
+
+        data = await resp.json()
+        assert data["activated"] is False
+        assert data["persisted"] is True
+        assert "deactivated successfully" in data["message"]
+
+        # Verify set_trigger was called with False
+        self.mock_macd.set_trigger.assert_called_once_with(False)
+
+    @unittest_run_loop
+    async def test_macd_trigger_invalid_json(self):
+        """Test trigger endpoint with invalid JSON returns 400."""
+        resp = await self.client.post(
+            "/filters/macd/trigger",
+            data="not json",
+        )
+        assert resp.status == 400
+
+        data = await resp.json()
+        assert "error" in data
+        assert "Invalid JSON" in data["error"]
+
+    @unittest_run_loop
+    async def test_macd_trigger_missing_activated(self):
+        """Test trigger endpoint without 'activated' field returns 400."""
+        resp = await self.client.post(
+            "/filters/macd/trigger",
+            json={"something": "else"},
+        )
+        assert resp.status == 400
+
+        data = await resp.json()
+        assert "error" in data
+        assert "activated" in data["error"]
+
+    @unittest_run_loop
+    async def test_macd_trigger_activation_fails(self):
+        """Test trigger endpoint when set_trigger fails."""
+        # Make set_trigger return False
+        self.mock_macd.set_trigger.return_value = False
+
+        resp = await self.client.post(
+            "/filters/macd/trigger",
+            json={"activated": True},
+        )
+        assert resp.status == 400
+
+        data = await resp.json()
+        assert "error" in data
+        assert "Failed to activate" in data["error"]
+
+    @unittest_run_loop
+    async def test_macd_trigger_filter_not_found(self):
+        """Test trigger endpoint when MACD filter is not registered."""
+        # Create a new app without MACD filter
+        registry = FilterRegistry()
+        registry.clear()
+
+        health_server = HealthServer(port=8890)
+
+        app = web.Application()
+        app.router.add_post("/filters/macd/trigger", health_server._handle_macd_trigger)
+
+        # Replace app
+        self.app = app
+
+        resp = await self.client.post(
+            "/filters/macd/trigger",
+            json={"activated": True},
+        )
+        assert resp.status == 404
+
+        data = await resp.json()
+        assert "error" in data
+        assert "not found" in data["error"].lower()
