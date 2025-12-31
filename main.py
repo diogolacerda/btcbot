@@ -8,23 +8,16 @@ Grid trading com estratégia MACD para futuros perpétuos BTC-USDT.
 import asyncio
 import sys
 
-from rich.console import Console
-
 from config import load_config
 from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
 from src.database.repositories.bot_state_repository import BotStateRepository
-from src.grid.grid_calculator import GridCalculator
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
 from src.ui.alerts import AudioAlerts
-from src.ui.dashboard import Dashboard
-from src.ui.keyboard_handler import KeyAction, KeyboardHandler
 from src.utils.logger import main_logger
-
-console = Console()
 
 
 async def run_bot() -> None:
@@ -33,15 +26,13 @@ async def run_bot() -> None:
 
     # Validate configuration
     if not config.bingx.api_key or not config.bingx.secret_key:
-        console.print("[red]Erro: API_KEY e SECRET_KEY não configurados![/red]")
-        console.print("Copie .env.example para .env e configure suas credenciais.")
+        main_logger.error("Erro: API_KEY e SECRET_KEY não configurados!")
+        main_logger.error("Copie .env.example para .env e configure suas credenciais.")
         sys.exit(1)
 
     # Initialize components
     client = BingXClient(config.bingx)
     alerts = AudioAlerts(enabled=True)
-    dashboard = Dashboard()
-    calculator = GridCalculator(config.grid)
 
     # Initialize health server (starts early for Docker healthcheck)
     health_server = HealthServer()
@@ -146,63 +137,40 @@ async def run_bot() -> None:
     # Link grid manager to health server for status reporting
     health_server.set_grid_manager(grid_manager)
 
-    # Keyboard handler for manual controls
-    keyboard_handler = KeyboardHandler()
-    should_quit = False
-
-    def on_activate():
-        if grid_manager.strategy.manual_activate():
-            alerts.cycle_activated()
-
-    def on_deactivate():
-        grid_manager.strategy.manual_deactivate()
-        alerts.cycle_deactivated()
-
-    def on_quit():
-        nonlocal should_quit
-        should_quit = True
-
-    keyboard_handler.set_callback(KeyAction.ACTIVATE_CYCLE, on_activate)
-    keyboard_handler.set_callback(KeyAction.DEACTIVATE_CYCLE, on_deactivate)
-    keyboard_handler.set_callback(KeyAction.QUIT, on_quit)
-
     # Print startup info
-    console.print("\n[bold cyan]═══════════════════════════════════════════[/bold cyan]")
-    console.print("[bold cyan]        BTC Grid Bot - BingX Futures        [/bold cyan]")
-    console.print("[bold cyan]═══════════════════════════════════════════[/bold cyan]\n")
+    main_logger.info("═══════════════════════════════════════════")
+    main_logger.info("       BTC Grid Bot - BingX Futures        ")
+    main_logger.info("═══════════════════════════════════════════")
 
     # Show trading mode prominently
     if config.trading.is_demo:
-        console.print("[bold green]🎮 MODO DEMO - Usando VST (tokens virtuais)[/bold green]")
-        console.print("[dim]Seus fundos reais NÃO serão afetados[/dim]\n")
+        main_logger.info("🎮 MODO DEMO - Usando VST (tokens virtuais)")
+        main_logger.info("Seus fundos reais NÃO serão afetados")
     else:
-        console.print("[bold red]⚠️  MODO LIVE - Usando USDT REAL![/bold red]")
-        console.print("[bold red]Cuidado: Operações afetarão seus fundos reais![/bold red]\n")
+        main_logger.warning("⚠️  MODO LIVE - Usando USDT REAL!")
+        main_logger.warning("Cuidado: Operações afetarão seus fundos reais!")
 
-    console.print("[bold]Configuração:[/bold]")
-    console.print(
-        f"  Modo: [{'green' if config.trading.is_demo else 'red'}]{config.trading.mode.value.upper()}[/{'green' if config.trading.is_demo else 'red'}]"
+    main_logger.info("Configuração:")
+    main_logger.info(f"  Modo: {config.trading.mode.value.upper()}")
+    main_logger.info(f"  Symbol: {config.trading.symbol}")
+    main_logger.info(f"  Leverage: {config.trading.leverage}x")
+    main_logger.info(f"  Order size: ${config.trading.order_size_usdt} USDT")
+    main_logger.info(
+        f"  Grid spacing: {config.grid.spacing_value} ({config.grid.spacing_type.value})"
     )
-    console.print(f"  Symbol: [cyan]{config.trading.symbol}[/cyan]")
-    console.print(f"  Leverage: [cyan]{config.trading.leverage}x[/cyan]")
-    console.print(f"  Order size: [cyan]${config.trading.order_size_usdt} USDT[/cyan]")
-    console.print(
-        f"  Grid spacing: [cyan]{config.grid.spacing_value} ({config.grid.spacing_type.value})[/cyan]"
+    main_logger.info(f"  Range: {config.grid.range_percent}% abaixo do preço")
+    main_logger.info(f"  Take profit: {config.grid.take_profit_percent}%")
+    main_logger.info(
+        f"  MACD: {config.macd.fast}/{config.macd.slow}/{config.macd.signal} ({config.macd.timeframe})"
     )
-    console.print(f"  Range: [cyan]{config.grid.range_percent}% abaixo do preço[/cyan]")
-    console.print(f"  Take profit: [cyan]{config.grid.take_profit_percent}%[/cyan]")
-    console.print(
-        f"  MACD: [cyan]{config.macd.fast}/{config.macd.slow}/{config.macd.signal} ({config.macd.timeframe})[/cyan]"
-    )
-    console.print()
 
     # Test connection
     try:
-        console.print("[yellow]Testando conexão com BingX...[/yellow]")
+        main_logger.info("Testando conexão com BingX...")
         price = await client.get_price(config.trading.symbol)
-        console.print(f"[green]Conectado! Preço atual: ${price:,.2f}[/green]\n")
+        main_logger.info(f"Conectado! Preço atual: ${price:,.2f}")
     except Exception as e:
-        console.print(f"[red]Erro de conexão: {e}[/red]")
+        main_logger.error(f"Erro de conexão: {e}")
         sys.exit(1)
 
     # Start grid manager
@@ -212,59 +180,32 @@ async def run_bot() -> None:
     if grid_manager._account_ws:
         health_server.set_account_websocket(grid_manager._account_ws)
 
-    # Start keyboard handler
-    keyboard_handler.start()
+    main_logger.info("Bot iniciado. Pressione Ctrl+C para encerrar.")
 
     try:
-        # Main loop with dashboard
-        with dashboard.start_live():
-            while not should_quit:
-                try:
-                    # Update grid manager
-                    await grid_manager.update()
+        # Main loop
+        while True:
+            try:
+                # Update grid manager
+                await grid_manager.update()
 
-                    # Get current status
-                    status = grid_manager.get_status()
-                    tracker = grid_manager.tracker
-                    grid_summary = calculator.get_grid_summary(status.current_price)
+                # Wait before next update (5s with caching)
+                await asyncio.sleep(5)
 
-                    # Get balance
-                    try:
-                        balance_data = await client.get_balance()
-                        balance = float(balance_data.get("balance", {}).get("availableMargin", 0))
-                    except Exception:
-                        balance = 0
-
-                    # Render dashboard
-                    layout = dashboard.render(
-                        status=status,
-                        positions=tracker.filled_orders,
-                        pending_orders=tracker.pending_orders,
-                        trades=tracker._trades,
-                        grid_summary=grid_summary,
-                        balance=balance,
-                        win_rate=tracker.win_rate,
-                    )
-                    dashboard.update(layout)
-
-                    # Wait before next update (5s with caching)
-                    await asyncio.sleep(5)
-
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    main_logger.error(f"Erro no loop principal: {e}")
-                    await asyncio.sleep(5)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                main_logger.error(f"Erro no loop principal: {e}")
+                await asyncio.sleep(5)
 
     except KeyboardInterrupt:
         pass
     finally:
-        console.print("\n[yellow]Encerrando bot...[/yellow]")
-        keyboard_handler.stop()
+        main_logger.info("Encerrando bot...")
         await grid_manager.stop()
         await health_server.stop()
         await client.close()
-        console.print("[green]Bot encerrado com sucesso.[/green]")
+        main_logger.info("Bot encerrado com sucesso.")
 
 
 async def main():
@@ -274,7 +215,7 @@ async def main():
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        console.print(f"[red]Erro fatal: {e}[/red]")
+        main_logger.error(f"Erro fatal: {e}")
         main_logger.exception("Erro fatal")
         sys.exit(1)
 
@@ -283,4 +224,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        console.print("\n[dim]Encerrado pelo usuário.[/dim]")
+        main_logger.info("Encerrado pelo usuário.")
