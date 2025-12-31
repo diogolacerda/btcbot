@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Index, Numeric
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.base import Base
@@ -54,7 +54,9 @@ class TPAdjustment(Base):
     hours_open: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
 
     # Timestamp
-    adjusted_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(UTC))
+    adjusted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
 
     # Indexes for efficient queries
     __table_args__ = (
