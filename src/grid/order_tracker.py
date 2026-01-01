@@ -34,6 +34,7 @@ class TrackedOrder:
     closed_at: datetime | None = None
     pnl: float | None = None
     exchange_tp_order_id: str | None = None  # TP order ID from exchange
+    trade_id: UUID | None = None  # FK to trades table (set when trade is persisted)
 
     def mark_filled(self) -> None:
         """Mark order as filled."""

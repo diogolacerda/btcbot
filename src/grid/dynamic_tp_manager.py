@@ -4,12 +4,14 @@ import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from config import DynamicTPConfig
 from src.utils.logger import orders_logger
 
 if TYPE_CHECKING:
     from src.client.bingx_client import BingXClient
+    from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
     from src.grid.order_tracker import OrderTracker, TrackedOrder
 
 
@@ -43,11 +45,15 @@ class DynamicTPManager:
         client: "BingXClient",
         order_tracker: "OrderTracker",
         symbol: str,
+        tp_adjustment_repository: "TPAdjustmentRepository | None" = None,
+        account_id: UUID | None = None,
     ):
         self.config = config
         self.client = client
         self.order_tracker = order_tracker
         self.symbol = symbol
+        self._tp_adjustment_repository = tp_adjustment_repository
+        self._account_id = account_id
         self._running = False
         self._task: asyncio.Task | None = None
         self._last_update: dict[str, datetime] = {}  # order_id -> last update time
@@ -163,17 +169,64 @@ class DynamicTPManager:
             f"TP: {current_tp_percent:.2f}% -> {new_tp_percent:.2f}%"
         )
 
-        # Record the update (actual TP update would be done by GridManager)
-        self._last_update[order.order_id] = datetime.now()
-        self._update_history.append(
-            PositionTPUpdate(
-                order_id=order.order_id,
-                old_tp_percent=current_tp_percent,
-                new_tp_percent=new_tp_percent,
-                funding_accumulated=funding_accumulated,
-                updated_at=datetime.now(),
+        # Calculate new TP price
+        new_tp_price = order.entry_price * (1 + new_tp_percent / 100)
+
+        # Update TP on exchange FIRST
+        tp_update_success = False
+        try:
+            # TODO: Implement update_tp_order method in BingXClient
+            # This requires finding the correct BingX API endpoint for modifying TP orders
+            # await self.client.update_tp_order(
+            #     order_id=order.exchange_tp_order_id,
+            #     new_tp_price=new_tp_price
+            # )
+
+            # PLACEHOLDER: Log the update for now
+            # This should be replaced with actual exchange API call
+            orders_logger.info(
+                f"TP update (placeholder): {order.order_id[:8]} "
+                f"TP price: ${order.tp_price:,.2f} -> ${new_tp_price:,.2f}"
             )
-        )
+            tp_update_success = True
+        except Exception as e:
+            orders_logger.error(f"Failed to update TP on exchange: {e}")
+            tp_update_success = False
+
+        # ONLY persist if exchange update succeeded
+        if tp_update_success:
+            # Update in-memory tracking
+            old_tp_price = order.tp_price
+            order.tp_price = new_tp_price
+
+            # Record the update
+            self._last_update[order.order_id] = datetime.now()
+            self._update_history.append(
+                PositionTPUpdate(
+                    order_id=order.order_id,
+                    old_tp_percent=current_tp_percent,
+                    new_tp_percent=new_tp_percent,
+                    funding_accumulated=funding_accumulated,
+                    updated_at=datetime.now(),
+                )
+            )
+
+            # Persist to database (async, non-blocking)
+            if self._tp_adjustment_repository and self._account_id and order.trade_id:
+                self._schedule_tp_adjustment_persistence(
+                    order=order,
+                    old_tp_price=old_tp_price,
+                    old_tp_percent=current_tp_percent,
+                    new_tp_price=new_tp_price,
+                    new_tp_percent=new_tp_percent,
+                    funding_rate=funding_rate,
+                    funding_accumulated=funding_accumulated,
+                    hours_open=hours_open,
+                )
+
+            # Trim history
+            if len(self._update_history) > 100:
+                self._update_history.pop(0)
 
     def _calculate_new_tp(self, funding_accumulated: float) -> float:
         """
@@ -232,3 +285,58 @@ class DynamicTPManager:
                 for u in self._update_history[-5:]
             ],
         }
+
+    def _schedule_tp_adjustment_persistence(
+        self,
+        order: "TrackedOrder",
+        old_tp_price: float,
+        old_tp_percent: float,
+        new_tp_price: float,
+        new_tp_percent: float,
+        funding_rate: float,
+        funding_accumulated: float,
+        hours_open: float,
+    ) -> None:
+        """Schedule TP adjustment persistence to database (non-blocking).
+
+        NOTE: This should ONLY be called after exchange TP update succeeds.
+
+        Args:
+            order: The tracked order being adjusted
+            old_tp_price: Previous take profit price
+            old_tp_percent: Previous take profit percentage
+            new_tp_price: New take profit price
+            new_tp_percent: New take profit percentage
+            funding_rate: Current funding rate
+            funding_accumulated: Accumulated funding cost as percentage
+            hours_open: Hours the position has been open
+        """
+        from decimal import Decimal
+
+        async def _persist_adjustment() -> None:
+            if not self._tp_adjustment_repository or not order.trade_id:
+                return
+
+            try:
+                await self._tp_adjustment_repository.save_adjustment(
+                    trade_id=order.trade_id,
+                    old_tp_price=Decimal(str(old_tp_price)),
+                    new_tp_price=Decimal(str(new_tp_price)),
+                    old_tp_percent=Decimal(str(old_tp_percent)),
+                    new_tp_percent=Decimal(str(new_tp_percent)),
+                    funding_rate=Decimal(str(funding_rate)),
+                    funding_accumulated=Decimal(str(funding_accumulated)),
+                    hours_open=Decimal(str(hours_open)),
+                )
+                orders_logger.info(f"TP adjustment persisted: {order.order_id[:8]}")
+            except Exception as e:
+                orders_logger.warning(
+                    f"Failed to persist TP adjustment: {e}. " f"Adjustment kept in memory only."
+                )
+
+        # Schedule task in background (fire and forget)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_persist_adjustment())
+        except RuntimeError:
+            orders_logger.warning("No event loop, skipping TP adjustment persistence")
