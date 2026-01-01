@@ -63,15 +63,19 @@ class TradeRepository:
                 side=trade_data.get("side", "LONG"),
                 leverage=trade_data.get("leverage", 10),
                 entry_price=trade_data["entry_price"],
+                exit_price=trade_data.get("exit_price"),
                 quantity=trade_data["quantity"],
                 tp_price=trade_data.get("tp_price"),
                 tp_percent=trade_data.get("tp_percent"),
+                pnl=trade_data.get("pnl"),
+                pnl_percent=trade_data.get("pnl_percent"),
                 trading_fee=trade_data.get("trading_fee", Decimal("0")),
                 funding_fee=trade_data.get("funding_fee", Decimal("0")),
                 status=trade_data.get("status", "OPEN"),
                 grid_level=trade_data.get("grid_level"),
                 opened_at=trade_data.get("opened_at"),
                 filled_at=trade_data.get("filled_at"),
+                closed_at=trade_data.get("closed_at"),
             )
             self.session.add(trade)
             await self.session.commit()
