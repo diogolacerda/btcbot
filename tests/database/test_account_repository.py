@@ -3,7 +3,6 @@
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import User
@@ -41,7 +40,7 @@ class TestAccountRepository:
     ):
         """Test creating an account."""
         # Act
-        account = await repository.create(
+        account = await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="My BingX Demo",
@@ -67,7 +66,7 @@ class TestAccountRepository:
     ):
         """Test creating an account without API key hash."""
         # Act
-        account = await repository.create(
+        account = await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="My BingX Demo",
@@ -85,7 +84,7 @@ class TestAccountRepository:
     ):
         """Test unique constraint on user_id, exchange, name, is_demo."""
         # Arrange
-        await repository.create(
+        await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="My BingX",
@@ -93,8 +92,8 @@ class TestAccountRepository:
         )
 
         # Act & Assert
-        with pytest.raises(IntegrityError):
-            await repository.create(
+        with pytest.raises(Exception, match="UNIQUE constraint failed"):
+            await repository.create_account(
                 user_id=user.id,
                 exchange="bingx",
                 name="My BingX",
@@ -109,14 +108,14 @@ class TestAccountRepository:
     ):
         """Test that same name is allowed for demo and live modes."""
         # Arrange & Act
-        demo_account = await repository.create(
+        demo_account = await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="My BingX",
             is_demo=True,
         )
 
-        live_account = await repository.create(
+        live_account = await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="My BingX",
@@ -136,7 +135,7 @@ class TestAccountRepository:
     ):
         """Test getting account by ID."""
         # Arrange
-        created = await repository.create(
+        created = await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="Test Account",
@@ -171,9 +170,15 @@ class TestAccountRepository:
     ):
         """Test getting all accounts for a user."""
         # Arrange
-        await repository.create(user_id=user.id, exchange="bingx", name="Account 1", is_demo=True)
-        await repository.create(user_id=user.id, exchange="bingx", name="Account 2", is_demo=False)
-        await repository.create(user_id=user.id, exchange="binance", name="Account 3", is_demo=True)
+        await repository.create_account(
+            user_id=user.id, exchange="bingx", name="Account 1", is_demo=True
+        )
+        await repository.create_account(
+            user_id=user.id, exchange="bingx", name="Account 2", is_demo=False
+        )
+        await repository.create_account(
+            user_id=user.id, exchange="binance", name="Account 3", is_demo=True
+        )
 
         # Act
         accounts = await repository.get_by_user(user.id)
@@ -189,9 +194,15 @@ class TestAccountRepository:
     ):
         """Test getting accounts filtered by exchange."""
         # Arrange
-        await repository.create(user_id=user.id, exchange="bingx", name="BingX 1", is_demo=True)
-        await repository.create(user_id=user.id, exchange="bingx", name="BingX 2", is_demo=False)
-        await repository.create(user_id=user.id, exchange="binance", name="Binance 1", is_demo=True)
+        await repository.create_account(
+            user_id=user.id, exchange="bingx", name="BingX 1", is_demo=True
+        )
+        await repository.create_account(
+            user_id=user.id, exchange="bingx", name="BingX 2", is_demo=False
+        )
+        await repository.create_account(
+            user_id=user.id, exchange="binance", name="Binance 1", is_demo=True
+        )
 
         # Act
         bingx_accounts = await repository.get_by_user_and_exchange(user.id, "bingx")
@@ -208,8 +219,12 @@ class TestAccountRepository:
     ):
         """Test getting accounts filtered by exchange and demo mode."""
         # Arrange
-        await repository.create(user_id=user.id, exchange="bingx", name="BingX Demo", is_demo=True)
-        await repository.create(user_id=user.id, exchange="bingx", name="BingX Live", is_demo=False)
+        await repository.create_account(
+            user_id=user.id, exchange="bingx", name="BingX Demo", is_demo=True
+        )
+        await repository.create_account(
+            user_id=user.id, exchange="bingx", name="BingX Live", is_demo=False
+        )
 
         # Act
         demo_accounts = await repository.get_by_user_and_exchange(user.id, "bingx", is_demo=True)
@@ -226,7 +241,7 @@ class TestAccountRepository:
     ):
         """Test updating account fields."""
         # Arrange
-        account = await repository.create(
+        account = await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="Old Name",
@@ -234,29 +249,15 @@ class TestAccountRepository:
         )
 
         # Act
-        updated = await repository.update(
-            account.id,
-            name="New Name",
-            api_key_hash="newhash123",  # pragma: allowlist secret
-        )
+        account.name = "New Name"
+        account.api_key_hash = "newhash123"  # pragma: allowlist secret
+        updated = await repository.update(account)
 
         # Assert
         assert updated is not None
         assert updated.id == account.id
         assert updated.name == "New Name"
         assert updated.api_key_hash == "newhash123"  # pragma: allowlist secret
-
-    @pytest.mark.asyncio
-    async def test_update_not_found(
-        self,
-        repository: AccountRepository,
-    ):
-        """Test updating non-existent account returns None."""
-        # Act
-        updated = await repository.update(uuid4(), name="New Name")
-
-        # Assert
-        assert updated is None
 
     @pytest.mark.asyncio
     async def test_delete(
@@ -266,7 +267,7 @@ class TestAccountRepository:
     ):
         """Test deleting an account."""
         # Arrange
-        account = await repository.create(
+        account = await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="To Delete",
@@ -301,7 +302,7 @@ class TestAccountRepository:
     ):
         """Test checking if account exists."""
         # Arrange
-        await repository.create(
+        await repository.create_account(
             user_id=user.id,
             exchange="bingx",
             name="Existing",
@@ -309,8 +310,8 @@ class TestAccountRepository:
         )
 
         # Act
-        exists = await repository.exists(user.id, "bingx", "Existing", True)
-        not_exists = await repository.exists(user.id, "bingx", "Non-Existent", True)
+        exists = await repository.account_exists(user.id, "bingx", "Existing", True)
+        not_exists = await repository.account_exists(user.id, "bingx", "Non-Existent", True)
 
         # Assert
         assert exists is True

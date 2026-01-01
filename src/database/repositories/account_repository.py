@@ -6,13 +6,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.account import Account
+from src.database.repositories.base_repository import BaseRepository
 
 
-class AccountRepository:
+class AccountRepository(BaseRepository[Account]):
     """Repository for Account CRUD operations.
 
     Provides async methods for creating, reading, updating, and deleting
     trading accounts across multiple exchanges and modes (demo/live).
+
+    Inherits generic CRUD operations from BaseRepository:
+    - get_by_id(account_id: UUID) -> Account | None
+    - get_all(skip: int, limit: int) -> list[Account]
+    - create(account: Account) -> Account
+    - update(account: Account) -> Account
+    - delete(account_id: UUID) -> bool
+    - exists(account_id: UUID) -> bool
     """
 
     def __init__(self, session: AsyncSession):
@@ -21,9 +30,9 @@ class AccountRepository:
         Args:
             session: Async database session.
         """
-        self.session = session
+        super().__init__(session, Account)
 
-    async def create(
+    async def create_account(
         self,
         user_id: UUID,
         exchange: str,
@@ -53,23 +62,7 @@ class AccountRepository:
             is_demo=is_demo,
             api_key_hash=api_key_hash,
         )
-        self.session.add(account)
-        await self.session.commit()
-        await self.session.refresh(account)
-        return account
-
-    async def get_by_id(self, account_id: UUID) -> Account | None:
-        """Get account by ID.
-
-        Args:
-            account_id: Account UUID.
-
-        Returns:
-            Account instance or None if not found.
-        """
-        result = await self.session.execute(select(Account).where(Account.id == account_id))
-        account: Account | None = result.scalar_one_or_none()
-        return account
+        return await self.create(account)
 
     async def get_by_user(self, user_id: UUID) -> list[Account]:
         """Get all accounts for a user.
@@ -107,56 +100,14 @@ class AccountRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def update(self, account_id: UUID, **kwargs: str) -> Account | None:
-        """Update account fields.
-
-        Args:
-            account_id: Account UUID.
-            **kwargs: Fields to update (name, api_key_hash, etc.).
-
-        Returns:
-            Updated Account instance or None if not found.
-
-        Example:
-            await repo.update(account_id, name="New Name", api_key_hash="abc123")
-        """
-        account = await self.get_by_id(account_id)
-        if not account:
-            return None
-
-        for key, value in kwargs.items():
-            if hasattr(account, key):
-                setattr(account, key, value)
-
-        await self.session.commit()
-        await self.session.refresh(account)
-        return account
-
-    async def delete(self, account_id: UUID) -> bool:
-        """Delete account by ID.
-
-        Args:
-            account_id: Account UUID.
-
-        Returns:
-            True if account was deleted, False if not found.
-        """
-        account = await self.get_by_id(account_id)
-        if not account:
-            return False
-
-        await self.session.delete(account)
-        await self.session.commit()
-        return True
-
-    async def exists(
+    async def account_exists(
         self,
         user_id: UUID,
         exchange: str,
         name: str,
         is_demo: bool,
     ) -> bool:
-        """Check if account already exists.
+        """Check if account already exists with specific parameters.
 
         Args:
             user_id: User UUID.

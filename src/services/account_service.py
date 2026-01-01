@@ -51,7 +51,7 @@ class AccountService:
             ConnectionError: If API credentials are invalid.
         """
         # Check if account already exists
-        if await self.repository.exists(user_id, exchange, name, is_demo):
+        if await self.repository.account_exists(user_id, exchange, name, is_demo):
             msg = f"Account already exists: {exchange}/{name} (demo={is_demo})"
             raise ValueError(msg)
 
@@ -61,7 +61,7 @@ class AccountService:
 
         # Create account with hashed API key
         api_key_hash = self.hash_api_key(api_key)
-        return await self.repository.create(
+        return await self.repository.create_account(
             user_id=user_id,
             exchange=exchange,
             name=name,
