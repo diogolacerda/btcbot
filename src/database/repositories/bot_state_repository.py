@@ -8,27 +8,29 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.bot_state import BotState
+from src.database.repositories.base_repository import BaseRepository
 from src.utils.logger import main_logger
 
 
-class BotStateRepository:
+class BotStateRepository(BaseRepository[BotState]):
     """Repository for managing BotState persistence.
+
+    Inherits from BaseRepository to leverage common CRUD operations
+    while providing bot-state-specific methods.
 
     Provides methods to save and retrieve bot cycle state for accounts.
     """
 
     def __init__(self, session: AsyncSession):
-        """
-        Initialize repository with database session.
+        """Initialize repository with database session.
 
         Args:
             session: Async SQLAlchemy session
         """
-        self.session = session
+        super().__init__(session, BotState)
 
     async def get_by_account(self, account_id: UUID) -> BotState | None:
-        """
-        Get bot state for an account.
+        """Get bot state for an account.
 
         Args:
             account_id: Account UUID
@@ -54,8 +56,9 @@ class BotStateRepository:
         activated_at: datetime | None = None,
         is_manual: bool = False,
     ) -> BotState:
-        """
-        Save or update bot state for an account.
+        """Save or update bot state for an account.
+
+        Uses BaseRepository methods internally for database operations.
 
         Args:
             account_id: Account UUID
@@ -86,6 +89,8 @@ class BotStateRepository:
                 if not cycle_activated:
                     bot_state.activated_at = None
 
+                # Use inherited update method
+                return await super().update(bot_state)
             else:
                 # Create new state
                 bot_state = BotState(
@@ -96,14 +101,10 @@ class BotStateRepository:
                     activated_at=(activated_at or datetime.now(UTC)) if cycle_activated else None,
                     last_state_change_at=datetime.now(UTC),
                 )
-                self.session.add(bot_state)
-
-            await self.session.commit()
-            await self.session.refresh(bot_state)
-            return bot_state
+                # Use inherited create method
+                return await super().create(bot_state)
 
         except Exception as e:
-            await self.session.rollback()
             main_logger.error(f"Error saving bot state for account {account_id}: {e}")
             raise
 
@@ -112,8 +113,7 @@ class BotStateRepository:
         bot_state: BotState,
         max_age_hours: int = 24,
     ) -> bool:
-        """
-        Check if bot state is still valid for restoration.
+        """Check if bot state is still valid for restoration.
 
         Manual overrides are always restored if they're activated and not too old.
         Automatic states are only restored if they're recent enough and the market
@@ -163,8 +163,9 @@ class BotStateRepository:
         return True
 
     async def clear_state(self, account_id: UUID) -> None:
-        """
-        Clear bot state for an account (delete from database).
+        """Clear bot state for an account (delete from database).
+
+        Uses BaseRepository.delete() internally.
 
         Args:
             account_id: Account UUID
@@ -172,17 +173,15 @@ class BotStateRepository:
         try:
             bot_state = await self.get_by_account(account_id)
             if bot_state:
-                await self.session.delete(bot_state)
-                await self.session.commit()
+                # Use inherited delete method
+                await super().delete(bot_state.id)
                 main_logger.info(f"Cleared bot state for account {account_id}")
         except Exception as e:
-            await self.session.rollback()
             main_logger.error(f"Error clearing bot state for account {account_id}: {e}")
             raise
 
     def to_dict(self, bot_state: BotState) -> dict[str, Any]:
-        """
-        Convert BotState to dictionary representation.
+        """Convert BotState to dictionary representation.
 
         Args:
             bot_state: BotState instance
