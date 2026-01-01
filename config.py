@@ -99,6 +99,8 @@ class BotStateConfig:
     """Configuration for bot state persistence."""
 
     restore_max_age_hours: int = 24  # Maximum hours to restore state after
+    load_history_on_start: bool = True  # Load trade history on startup
+    history_limit: int = 100  # Number of historical trades to load
 
 
 @dataclass
@@ -153,5 +155,7 @@ def load_config() -> Config:
         reactivation_mode=ReactivationMode(os.getenv("REACTIVATION_MODE", "immediate")),
         bot_state=BotStateConfig(
             restore_max_age_hours=int(os.getenv("STATE_RESTORE_MAX_AGE_HOURS", "24")),
+            load_history_on_start=os.getenv("LOAD_HISTORY_ON_START", "true").lower() == "true",
+            history_limit=int(os.getenv("HISTORY_LIMIT", "100")),
         ),
     )

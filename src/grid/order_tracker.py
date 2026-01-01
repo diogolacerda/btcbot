@@ -124,6 +124,92 @@ class OrderTracker:
         self._initial_pnl = pnl
         orders_logger.info(f"PnL inicial da plataforma: ${pnl:.2f}")
 
+    def load_trade_history(self, trades: list) -> dict[str, Any]:
+        """Load historical trades from database into memory.
+
+        Args:
+            trades: List of Trade model objects from database (must have status='CLOSED').
+
+        Returns:
+            Dict with loading statistics:
+            - trades_loaded: Number of trades loaded
+            - total_pnl: Total PnL from historical trades
+            - win_rate: Win rate percentage
+            - date_range: Tuple of (oldest_date, newest_date) or None
+
+        Note:
+            This method should be called during bot startup to restore
+            trading history and statistics from the database.
+        """
+        if not trades:
+            trades_logger.info("No historical trades to load")
+            return {
+                "trades_loaded": 0,
+                "total_pnl": 0.0,
+                "win_rate": 0.0,
+                "date_range": None,
+            }
+
+        # Convert Trade models to TradeRecords
+        loaded_count = 0
+        for trade in trades:
+            # Skip if missing required fields
+            if not all([trade.entry_price, trade.exit_price, trade.quantity, trade.pnl]):
+                trades_logger.warning(
+                    f"Skipping incomplete trade {trade.id}: missing required fields"
+                )
+                continue
+
+            # Skip if missing timestamps
+            if not trade.opened_at or not trade.closed_at:
+                trades_logger.warning(f"Skipping trade {trade.id}: missing timestamps")
+                continue
+
+            trade_record = TradeRecord(
+                entry_price=float(trade.entry_price),
+                exit_price=float(trade.exit_price),
+                quantity=float(trade.quantity),
+                pnl=float(trade.pnl),
+                entry_time=trade.opened_at,
+                exit_time=trade.closed_at,
+            )
+            self._trades.append(trade_record)
+            loaded_count += 1
+
+        # Calculate statistics
+        total_pnl = sum(t.pnl for t in self._trades)
+        win_count = sum(1 for t in self._trades if t.pnl > 0)
+        win_rate = (win_count / len(self._trades) * 100) if self._trades else 0.0
+
+        # Get date range
+        date_range = None
+        if self._trades:
+            dates = [t.exit_time for t in self._trades if t.exit_time]
+            if dates:
+                date_range = (min(dates), max(dates))
+
+        stats = {
+            "trades_loaded": loaded_count,
+            "total_pnl": total_pnl,
+            "win_rate": win_rate,
+            "date_range": date_range,
+        }
+
+        # Log summary
+        if loaded_count > 0:
+            trades_logger.info(
+                f"Loaded {loaded_count} historical trades | "
+                f"Total PnL: ${total_pnl:.2f} | "
+                f"Win Rate: {win_rate:.1f}%"
+            )
+            if date_range:
+                trades_logger.info(
+                    f"History period: {date_range[0].strftime('%Y-%m-%d %H:%M')} → "
+                    f"{date_range[1].strftime('%Y-%m-%d %H:%M')}"
+                )
+
+        return stats
+
     @property
     def win_rate(self) -> float:
         """Win rate percentage."""
