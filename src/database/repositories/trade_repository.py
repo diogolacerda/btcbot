@@ -1,6 +1,6 @@
 """Trade repository for managing trade records."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -8,11 +8,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.trade import Trade
+from src.database.repositories.base_repository import BaseRepository
 from src.utils.logger import main_logger
 
 
-class TradeRepository:
+class TradeRepository(BaseRepository[Trade]):
     """Repository for Trade CRUD operations.
+
+    Inherits from BaseRepository to leverage common CRUD operations
+    while providing trade-specific methods.
 
     Provides async methods for creating, reading, and updating trade records
     for historical analytics and state recovery.
@@ -24,10 +28,12 @@ class TradeRepository:
         Args:
             session: Async database session.
         """
-        self.session = session
+        super().__init__(session, Trade)
 
     async def save_trade(self, trade_data: dict) -> UUID:
         """Save a new trade record.
+
+        Uses BaseRepository.create() internally for database operations.
 
         Args:
             trade_data: Dictionary containing trade data with keys:
@@ -77,14 +83,13 @@ class TradeRepository:
                 filled_at=trade_data.get("filled_at"),
                 closed_at=trade_data.get("closed_at"),
             )
-            self.session.add(trade)
-            await self.session.commit()
-            await self.session.refresh(trade)
-            trade_id: UUID = trade.id
-            main_logger.info(f"Trade saved: {trade_id} for account {trade.account_id}")
-            return trade_id
+            # Use inherited create method
+            created_trade = await super().create(trade)
+            main_logger.info(
+                f"Trade saved: {created_trade.id} for account {created_trade.account_id}"
+            )
+            return created_trade.id  # type: ignore[no-any-return]
         except Exception as e:
-            await self.session.rollback()
             main_logger.error(f"Error saving trade: {e}")
             raise
 
@@ -197,6 +202,8 @@ class TradeRepository:
     ) -> None:
         """Update trade exit information when position is closed.
 
+        Uses BaseRepository.get_by_id() and update() internally.
+
         Args:
             trade_id: Trade UUID.
             exit_price: Exit price.
@@ -210,11 +217,8 @@ class TradeRepository:
             Exception: If database operation fails.
         """
         try:
-            from datetime import UTC, datetime
-
-            stmt = select(Trade).where(Trade.id == trade_id)
-            result = await self.session.execute(stmt)
-            trade = result.scalar_one_or_none()
+            # Use inherited get_by_id method
+            trade = await super().get_by_id(trade_id)
 
             if not trade:
                 raise ValueError(f"Trade {trade_id} not found")
@@ -225,35 +229,13 @@ class TradeRepository:
             trade.closed_at = closed_at if closed_at is not None else datetime.now(UTC)
             trade.status = status
 
-            await self.session.commit()
-            await self.session.refresh(trade)
+            # Use inherited update method
+            await super().update(trade)
             main_logger.info(f"Trade {trade_id} updated with exit data: pnl={pnl}")
         except ValueError:
             raise
         except Exception as e:
-            await self.session.rollback()
             main_logger.error(f"Error updating trade exit for {trade_id}: {e}")
-            raise
-
-    async def get_by_id(self, trade_id: UUID) -> Trade | None:
-        """Get trade by ID.
-
-        Args:
-            trade_id: Trade UUID.
-
-        Returns:
-            Trade instance or None if not found.
-
-        Raises:
-            Exception: If database operation fails.
-        """
-        try:
-            stmt = select(Trade).where(Trade.id == trade_id)
-            result = await self.session.execute(stmt)
-            trade: Trade | None = result.scalar_one_or_none()
-            return trade
-        except Exception as e:
-            main_logger.error(f"Error fetching trade {trade_id}: {e}")
             raise
 
     async def get_by_exchange_order_id(
