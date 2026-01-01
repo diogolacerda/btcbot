@@ -150,6 +150,38 @@ async def run_bot() -> None:
             last_state=str(restored_state["last_state"]),
         )
 
+    # Load trade history if enabled
+    if account_id and config.bot_state.load_history_on_start:
+        try:
+            main_logger.info("Loading trade history from database...")
+            async for session in get_session():
+                # Get only CLOSED trades, ordered by most recent first
+                from sqlalchemy import select
+
+                from src.database.models.trade import Trade
+
+                stmt = (
+                    select(Trade)
+                    .where(Trade.account_id == account_id, Trade.status == "CLOSED")
+                    .order_by(Trade.closed_at.desc())
+                    .limit(config.bot_state.history_limit)
+                )
+                result = await session.execute(stmt)
+                historical_trades = list(result.scalars().all())
+
+                if historical_trades:
+                    stats = grid_manager.tracker.load_trade_history(historical_trades)
+                    main_logger.info(
+                        f"Trade history loaded: {stats['trades_loaded']} trades, "
+                        f"Total PnL: ${stats['total_pnl']:.2f}, "
+                        f"Win Rate: {stats['win_rate']:.1f}%"
+                    )
+                else:
+                    main_logger.info("No historical trades found in database")
+                break  # Only use first session
+        except Exception as e:
+            main_logger.warning(f"Failed to load trade history: {e}. Starting with empty history.")
+
     # Link grid manager to health server for status reporting
     health_server.set_grid_manager(grid_manager)
 
