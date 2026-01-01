@@ -331,7 +331,7 @@ class DynamicTPManager:
                 orders_logger.info(f"TP adjustment persisted: {order.order_id[:8]}")
             except Exception as e:
                 orders_logger.warning(
-                    f"Failed to persist TP adjustment: {e}. " f"Adjustment kept in memory only."
+                    f"Failed to persist TP adjustment: {e}. Adjustment kept in memory only."
                 )
 
         # Schedule task in background (fire and forget)
