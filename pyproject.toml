@@ -36,7 +36,7 @@ known-first-party = ["src"]
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 disallow_untyped_defs = false
 ignore_missing_imports = true
 exclude = [

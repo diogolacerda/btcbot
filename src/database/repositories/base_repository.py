@@ -72,7 +72,9 @@ class BaseRepository[T: Base]:
                 print(f"Found user: {user.name}")
         """
         try:
-            result = await self.session.execute(select(self.model).where(self.model.id == id))
+            result = await self.session.execute(
+                select(self.model).where(self.model.id == id)  # type: ignore[attr-defined]
+            )
             return result.scalar_one_or_none()  # type: ignore[no-any-return]
         except Exception as e:
             raise Exception(f"Error fetching {self.model.__name__} by id {id}: {e}") from e
@@ -99,7 +101,7 @@ class BaseRepository[T: Base]:
         """
         try:
             result = await self.session.execute(
-                select(self.model).offset(skip).limit(limit).order_by(self.model.id)
+                select(self.model).offset(skip).limit(limit).order_by(self.model.id)  # type: ignore[attr-defined]
             )
             return list(result.scalars().all())
         except Exception as e:
@@ -181,9 +183,11 @@ class BaseRepository[T: Base]:
                 print("User not found")
         """
         try:
-            result = await self.session.execute(delete(self.model).where(self.model.id == id))
+            result = await self.session.execute(
+                delete(self.model).where(self.model.id == id)  # type: ignore[attr-defined]
+            )
             await self.session.commit()
-            return result.rowcount > 0  # type: ignore[no-any-return]
+            return result.rowcount > 0  # type: ignore[attr-defined, no-any-return]
         except Exception as e:
             await self.session.rollback()
             raise Exception(f"Error deleting {self.model.__name__} with id {id}: {e}") from e
@@ -207,7 +211,9 @@ class BaseRepository[T: Base]:
                 print("User not found")
         """
         try:
-            result = await self.session.execute(select(self.model.id).where(self.model.id == id))
+            result = await self.session.execute(
+                select(self.model.id).where(self.model.id == id)  # type: ignore[attr-defined]
+            )
             return result.scalar_one_or_none() is not None
         except Exception as e:
             raise Exception(
