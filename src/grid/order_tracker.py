@@ -257,7 +257,7 @@ class OrderTracker:
             except Exception as e:
                 # Fallback: log warning but don't crash
                 trades_logger.warning(
-                    f"Failed to persist trade to database: {e}. " f"Trade data kept in memory only."
+                    f"Failed to persist trade to database: {e}. Trade data kept in memory only."
                 )
 
         # Schedule task in background (fire and forget)
