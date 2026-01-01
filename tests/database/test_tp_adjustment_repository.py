@@ -161,7 +161,7 @@ async def test_get_recent(async_session, test_trade):
             old_tp_price=Decimal(f"5050{i}.00"),
             new_tp_price=Decimal(f"5060{i}.00"),
             old_tp_percent=Decimal(f"0.{i}"),
-            new_tp_percent=Decimal(f"0.{i+1}"),
+            new_tp_percent=Decimal(f"0.{i + 1}"),
         )
 
     # Get all recent
@@ -256,7 +256,7 @@ async def test_inherited_get_all(async_session, test_trade):
             old_tp_price=Decimal(f"5050{i}.00"),
             new_tp_price=Decimal(f"5060{i}.00"),
             old_tp_percent=Decimal(f"0.{i}"),
-            new_tp_percent=Decimal(f"0.{i+1}"),
+            new_tp_percent=Decimal(f"0.{i + 1}"),
         )
 
     # Get all
