@@ -1,9 +1,14 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
+from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from src.utils.logger import orders_logger, trades_logger
+
+if TYPE_CHECKING:
+    from src.database.repositories.trade_repository import TradeRepository
 
 
 class OrderStatus(Enum):
@@ -28,6 +33,7 @@ class TrackedOrder:
     filled_at: datetime | None = None
     closed_at: datetime | None = None
     pnl: float | None = None
+    exchange_tp_order_id: str | None = None  # TP order ID from exchange
 
     def mark_filled(self) -> None:
         """Mark order as filled."""
@@ -71,11 +77,17 @@ class OrderTracker:
     - Completed trades (for statistics)
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        trade_repository: "TradeRepository | None" = None,
+        account_id: UUID | None = None,
+    ):
         self._orders: dict[str, TrackedOrder] = {}
         self._orders_by_price: dict[float, str] = {}  # price -> order_id mapping
         self._trades: list[TradeRecord] = []
         self._initial_pnl: float = 0.0  # PnL from exchange at startup
+        self._trade_repository = trade_repository
+        self._account_id = account_id
 
     @property
     def pending_orders(self) -> list[TrackedOrder]:
@@ -184,12 +196,77 @@ class OrderTracker:
             f"PnL: +${pnl:.2f} ({trade.pnl_percent:.2f}%)"
         )
 
+        # Persist trade to database (async, non-blocking)
+        if self._trade_repository and self._account_id:
+            self._schedule_trade_persistence(order, exit_price, pnl, trade.pnl_percent)
+
         # Remove from tracking
         del self._orders[order_id]
         if order.entry_price in self._orders_by_price:
             del self._orders_by_price[order.entry_price]
 
         return trade
+
+    def _schedule_trade_persistence(
+        self,
+        order: TrackedOrder,
+        exit_price: float,
+        pnl: float,
+        pnl_percent: float,
+    ) -> None:
+        """Schedule trade persistence to database (non-blocking)."""
+        import asyncio
+
+        async def _persist_trade() -> None:
+            if not self._trade_repository or not self._account_id:
+                return
+
+            try:
+                # Calculate TP percent
+                tp_percent = (
+                    ((order.tp_price - order.entry_price) / order.entry_price) * 100
+                    if order.tp_price
+                    else None
+                )
+
+                trade_data = {
+                    "account_id": self._account_id,
+                    "exchange_order_id": order.order_id,
+                    "exchange_tp_order_id": order.exchange_tp_order_id,
+                    "symbol": "BTC-USDT",  # Hardcoded for now, could be parameter
+                    "side": "LONG",  # Hardcoded for now, grid only does LONG
+                    "leverage": 10,  # Hardcoded for now, could be from config
+                    "entry_price": Decimal(str(order.entry_price)),
+                    "exit_price": Decimal(str(exit_price)),
+                    "quantity": Decimal(str(order.quantity)),
+                    "tp_price": Decimal(str(order.tp_price)) if order.tp_price else None,
+                    "tp_percent": Decimal(str(tp_percent)) if tp_percent else None,
+                    "pnl": Decimal(str(pnl)),
+                    "pnl_percent": Decimal(str(pnl_percent)),
+                    "trading_fee": Decimal("0"),  # TODO: Capture from execution report
+                    "funding_fee": Decimal("0"),  # TODO: Get from DynamicTPManager
+                    "status": "CLOSED",
+                    "grid_level": None,  # TODO: Add grid level tracking if needed
+                    "opened_at": order.created_at.replace(tzinfo=UTC),
+                    "filled_at": (order.filled_at.replace(tzinfo=UTC) if order.filled_at else None),
+                    "closed_at": datetime.now(UTC),
+                }
+
+                await self._trade_repository.save_trade(trade_data)
+                trades_logger.info(f"Trade persisted to database: {order.order_id}")
+            except Exception as e:
+                # Fallback: log warning but don't crash
+                trades_logger.warning(
+                    f"Failed to persist trade to database: {e}. " f"Trade data kept in memory only."
+                )
+
+        # Schedule task in background (fire and forget)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_persist_trade())
+        except RuntimeError:
+            # No event loop running, skip persistence
+            trades_logger.warning("No event loop running, skipping trade persistence")
 
     def cancel_order(self, order_id: str) -> TrackedOrder | None:
         """Mark order as cancelled and remove from tracking."""

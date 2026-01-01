@@ -17,6 +17,7 @@ from src.utils.logger import main_logger, orders_logger
 
 if TYPE_CHECKING:
     from src.database.repositories.bot_state_repository import BotStateRepository
+    from src.database.repositories.trade_repository import TradeRepository
 
 
 @dataclass
@@ -57,6 +58,7 @@ class GridManager:
         on_state_change: Callable | None = None,
         account_id: UUID | None = None,
         bot_state_repository: "BotStateRepository | None" = None,
+        trade_repository: "TradeRepository | None" = None,
     ):
         self.config = config
         self.client = client
@@ -69,7 +71,10 @@ class GridManager:
             bot_state_repository=bot_state_repository,
         )
         self.calculator = GridCalculator(config.grid)
-        self.tracker = OrderTracker()
+        self.tracker = OrderTracker(
+            trade_repository=trade_repository,
+            account_id=account_id,
+        )
 
         # Filter system
         self._filter_registry = FilterRegistry()
