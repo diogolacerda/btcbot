@@ -252,11 +252,15 @@ class OrderTracker:
         return None
 
     def order_filled(self, order_id: str) -> TrackedOrder | None:
-        """Mark order as filled."""
+        """Mark order as filled and create OPEN trade in database."""
         order = self._orders.get(order_id)
         if order:
             order.mark_filled()
             orders_logger.info(f"Order filled: {order_id} @ ${order.entry_price:,.2f}")
+
+            # Persist OPEN trade to database (non-blocking)
+            if self._trade_repository and self._account_id:
+                self._schedule_open_trade_persistence(order)
         return order
 
     def order_tp_hit(self, order_id: str, exit_price: float) -> TradeRecord | None:
@@ -294,17 +298,11 @@ class OrderTracker:
 
         return trade
 
-    def _schedule_trade_persistence(
-        self,
-        order: TrackedOrder,
-        exit_price: float,
-        pnl: float,
-        pnl_percent: float,
-    ) -> None:
-        """Schedule trade persistence to database (non-blocking)."""
+    def _schedule_open_trade_persistence(self, order: TrackedOrder) -> None:
+        """Persist OPEN trade to database when order is filled (non-blocking)."""
         import asyncio
 
-        async def _persist_trade() -> None:
+        async def _persist_open_trade() -> None:
             if not self._trade_repository or not self._account_id:
                 return
 
@@ -320,27 +318,106 @@ class OrderTracker:
                     "account_id": self._account_id,
                     "exchange_order_id": order.order_id,
                     "exchange_tp_order_id": order.exchange_tp_order_id,
-                    "symbol": "BTC-USDT",  # Hardcoded for now, could be parameter
-                    "side": "LONG",  # Hardcoded for now, grid only does LONG
-                    "leverage": 10,  # Hardcoded for now, could be from config
+                    "symbol": "BTC-USDT",
+                    "side": "LONG",
+                    "leverage": 10,
                     "entry_price": Decimal(str(order.entry_price)),
-                    "exit_price": Decimal(str(exit_price)),
+                    "exit_price": None,  # Not closed yet
                     "quantity": Decimal(str(order.quantity)),
                     "tp_price": Decimal(str(order.tp_price)) if order.tp_price else None,
                     "tp_percent": Decimal(str(tp_percent)) if tp_percent else None,
-                    "pnl": Decimal(str(pnl)),
-                    "pnl_percent": Decimal(str(pnl_percent)),
-                    "trading_fee": Decimal("0"),  # TODO: Capture from execution report
-                    "funding_fee": Decimal("0"),  # TODO: Get from DynamicTPManager
-                    "status": "CLOSED",
-                    "grid_level": None,  # TODO: Add grid level tracking if needed
+                    "pnl": None,  # Calculated when closed
+                    "pnl_percent": None,
+                    "trading_fee": Decimal("0"),
+                    "funding_fee": Decimal("0"),
+                    "status": "OPEN",  # KEY: status is OPEN
+                    "grid_level": None,
                     "opened_at": order.created_at.replace(tzinfo=UTC),
                     "filled_at": (order.filled_at.replace(tzinfo=UTC) if order.filled_at else None),
-                    "closed_at": datetime.now(UTC),
+                    "closed_at": None,  # Not closed yet
                 }
 
-                await self._trade_repository.save_trade(trade_data)
-                trades_logger.info(f"Trade persisted to database: {order.order_id}")
+                # Save and get trade_id
+                trade_id = await self._trade_repository.save_trade(trade_data)
+                order.trade_id = trade_id  # Store ID in TrackedOrder for later update
+
+                trades_logger.info(
+                    f"OPEN trade persisted: {order.order_id[:8]} (trade_id: {trade_id})"
+                )
+            except Exception as e:
+                trades_logger.warning(f"Failed to persist OPEN trade: {e}")
+
+        # Schedule task in background (fire and forget)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_persist_open_trade())
+        except RuntimeError:
+            trades_logger.warning("No event loop running, skipping OPEN trade persistence")
+
+    def _schedule_trade_persistence(
+        self,
+        order: TrackedOrder,
+        exit_price: float,
+        pnl: float,
+        pnl_percent: float,
+    ) -> None:
+        """Schedule trade persistence to database (non-blocking)."""
+        import asyncio
+
+        async def _persist_trade() -> None:
+            if not self._trade_repository or not self._account_id:
+                return
+
+            try:
+                if order.trade_id:
+                    # NUOVO: Update existing OPEN trade to CLOSED
+                    await self._trade_repository.update_trade_exit(
+                        trade_id=order.trade_id,
+                        exit_price=Decimal(str(exit_price)),
+                        pnl=Decimal(str(pnl)),
+                        pnl_percent=Decimal(str(pnl_percent)),
+                    )
+                    trades_logger.info(
+                        f"Trade updated to CLOSED: {order.order_id[:8]} (trade_id: {order.trade_id})"
+                    )
+                else:
+                    # FALLBACK: Create CLOSED trade (backward compatible with trades without OPEN state)
+                    # Calculate TP percent
+                    tp_percent = (
+                        ((order.tp_price - order.entry_price) / order.entry_price) * 100
+                        if order.tp_price
+                        else None
+                    )
+
+                    trade_data = {
+                        "account_id": self._account_id,
+                        "exchange_order_id": order.order_id,
+                        "exchange_tp_order_id": order.exchange_tp_order_id,
+                        "symbol": "BTC-USDT",
+                        "side": "LONG",
+                        "leverage": 10,
+                        "entry_price": Decimal(str(order.entry_price)),
+                        "exit_price": Decimal(str(exit_price)),
+                        "quantity": Decimal(str(order.quantity)),
+                        "tp_price": Decimal(str(order.tp_price)) if order.tp_price else None,
+                        "tp_percent": Decimal(str(tp_percent)) if tp_percent else None,
+                        "pnl": Decimal(str(pnl)),
+                        "pnl_percent": Decimal(str(pnl_percent)),
+                        "trading_fee": Decimal("0"),
+                        "funding_fee": Decimal("0"),
+                        "status": "CLOSED",
+                        "grid_level": None,
+                        "opened_at": order.created_at.replace(tzinfo=UTC),
+                        "filled_at": (
+                            order.filled_at.replace(tzinfo=UTC) if order.filled_at else None
+                        ),
+                        "closed_at": datetime.now(UTC),
+                    }
+
+                    await self._trade_repository.save_trade(trade_data)
+                    trades_logger.info(
+                        f"Trade persisted (CLOSED, no prior OPEN): {order.order_id[:8]}"
+                    )
             except Exception as e:
                 # Fallback: log warning but don't crash
                 trades_logger.warning(
