@@ -405,7 +405,7 @@ class BingXClient:
             # Step 1: Cancel the old TP order
             await self.cancel_order(symbol, old_tp_order_id)
             orders_logger.info(
-                f"Old TP order canceled: {old_tp_order_id[:8]} " f"(${new_tp_price:,.2f})"
+                f"Old TP order canceled: {old_tp_order_id[:8]} (${new_tp_price:,.2f})"
             )
 
             # Step 2: Create new TP order with updated price
@@ -419,9 +419,7 @@ class BingXClient:
             )
 
             new_order_id = new_tp_order["data"]["order"]["orderId"]
-            orders_logger.info(
-                f"New TP order created: {new_order_id[:8]} " f"at ${new_tp_price:,.2f}"
-            )
+            orders_logger.info(f"New TP order created: {new_order_id[:8]} at ${new_tp_price:,.2f}")
 
             # Invalidate cache after modification
             self._invalidate_cache("open_orders", "positions")
