@@ -714,6 +714,12 @@ class HealthServer:
                     "order_size_usdt": float(config.order_size_usdt),
                     "margin_mode": config.margin_mode,
                     "take_profit_percent": float(config.take_profit_percent),
+                    "tp_dynamic_enabled": config.tp_dynamic_enabled,
+                    "tp_base_percent": float(config.tp_base_percent),
+                    "tp_min_percent": float(config.tp_min_percent),
+                    "tp_max_percent": float(config.tp_max_percent),
+                    "tp_safety_margin": float(config.tp_safety_margin),
+                    "tp_check_interval_min": config.tp_check_interval_min,
                     "created_at": config.created_at.isoformat(),
                     "updated_at": config.updated_at.isoformat(),
                 },
@@ -829,6 +835,12 @@ class HealthServer:
                         "order_size_usdt": float(config.order_size_usdt),
                         "margin_mode": config.margin_mode,
                         "take_profit_percent": float(config.take_profit_percent),
+                        "tp_dynamic_enabled": config.tp_dynamic_enabled,
+                        "tp_base_percent": float(config.tp_base_percent),
+                        "tp_min_percent": float(config.tp_min_percent),
+                        "tp_max_percent": float(config.tp_max_percent),
+                        "tp_safety_margin": float(config.tp_safety_margin),
+                        "tp_check_interval_min": config.tp_check_interval_min,
                         "updated_at": config.updated_at.isoformat(),
                     },
                 },
@@ -915,6 +927,82 @@ class HealthServer:
                     )
                 kwargs["take_profit_percent"] = tp_percent
 
+            # Dynamic TP fields (BE-035)
+            if "tp_dynamic_enabled" in data:
+                kwargs["tp_dynamic_enabled"] = bool(data["tp_dynamic_enabled"])
+
+            if "tp_base_percent" in data:
+                tp_base = Decimal(str(data["tp_base_percent"]))
+                if tp_base <= 0:
+                    return web.json_response(
+                        {"error": "TP base percent must be greater than 0"},
+                        status=400,
+                    )
+                kwargs["tp_base_percent"] = tp_base
+
+            if "tp_min_percent" in data:
+                tp_min = Decimal(str(data["tp_min_percent"]))
+                if tp_min <= 0:
+                    return web.json_response(
+                        {"error": "TP min percent must be greater than 0"},
+                        status=400,
+                    )
+                kwargs["tp_min_percent"] = tp_min
+
+            if "tp_max_percent" in data:
+                tp_max = Decimal(str(data["tp_max_percent"]))
+                if tp_max <= 0:
+                    return web.json_response(
+                        {"error": "TP max percent must be greater than 0"},
+                        status=400,
+                    )
+                kwargs["tp_max_percent"] = tp_max
+
+            if "tp_safety_margin" in data:
+                tp_safety = Decimal(str(data["tp_safety_margin"]))
+                if tp_safety < 0:
+                    return web.json_response(
+                        {"error": "TP safety margin must be non-negative"},
+                        status=400,
+                    )
+                kwargs["tp_safety_margin"] = tp_safety
+
+            if "tp_check_interval_min" in data:
+                tp_interval = int(data["tp_check_interval_min"])
+                if tp_interval <= 0:
+                    return web.json_response(
+                        {"error": "TP check interval must be greater than 0"},
+                        status=400,
+                    )
+                kwargs["tp_check_interval_min"] = tp_interval
+
+            # Validate TP constraints after all fields are parsed
+            tp_min_val: Decimal | None = kwargs.get("tp_min_percent")  # type: ignore[assignment]
+            tp_base_val: Decimal | None = kwargs.get("tp_base_percent")  # type: ignore[assignment]
+            tp_max_val: Decimal | None = kwargs.get("tp_max_percent")  # type: ignore[assignment]
+
+            # If any TP percent fields are being updated, validate the complete set
+            if tp_min_val is not None or tp_base_val is not None or tp_max_val is not None:
+                # Get current config to fill in missing values
+                current_config = await self._trading_config_repo.get_by_account(self._account_id)
+                if current_config:
+                    final_min: Decimal = (
+                        tp_min_val if tp_min_val is not None else current_config.tp_min_percent
+                    )
+                    final_base: Decimal = (
+                        tp_base_val if tp_base_val is not None else current_config.tp_base_percent
+                    )
+                    final_max: Decimal = (
+                        tp_max_val if tp_max_val is not None else current_config.tp_max_percent
+                    )
+
+                    # Validate: min <= base <= max
+                    if not (final_min <= final_base <= final_max):
+                        return web.json_response(
+                            {"error": "TP percentages must satisfy: min <= base <= max"},
+                            status=400,
+                        )
+
             # Update config
             config = await self._trading_config_repo.create_or_update(
                 self._account_id,
@@ -935,6 +1023,12 @@ class HealthServer:
                         "order_size_usdt": float(config.order_size_usdt),
                         "margin_mode": config.margin_mode,
                         "take_profit_percent": float(config.take_profit_percent),
+                        "tp_dynamic_enabled": config.tp_dynamic_enabled,
+                        "tp_base_percent": float(config.tp_base_percent),
+                        "tp_min_percent": float(config.tp_min_percent),
+                        "tp_max_percent": float(config.tp_max_percent),
+                        "tp_safety_margin": float(config.tp_safety_margin),
+                        "tp_check_interval_min": config.tp_check_interval_min,
                         "updated_at": config.updated_at.isoformat(),
                     },
                 },
