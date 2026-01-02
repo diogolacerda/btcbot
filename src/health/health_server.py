@@ -15,7 +15,9 @@ import asyncio
 import os
 import time
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from aiohttp import web
 
@@ -26,6 +28,7 @@ from src.utils.logger import main_logger
 if TYPE_CHECKING:
     from src.client.bingx_client import BingXClient
     from src.client.websocket_client import BingXAccountWebSocket
+    from src.database.repositories.trading_config_repository import TradingConfigRepository
     from src.grid.grid_manager import GridManager
 
 # Version info - should match project version
@@ -49,6 +52,8 @@ class HealthServer:
         grid_manager: GridManager | None = None,
         bingx_client: BingXClient | None = None,
         account_ws: BingXAccountWebSocket | None = None,
+        trading_config_repo: TradingConfigRepository | None = None,
+        account_id: UUID | None = None,
     ):
         """
         Initialize the health server.
@@ -58,11 +63,15 @@ class HealthServer:
             grid_manager: GridManager instance for status checks
             bingx_client: BingX client for API health checks
             account_ws: WebSocket client for connection status
+            trading_config_repo: Repository for trading config persistence
+            account_id: Account ID for config operations
         """
         self.port = port or int(os.getenv("HEALTH_PORT", "8080"))
         self._grid_manager = grid_manager
         self._bingx_client = bingx_client
         self._account_ws = account_ws
+        self._trading_config_repo = trading_config_repo
+        self._account_id = account_id
 
         self._start_time = time.time()
         self._app: web.Application | None = None
@@ -88,6 +97,14 @@ class HealthServer:
         """Set the WebSocket client reference for connection checks."""
         self._account_ws = ws
 
+    def set_trading_config_repo(self, repo: TradingConfigRepository) -> None:
+        """Set the trading config repository reference for API operations."""
+        self._trading_config_repo = repo
+
+    def set_account_id(self, account_id: UUID) -> None:
+        """Set the account ID for config operations."""
+        self._account_id = account_id
+
     @property
     def uptime_seconds(self) -> float:
         """Get server uptime in seconds."""
@@ -108,6 +125,9 @@ class HealthServer:
         self._app.router.add_post("/api/macd/activate", self._handle_activate_macd)
         self._app.router.add_post("/api/macd/deactivate", self._handle_deactivate_macd)
         self._app.router.add_post("/filters/macd/trigger", self._handle_macd_trigger)
+        self._app.router.add_get("/api/configs/trading", self._handle_get_trading_config)
+        self._app.router.add_put("/api/configs/trading", self._handle_put_trading_config)
+        self._app.router.add_patch("/api/configs/trading", self._handle_patch_trading_config)
 
         self._runner = web.AppRunner(self._app, access_log=None)
         await self._runner.setup()
@@ -617,6 +637,274 @@ class HealthServer:
 
         except Exception as e:
             main_logger.error(f"Error controlling MACD trigger: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_get_trading_config(self, request: web.Request) -> web.Response:
+        """
+        Handle GET /api/configs/trading request.
+
+        Returns current trading configuration for the account.
+        """
+        main_logger.debug(f"GET /api/configs/trading request from {request.remote}")
+
+        try:
+            if not self._trading_config_repo or not self._account_id:
+                return web.json_response(
+                    {"error": "Trading config repository or account ID not configured"},
+                    status=500,
+                )
+
+            # Get current config
+            config = await self._trading_config_repo.get_by_account(self._account_id)
+
+            if not config:
+                return web.json_response(
+                    {"error": "No trading configuration found for this account"},
+                    status=404,
+                )
+
+            # Convert to dict for JSON response
+            return web.json_response(
+                {
+                    "id": str(config.id),
+                    "account_id": str(config.account_id),
+                    "symbol": config.symbol,
+                    "leverage": config.leverage,
+                    "order_size_usdt": float(config.order_size_usdt),
+                    "margin_mode": config.margin_mode,
+                    "take_profit_percent": float(config.take_profit_percent),
+                    "created_at": config.created_at.isoformat(),
+                    "updated_at": config.updated_at.isoformat(),
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error getting trading config: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_put_trading_config(self, request: web.Request) -> web.Response:
+        """
+        Handle PUT /api/configs/trading request.
+
+        Updates all trading configuration fields.
+        Expects JSON body with all required fields.
+        """
+        main_logger.debug(f"PUT /api/configs/trading request from {request.remote}")
+
+        try:
+            if not self._trading_config_repo or not self._account_id:
+                return web.json_response(
+                    {"error": "Trading config repository or account ID not configured"},
+                    status=500,
+                )
+
+            # Parse request body
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response(
+                    {"error": "Invalid JSON body"},
+                    status=400,
+                )
+
+            # Validate required fields
+            required_fields = [
+                "symbol",
+                "leverage",
+                "order_size_usdt",
+                "margin_mode",
+                "take_profit_percent",
+            ]
+            missing = [f for f in required_fields if f not in data]
+            if missing:
+                return web.json_response(
+                    {"error": f"Missing required fields: {', '.join(missing)}"},
+                    status=400,
+                )
+
+            # Validate field types and values
+            try:
+                symbol = str(data["symbol"])
+                leverage = int(data["leverage"])
+                order_size_usdt = Decimal(str(data["order_size_usdt"]))
+                margin_mode = str(data["margin_mode"])
+                take_profit_percent = Decimal(str(data["take_profit_percent"]))
+
+                # Validate ranges
+                if leverage < 1 or leverage > 125:
+                    return web.json_response(
+                        {"error": "Leverage must be between 1 and 125"},
+                        status=400,
+                    )
+
+                if order_size_usdt <= 0:
+                    return web.json_response(
+                        {"error": "Order size must be positive"},
+                        status=400,
+                    )
+
+                if margin_mode not in ["CROSSED", "ISOLATED"]:
+                    return web.json_response(
+                        {"error": "Margin mode must be CROSSED or ISOLATED"},
+                        status=400,
+                    )
+
+                if take_profit_percent <= 0 or take_profit_percent > 10:
+                    return web.json_response(
+                        {"error": "Take profit percent must be between 0 and 10"},
+                        status=400,
+                    )
+
+            except (ValueError, TypeError) as e:
+                return web.json_response(
+                    {"error": f"Invalid field value: {e}"},
+                    status=400,
+                )
+
+            # Update config
+            config = await self._trading_config_repo.create_or_update(
+                self._account_id,
+                symbol=symbol,
+                leverage=leverage,
+                order_size_usdt=order_size_usdt,
+                margin_mode=margin_mode,
+                take_profit_percent=take_profit_percent,
+            )
+
+            main_logger.info(f"Trading config updated: {config}")
+
+            return web.json_response(
+                {
+                    "message": "Trading configuration updated successfully",
+                    "config": {
+                        "id": str(config.id),
+                        "account_id": str(config.account_id),
+                        "symbol": config.symbol,
+                        "leverage": config.leverage,
+                        "order_size_usdt": float(config.order_size_usdt),
+                        "margin_mode": config.margin_mode,
+                        "take_profit_percent": float(config.take_profit_percent),
+                        "updated_at": config.updated_at.isoformat(),
+                    },
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error updating trading config: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_patch_trading_config(self, request: web.Request) -> web.Response:
+        """
+        Handle PATCH /api/configs/trading request.
+
+        Updates specific trading configuration fields.
+        Only provided fields will be updated.
+        """
+        main_logger.debug(f"PATCH /api/configs/trading request from {request.remote}")
+
+        try:
+            if not self._trading_config_repo or not self._account_id:
+                return web.json_response(
+                    {"error": "Trading config repository or account ID not configured"},
+                    status=500,
+                )
+
+            # Parse request body
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response(
+                    {"error": "Invalid JSON body"},
+                    status=400,
+                )
+
+            if not data:
+                return web.json_response(
+                    {"error": "No fields provided to update"},
+                    status=400,
+                )
+
+            # Build kwargs with validated values
+            kwargs: dict[str, str | int | Decimal] = {}
+
+            if "symbol" in data:
+                kwargs["symbol"] = str(data["symbol"])
+
+            if "leverage" in data:
+                leverage = int(data["leverage"])
+                if leverage < 1 or leverage > 125:
+                    return web.json_response(
+                        {"error": "Leverage must be between 1 and 125"},
+                        status=400,
+                    )
+                kwargs["leverage"] = leverage
+
+            if "order_size_usdt" in data:
+                order_size = Decimal(str(data["order_size_usdt"]))
+                if order_size <= 0:
+                    return web.json_response(
+                        {"error": "Order size must be positive"},
+                        status=400,
+                    )
+                kwargs["order_size_usdt"] = order_size
+
+            if "margin_mode" in data:
+                margin_mode = str(data["margin_mode"])
+                if margin_mode not in ["CROSSED", "ISOLATED"]:
+                    return web.json_response(
+                        {"error": "Margin mode must be CROSSED or ISOLATED"},
+                        status=400,
+                    )
+                kwargs["margin_mode"] = margin_mode
+
+            if "take_profit_percent" in data:
+                tp_percent = Decimal(str(data["take_profit_percent"]))
+                if tp_percent <= 0 or tp_percent > 10:
+                    return web.json_response(
+                        {"error": "Take profit percent must be between 0 and 10"},
+                        status=400,
+                    )
+                kwargs["take_profit_percent"] = tp_percent
+
+            # Update config
+            config = await self._trading_config_repo.create_or_update(
+                self._account_id,
+                **kwargs,  # type: ignore[arg-type]
+            )
+
+            main_logger.info(f"Trading config updated (partial): {list(kwargs.keys())}")
+
+            return web.json_response(
+                {
+                    "message": "Trading configuration updated successfully",
+                    "updated_fields": list(kwargs.keys()),
+                    "config": {
+                        "id": str(config.id),
+                        "account_id": str(config.account_id),
+                        "symbol": config.symbol,
+                        "leverage": config.leverage,
+                        "order_size_usdt": float(config.order_size_usdt),
+                        "margin_mode": config.margin_mode,
+                        "take_profit_percent": float(config.take_profit_percent),
+                        "updated_at": config.updated_at.isoformat(),
+                    },
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error updating trading config: {e}")
             return web.json_response(
                 {"error": str(e)},
                 status=500,
