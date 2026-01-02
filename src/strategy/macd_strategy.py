@@ -174,12 +174,19 @@ class MACDStrategy:
                 )
                 return None
 
-            macd_df = ta.macd(
-                klines["close"],
-                fast=self.fast,
-                slow=self.slow,
-                signal=self.signal,
-            )
+            # Suppress numpy overflow warnings during MACD calculation
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
+                old_settings = np.seterr(all="ignore")  # Suppress numpy errors
+                try:
+                    macd_df = ta.macd(
+                        klines["close"],
+                        fast=self.fast,
+                        slow=self.slow,
+                        signal=self.signal,
+                    )
+                finally:
+                    np.seterr(**old_settings)  # Restore numpy error settings
 
             if macd_df is None or macd_df.empty:
                 macd_logger.error("Failed to calculate MACD")

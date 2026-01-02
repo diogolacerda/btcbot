@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import json
@@ -73,55 +74,91 @@ class BingXClient:
         endpoint: str,
         params: dict | None = None,
         signed: bool = True,
+        max_retries: int = 3,
     ) -> dict[str, Any]:
-        """Make authenticated request to BingX API."""
+        """
+        Make authenticated request to BingX API with retry logic.
+
+        Args:
+            method: HTTP method (GET, POST, PUT, DELETE)
+            endpoint: API endpoint
+            params: Query parameters
+            signed: Whether to sign the request
+            max_retries: Maximum number of retries for timestamp errors
+
+        Returns:
+            API response data
+        """
         params = params or {}
         headers = self._get_headers()
 
-        if signed:
-            params["timestamp"] = int(time.time() * 1000)
-            # Create sorted query string for signature (no URL encoding for signature)
-            sorted_params = sorted(params.items())
-            query_string = "&".join([f"{k}={v}" for k, v in sorted_params])
-            signature = self._generate_signature(query_string)
-            # URL-encode the query string for the actual request
-            encoded_query = urlencode(sorted_params)
-            url = f"{self.base_url}{endpoint}?{encoded_query}&signature={signature}"
-        else:
-            url = f"{self.base_url}{endpoint}"
-            if params:
-                url += "?" + urlencode(params)
-
-        try:
-            if method.upper() == "GET":
-                response = await self.client.get(url, headers=headers)
-            elif method.upper() == "POST":
-                # POST with params in query string, empty body
-                response = await self.client.post(url, headers=headers)
-            elif method.upper() == "PUT":
-                response = await self.client.put(url, headers=headers)
-            elif method.upper() == "DELETE":
-                response = await self.client.delete(url, headers=headers)
+        # Retry loop for timestamp errors
+        for attempt in range(max_retries):
+            if signed:
+                # Generate fresh timestamp for each attempt
+                params["timestamp"] = int(time.time() * 1000)
+                # Create sorted query string for signature (no URL encoding for signature)
+                sorted_params = sorted(params.items())
+                query_string = "&".join([f"{k}={v}" for k, v in sorted_params])
+                signature = self._generate_signature(query_string)
+                # URL-encode the query string for the actual request
+                encoded_query = urlencode(sorted_params)
+                url = f"{self.base_url}{endpoint}?{encoded_query}&signature={signature}"
             else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
+                url = f"{self.base_url}{endpoint}"
+                if params:
+                    url += "?" + urlencode(params)
 
-            response.raise_for_status()
-            data = response.json()
+            try:
+                if method.upper() == "GET":
+                    response = await self.client.get(url, headers=headers)
+                elif method.upper() == "POST":
+                    # POST with params in query string, empty body
+                    response = await self.client.post(url, headers=headers)
+                elif method.upper() == "PUT":
+                    response = await self.client.put(url, headers=headers)
+                elif method.upper() == "DELETE":
+                    response = await self.client.delete(url, headers=headers)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
 
-            if data.get("code") != 0:
-                error_msg = data.get("msg", "Unknown error")
-                error_logger.error(f"API Error: {error_msg}")
-                raise Exception(f"BingX API Error: {error_msg}")
+                response.raise_for_status()
+                data = response.json()
 
-            result: dict[str, Any] = data.get("data", data)
-            return result
+                if data.get("code") != 0:
+                    error_msg = data.get("msg", "Unknown error")
 
-        except httpx.HTTPStatusError as e:
-            error_logger.error(f"HTTP Error: {e}")
-            raise
-        except Exception as e:
-            error_logger.error(f"Request Error: {e}")
-            raise
+                    # Retry on timestamp errors
+                    if "timestamp is invalid" in error_msg.lower() and attempt < max_retries - 1:
+                        error_logger.warning(
+                            f"Timestamp error (attempt {attempt + 1}/{max_retries}), retrying..."
+                        )
+                        await asyncio.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                        continue
+
+                    error_logger.error(f"API Error: {error_msg}")
+                    raise Exception(f"BingX API Error: {error_msg}")
+
+                result: dict[str, Any] = data.get("data", data)
+                return result
+
+            except httpx.HTTPStatusError as e:
+                error_logger.error(f"HTTP Error: {e}")
+                raise
+            except Exception as e:
+                # Check if it's a timestamp error that should be retried
+                if "timestamp is invalid" in str(e).lower() and attempt < max_retries - 1:
+                    error_logger.warning(
+                        f"Timestamp error (attempt {attempt + 1}/{max_retries}), retrying..."
+                    )
+                    await asyncio.sleep(0.5 * (attempt + 1))
+                    continue
+
+                error_logger.error(f"Request Error: {e}")
+                raise
+
+        # Should not reach here, but just in case
+        raise Exception("Max retries exceeded")
 
     async def get_price(self, symbol: str) -> float:
         """Get current price for a symbol."""
