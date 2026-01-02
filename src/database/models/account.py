@@ -11,6 +11,7 @@ from src.database.base import Base
 
 if TYPE_CHECKING:
     from .bot_state import BotState
+    from .grid_config import GridConfig
     from .trading_config import TradingConfig
     from .user import User
 
@@ -65,6 +66,9 @@ class Account(Base):
     user: Mapped["User"] = relationship("User", back_populates="accounts")
     bot_state: Mapped["BotState | None"] = relationship(
         "BotState", back_populates="account", uselist=False
+    )
+    grid_config: Mapped["GridConfig | None"] = relationship(
+        "GridConfig", back_populates="account", uselist=False
     )
     trading_config: Mapped["TradingConfig | None"] = relationship(
         "TradingConfig", back_populates="account", uselist=False
