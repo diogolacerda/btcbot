@@ -272,7 +272,7 @@ class GridManager:
         )
 
         # Iniciar monitoramento
-        if self.config.dynamic_tp.enabled:
+        if self.config.dynamic_tp.enabled is True:
             await self.dynamic_tp.start()
             orders_logger.info("DynamicTPManager started")
 
