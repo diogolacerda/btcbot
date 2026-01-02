@@ -11,6 +11,7 @@ from src.client.bingx_client import BingXClient
 from src.client.websocket_client import BingXAccountWebSocket
 from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
+from src.grid.dynamic_tp_manager import DynamicTPManager
 from src.grid.grid_calculator import GridCalculator, GridLevel
 from src.grid.order_tracker import OrderTracker
 from src.strategy.macd_strategy import GridState, MACDStrategy
@@ -123,6 +124,9 @@ class GridManager:
         self._on_order_filled = on_order_filled
         self._on_tp_hit = on_tp_hit
         self._on_state_change = on_state_change
+
+        # Dynamic TP Manager
+        self.dynamic_tp: DynamicTPManager | None = None
 
     @property
     def is_running(self) -> bool:
@@ -255,6 +259,22 @@ class GridManager:
                 main_logger.info(f"{orders_loaded} ordem(ns) pendente(s) carregada(s)")
         except Exception as e:
             main_logger.warning(f"Falha ao carregar dados existentes: {e}")
+
+        # Instanciar DynamicTPManager
+        # Note: tp_adjustment_repository is optional (graceful degradation)
+        self.dynamic_tp = DynamicTPManager(
+            config=self.config.dynamic_tp,
+            client=self.client,
+            order_tracker=self.tracker,
+            symbol=self.symbol,
+            tp_adjustment_repository=None,  # Will be integrated in future task
+            account_id=self._account_id,
+        )
+
+        # Iniciar monitoramento
+        if self.config.dynamic_tp.enabled is True:
+            await self.dynamic_tp.start()
+            orders_logger.info("DynamicTPManager started")
 
         # Start WebSocket for real-time order updates
         await self._start_websocket()
@@ -464,6 +484,10 @@ class GridManager:
         """Stop the grid manager and cancel pending LIMIT orders (preserves TPs)."""
         self._running = False
         main_logger.info("Grid Manager encerrando...")
+
+        # Parar DynamicTPManager
+        if self.dynamic_tp:
+            await self.dynamic_tp.stop()
 
         # Stop WebSocket
         await self._stop_websocket()
