@@ -362,6 +362,78 @@ class BingXClient:
         orders_logger.info(f"All orders cancelled for {symbol}")
         return data
 
+    async def modify_tp_order(
+        self,
+        symbol: str,
+        old_tp_order_id: str,
+        side: str,
+        position_side: str,
+        quantity: float,
+        new_tp_price: float,
+    ) -> dict:
+        """
+        Modify a take profit order by canceling the old one and creating a new one.
+
+        Since BingX doesn't have a native "modify order" endpoint, this method
+        implements the modify operation as:
+        1. Cancel the existing TP order
+        2. Create a new TP order with the updated price
+
+        Args:
+            symbol: Trading symbol (e.g., "BTC-USDT")
+            old_tp_order_id: Order ID of the existing TP order to be canceled
+            side: "BUY" or "SELL" (opposite of position side for TP)
+            position_side: "LONG" or "SHORT"
+            quantity: Order quantity (must match position quantity)
+            new_tp_price: New take profit price
+
+        Returns:
+            dict with new order details including:
+                - order: New TP order response from create_order
+                - oldOrderId: The canceled order ID
+                - newOrderId: The new TP order ID
+
+        Raises:
+            Exception: If cancellation fails or new order creation fails
+
+        Note:
+            This is an atomic-like operation. If the cancellation succeeds but
+            the new order creation fails, you may end up without TP protection.
+            The caller should handle this scenario appropriately.
+        """
+        try:
+            # Step 1: Cancel the old TP order
+            await self.cancel_order(symbol, old_tp_order_id)
+            orders_logger.info(
+                f"Old TP order canceled: {old_tp_order_id[:8]} (${new_tp_price:,.2f})"
+            )
+
+            # Step 2: Create new TP order with updated price
+            new_tp_order = await self.create_order(
+                symbol=symbol,
+                side=side,
+                position_side=position_side,
+                order_type="TAKE_PROFIT_MARKET",
+                quantity=quantity,
+                stop_price=new_tp_price,
+            )
+
+            new_order_id = new_tp_order["data"]["order"]["orderId"]
+            orders_logger.info(f"New TP order created: {new_order_id[:8]} at ${new_tp_price:,.2f}")
+
+            # Invalidate cache after modification
+            self._invalidate_cache("open_orders", "positions")
+
+            return {
+                "order": new_tp_order,
+                "oldOrderId": old_tp_order_id,
+                "newOrderId": new_order_id,
+            }
+
+        except Exception as e:
+            error_logger.error(f"Failed to modify TP order {old_tp_order_id[:8]}: {e}")
+            raise
+
     async def set_leverage(self, symbol: str, leverage: int, side: str = "BOTH") -> dict:
         """Set leverage for a symbol."""
         endpoint = "/openApi/swap/v2/trade/leverage"

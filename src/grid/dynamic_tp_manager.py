@@ -174,23 +174,35 @@ class DynamicTPManager:
 
         # Update TP on exchange FIRST
         tp_update_success = False
-        try:
-            # TODO: Implement update_tp_order method in BingXClient
-            # This requires finding the correct BingX API endpoint for modifying TP orders
-            # await self.client.update_tp_order(
-            #     order_id=order.exchange_tp_order_id,
-            #     new_tp_price=new_tp_price
-            # )
+        if not order.exchange_tp_order_id:
+            orders_logger.warning(
+                f"Position {order.order_id[:8]} has no TP order ID, skipping update"
+            )
+            return
 
-            # PLACEHOLDER: Log the update for now
-            # This should be replaced with actual exchange API call
+        try:
+            # Modify TP order on exchange (cancel old + create new)
+            # Grid bot only does LONG positions, so TP side is SELL
+            result = await self.client.modify_tp_order(
+                symbol=self.symbol,
+                old_tp_order_id=order.exchange_tp_order_id,
+                side="SELL",  # TP for LONG position is SELL
+                position_side="LONG",
+                quantity=order.quantity,
+                new_tp_price=new_tp_price,
+            )
+
+            # Update the tracked order with new TP order ID
+            order.exchange_tp_order_id = result["newOrderId"]
+
             orders_logger.info(
-                f"TP update (placeholder): {order.order_id[:8]} "
-                f"TP price: ${order.tp_price:,.2f} -> ${new_tp_price:,.2f}"
+                f"TP updated: {order.order_id[:8]} "
+                f"TP price: ${order.tp_price:,.2f} -> ${new_tp_price:,.2f} "
+                f"(new TP order: {result['newOrderId'][:8]})"
             )
             tp_update_success = True
         except Exception as e:
-            orders_logger.error(f"Failed to update TP on exchange: {e}")
+            orders_logger.error(f"Failed to update TP on exchange for {order.order_id[:8]}: {e}")
             tp_update_success = False
 
         # ONLY persist if exchange update succeeded
