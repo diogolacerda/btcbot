@@ -6,6 +6,7 @@ from .bot_state_repository import BotStateRepository
 from .grid_config_repository import GridConfigRepository
 from .tp_adjustment_repository import TPAdjustmentRepository
 from .trade_repository import TradeRepository
+from .trading_config_repository import TradingConfigRepository
 
 __all__ = [
     "BaseRepository",
@@ -14,4 +15,5 @@ __all__ = [
     "GridConfigRepository",
     "TPAdjustmentRepository",
     "TradeRepository",
+    "TradingConfigRepository",
 ]
