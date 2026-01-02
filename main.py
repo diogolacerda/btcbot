@@ -13,6 +13,7 @@ from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
 from src.database.repositories.bot_state_repository import BotStateRepository
+from src.database.repositories.grid_config_repository import GridConfigRepository
 from src.database.repositories.trade_repository import TradeRepository
 from src.database.repositories.trading_config_repository import TradingConfigRepository
 from src.grid.grid_manager import GridManager
@@ -172,6 +173,41 @@ async def run_bot() -> None:
             },
         )()
 
+        # Create a wrapper grid config repository that creates sessions on demand
+        async def _get_grid_config_with_session(account_id):
+            """Helper to get grid config with a new session."""
+            async for session in get_session():
+                repo = GridConfigRepository(session)
+                return await repo.get_or_create(account_id)
+
+        async def _save_grid_config_with_session(account_id, **kwargs):
+            """Helper to save grid config with a new session."""
+            async for session in get_session():
+                repo = GridConfigRepository(session)
+                return await repo.save_config(account_id, **kwargs)
+
+        # Monkey-patch the repository into the grid manager
+        grid_manager._grid_config_repo = type(
+            "GridConfigRepositoryWrapper",
+            (),
+            {
+                "get_or_create": lambda self, *args, **kwargs: _get_grid_config_with_session(
+                    *args, **kwargs
+                ),
+                "save_config": lambda self, *args, **kwargs: _save_grid_config_with_session(
+                    *args, **kwargs
+                ),
+                "to_dict": lambda self, config: {
+                    "spacing_type": config.spacing_type,
+                    "spacing_value": float(config.spacing_value),
+                    "range_percent": float(config.range_percent),
+                    "max_total_orders": config.max_total_orders,
+                    "anchor_mode": config.anchor_mode,
+                    "anchor_value": float(config.anchor_value),
+                },
+            },
+        )()
+
     # Restore state if available
     if restored_state:
         grid_manager.strategy.restore_state(
@@ -213,6 +249,11 @@ async def run_bot() -> None:
 
     # Link grid manager to health server for status reporting
     health_server.set_grid_manager(grid_manager)
+
+    # Set grid config repository and account ID on health server
+    if account_id and hasattr(grid_manager, "_grid_config_repo"):
+        health_server.set_grid_config_repo(grid_manager._grid_config_repo)  # type: ignore[arg-type]
+        health_server.set_account_id(account_id)
 
     # Print startup info
     main_logger.info("═══════════════════════════════════════════")
