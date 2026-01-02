@@ -28,6 +28,7 @@ from src.utils.logger import main_logger
 if TYPE_CHECKING:
     from src.client.bingx_client import BingXClient
     from src.client.websocket_client import BingXAccountWebSocket
+    from src.database.repositories.grid_config_repository import GridConfigRepository
     from src.database.repositories.trading_config_repository import TradingConfigRepository
     from src.grid.grid_manager import GridManager
 
@@ -53,6 +54,7 @@ class HealthServer:
         bingx_client: BingXClient | None = None,
         account_ws: BingXAccountWebSocket | None = None,
         trading_config_repo: TradingConfigRepository | None = None,
+        grid_config_repo: GridConfigRepository | None = None,
         account_id: UUID | None = None,
     ):
         """
@@ -64,6 +66,7 @@ class HealthServer:
             bingx_client: BingX client for API health checks
             account_ws: WebSocket client for connection status
             trading_config_repo: Repository for trading config persistence
+            grid_config_repo: Repository for grid config persistence
             account_id: Account ID for config operations
         """
         self.port = port or int(os.getenv("HEALTH_PORT", "8080"))
@@ -71,6 +74,7 @@ class HealthServer:
         self._bingx_client = bingx_client
         self._account_ws = account_ws
         self._trading_config_repo = trading_config_repo
+        self._grid_config_repo = grid_config_repo
         self._account_id = account_id
 
         self._start_time = time.time()
@@ -101,6 +105,10 @@ class HealthServer:
         """Set the trading config repository reference for API operations."""
         self._trading_config_repo = repo
 
+    def set_grid_config_repo(self, repo: GridConfigRepository) -> None:
+        """Set the grid config repository reference for API operations."""
+        self._grid_config_repo = repo
+
     def set_account_id(self, account_id: UUID) -> None:
         """Set the account ID for config operations."""
         self._account_id = account_id
@@ -128,6 +136,9 @@ class HealthServer:
         self._app.router.add_get("/api/configs/trading", self._handle_get_trading_config)
         self._app.router.add_put("/api/configs/trading", self._handle_put_trading_config)
         self._app.router.add_patch("/api/configs/trading", self._handle_patch_trading_config)
+        self._app.router.add_get("/api/configs/grid", self._handle_get_grid_config)
+        self._app.router.add_put("/api/configs/grid", self._handle_put_grid_config)
+        self._app.router.add_patch("/api/configs/grid", self._handle_patch_grid_config)
 
         self._runner = web.AppRunner(self._app, access_log=None)
         await self._runner.setup()
@@ -905,6 +916,272 @@ class HealthServer:
 
         except Exception as e:
             main_logger.error(f"Error updating trading config: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_get_grid_config(self, request: web.Request) -> web.Response:
+        """
+        Handle GET /api/configs/grid request.
+
+        Returns current grid configuration for the account.
+        """
+        main_logger.debug(f"GET /api/configs/grid request from {request.remote}")
+
+        try:
+            if not self._grid_config_repo or not self._account_id:
+                return web.json_response(
+                    {"error": "Grid config repository or account ID not configured"},
+                    status=500,
+                )
+
+            # Get current config (or create with defaults if doesn't exist)
+            config = await self._grid_config_repo.get_or_create(self._account_id)
+
+            # Convert to dict for JSON response
+            return web.json_response(
+                self._grid_config_repo.to_dict(config),
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error getting grid config: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_put_grid_config(self, request: web.Request) -> web.Response:
+        """
+        Handle PUT /api/configs/grid request.
+
+        Updates all grid configuration fields.
+        Expects JSON body with all required fields.
+        """
+        main_logger.debug(f"PUT /api/configs/grid request from {request.remote}")
+
+        try:
+            if not self._grid_config_repo or not self._account_id:
+                return web.json_response(
+                    {"error": "Grid config repository or account ID not configured"},
+                    status=500,
+                )
+
+            # Parse request body
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response(
+                    {"error": "Invalid JSON body"},
+                    status=400,
+                )
+
+            # Validate required fields
+            required_fields = [
+                "spacing_type",
+                "spacing_value",
+                "range_percent",
+                "max_total_orders",
+                "anchor_mode",
+                "anchor_value",
+            ]
+            missing = [f for f in required_fields if f not in data]
+            if missing:
+                return web.json_response(
+                    {"error": f"Missing required fields: {', '.join(missing)}"},
+                    status=400,
+                )
+
+            # Validate field types and values
+            try:
+                spacing_type = str(data["spacing_type"])
+                spacing_value = Decimal(str(data["spacing_value"]))
+                range_percent = Decimal(str(data["range_percent"]))
+                max_total_orders = int(data["max_total_orders"])
+                anchor_mode = str(data["anchor_mode"])
+                anchor_value = Decimal(str(data["anchor_value"]))
+
+                # Validate spacing_type
+                if spacing_type not in ["fixed", "percentage"]:
+                    return web.json_response(
+                        {"error": "spacing_type must be 'fixed' or 'percentage'"},
+                        status=400,
+                    )
+
+                # Validate positive values
+                if spacing_value <= 0:
+                    return web.json_response(
+                        {"error": "spacing_value must be positive"},
+                        status=400,
+                    )
+
+                if range_percent <= 0:
+                    return web.json_response(
+                        {"error": "range_percent must be positive"},
+                        status=400,
+                    )
+
+                if max_total_orders <= 0:
+                    return web.json_response(
+                        {"error": "max_total_orders must be positive"},
+                        status=400,
+                    )
+
+                # Validate anchor_mode
+                if anchor_mode not in ["none", "hundred"]:
+                    return web.json_response(
+                        {"error": "anchor_mode must be 'none' or 'hundred'"},
+                        status=400,
+                    )
+
+                if anchor_value <= 0:
+                    return web.json_response(
+                        {"error": "anchor_value must be positive"},
+                        status=400,
+                    )
+
+            except (ValueError, TypeError) as e:
+                return web.json_response(
+                    {"error": f"Invalid field value: {e}"},
+                    status=400,
+                )
+
+            # Update config
+            config = await self._grid_config_repo.save_config(
+                self._account_id,
+                spacing_type=spacing_type,
+                spacing_value=spacing_value,
+                range_percent=range_percent,
+                max_total_orders=max_total_orders,
+                anchor_mode=anchor_mode,
+                anchor_value=anchor_value,
+            )
+
+            main_logger.info(f"Grid config updated: {config}")
+
+            return web.json_response(
+                {
+                    "message": "Grid configuration updated successfully",
+                    "config": self._grid_config_repo.to_dict(config),
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error updating grid config: {e}")
+            return web.json_response(
+                {"error": str(e)},
+                status=500,
+            )
+
+    async def _handle_patch_grid_config(self, request: web.Request) -> web.Response:
+        """
+        Handle PATCH /api/configs/grid request.
+
+        Updates specific grid configuration fields.
+        Only provided fields will be updated.
+        """
+        main_logger.debug(f"PATCH /api/configs/grid request from {request.remote}")
+
+        try:
+            if not self._grid_config_repo or not self._account_id:
+                return web.json_response(
+                    {"error": "Grid config repository or account ID not configured"},
+                    status=500,
+                )
+
+            # Parse request body
+            try:
+                data = await request.json()
+            except Exception:
+                return web.json_response(
+                    {"error": "Invalid JSON body"},
+                    status=400,
+                )
+
+            if not data:
+                return web.json_response(
+                    {"error": "No fields provided to update"},
+                    status=400,
+                )
+
+            # Build kwargs with validated values
+            kwargs: dict[str, str | int | Decimal] = {}
+
+            if "spacing_type" in data:
+                spacing_type = str(data["spacing_type"])
+                if spacing_type not in ["fixed", "percentage"]:
+                    return web.json_response(
+                        {"error": "spacing_type must be 'fixed' or 'percentage'"},
+                        status=400,
+                    )
+                kwargs["spacing_type"] = spacing_type
+
+            if "spacing_value" in data:
+                spacing_value = Decimal(str(data["spacing_value"]))
+                if spacing_value <= 0:
+                    return web.json_response(
+                        {"error": "spacing_value must be positive"},
+                        status=400,
+                    )
+                kwargs["spacing_value"] = spacing_value
+
+            if "range_percent" in data:
+                range_percent = Decimal(str(data["range_percent"]))
+                if range_percent <= 0:
+                    return web.json_response(
+                        {"error": "range_percent must be positive"},
+                        status=400,
+                    )
+                kwargs["range_percent"] = range_percent
+
+            if "max_total_orders" in data:
+                max_total_orders = int(data["max_total_orders"])
+                if max_total_orders <= 0:
+                    return web.json_response(
+                        {"error": "max_total_orders must be positive"},
+                        status=400,
+                    )
+                kwargs["max_total_orders"] = max_total_orders
+
+            if "anchor_mode" in data:
+                anchor_mode = str(data["anchor_mode"])
+                if anchor_mode not in ["none", "hundred"]:
+                    return web.json_response(
+                        {"error": "anchor_mode must be 'none' or 'hundred'"},
+                        status=400,
+                    )
+                kwargs["anchor_mode"] = anchor_mode
+
+            if "anchor_value" in data:
+                anchor_value = Decimal(str(data["anchor_value"]))
+                if anchor_value <= 0:
+                    return web.json_response(
+                        {"error": "anchor_value must be positive"},
+                        status=400,
+                    )
+                kwargs["anchor_value"] = anchor_value
+
+            # Update config
+            config = await self._grid_config_repo.save_config(
+                self._account_id,
+                **kwargs,  # type: ignore[arg-type]
+            )
+
+            main_logger.info(f"Grid config updated (partial): {list(kwargs.keys())}")
+
+            return web.json_response(
+                {
+                    "message": "Grid configuration updated successfully",
+                    "updated_fields": list(kwargs.keys()),
+                    "config": self._grid_config_repo.to_dict(config),
+                },
+                status=200,
+            )
+
+        except Exception as e:
+            main_logger.error(f"Error updating grid config: {e}")
             return web.json_response(
                 {"error": str(e)},
                 status=500,
