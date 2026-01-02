@@ -15,7 +15,6 @@ from src.database.helpers import get_or_create_account
 from src.database.repositories.bot_state_repository import BotStateRepository
 from src.database.repositories.grid_config_repository import GridConfigRepository
 from src.database.repositories.trade_repository import TradeRepository
-from src.database.repositories.trading_config_repository import TradingConfigRepository
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
@@ -45,6 +44,7 @@ async def run_bot() -> None:
     # Initialize database and restore state
     account_id = None
     restored_state = None
+    db_trading_config = None  # Will hold config from database
     try:
         # Get/create account
         async for session in get_session():
@@ -57,6 +57,25 @@ async def run_bot() -> None:
 
             # Configure HealthServer with account_id for API operations
             health_server.set_account_id(account_id)
+
+        # Fetch trading config from database for startup display
+        if account_id:
+            try:
+                async for session in get_session():
+                    from src.database.repositories.trading_config_repository import (
+                        TradingConfigRepository,
+                    )
+
+                    trading_config_repo = TradingConfigRepository(session)
+                    db_trading_config = await trading_config_repo.get_by_account(account_id)
+                    if db_trading_config:
+                        main_logger.info("Loaded trading config from database for startup display")
+                    break
+            except Exception as e:
+                main_logger.warning(
+                    f"Failed to load trading config from database: {e}. "
+                    "Using environment variables for display."
+                )
 
         # Try to restore previous state (using a new session)
         assert account_id is not None, "Account ID must be set before restoring state"
@@ -275,16 +294,33 @@ async def run_bot() -> None:
         main_logger.warning("⚠️  MODO LIVE - Usando USDT REAL!")
         main_logger.warning("Cuidado: Operações afetarão seus fundos reais!")
 
+    # Use database config values if available, otherwise fall back to env vars
+    display_symbol = db_trading_config.symbol if db_trading_config else config.trading.symbol
+    display_leverage = db_trading_config.leverage if db_trading_config else config.trading.leverage
+    display_order_size = (
+        float(db_trading_config.order_size_usdt)
+        if db_trading_config
+        else config.trading.order_size_usdt
+    )
+    display_take_profit = (
+        float(db_trading_config.take_profit_percent)
+        if db_trading_config
+        else config.grid.take_profit_percent
+    )
+
     main_logger.info("Configuração:")
     main_logger.info(f"  Modo: {config.trading.mode.value.upper()}")
-    main_logger.info(f"  Symbol: {config.trading.symbol}")
-    main_logger.info(f"  Leverage: {config.trading.leverage}x")
-    main_logger.info(f"  Order size: ${config.trading.order_size_usdt} USDT")
+    main_logger.info(f"  Symbol: {display_symbol}")
+    main_logger.info(f"  Leverage: {display_leverage}x")
+    main_logger.info(f"  Order size: ${display_order_size} USDT")
     main_logger.info(
         f"  Grid spacing: {config.grid.spacing_value} ({config.grid.spacing_type.value})"
     )
     main_logger.info(f"  Range: {config.grid.range_percent}% abaixo do preço")
-    main_logger.info(f"  Take profit: {config.grid.take_profit_percent}%")
+    main_logger.info(
+        f"  Take profit: {display_take_profit}%"
+        + (" (from database)" if db_trading_config else " (from env)")
+    )
     main_logger.info(
         f"  MACD: {config.macd.fast}/{config.macd.slow}/{config.macd.signal} ({config.macd.timeframe})"
     )
