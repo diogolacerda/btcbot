@@ -96,7 +96,7 @@ class TestTradingConfigRepository:
         assert config.leverage == 10
         assert config.order_size_usdt == Decimal("100.00")
         assert config.margin_mode == "CROSSED"
-        assert config.take_profit_percent == Decimal("1.00")
+        assert config.take_profit_percent == Decimal("0.50")
 
     @pytest.mark.asyncio
     async def test_create_or_update_updates_existing(

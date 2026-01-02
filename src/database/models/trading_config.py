@@ -50,7 +50,7 @@ class TradingConfig(Base):
     )
     margin_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="CROSSED")
     take_profit_percent: Mapped[Decimal] = mapped_column(
-        Numeric(precision=5, scale=2), nullable=False, default=Decimal("1.00")
+        Numeric(precision=5, scale=2), nullable=False, default=Decimal("0.50")
     )
 
     # Timestamps

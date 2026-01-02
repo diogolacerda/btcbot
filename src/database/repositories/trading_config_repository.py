@@ -115,7 +115,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                     leverage=leverage or 10,
                     order_size_usdt=order_size_usdt or Decimal("100.00"),
                     margin_mode=margin_mode or "CROSSED",
-                    take_profit_percent=take_profit_percent or Decimal("1.00"),
+                    take_profit_percent=take_profit_percent or Decimal("0.50"),
                 )
                 return await super().create(new_config)
         except Exception as e:
