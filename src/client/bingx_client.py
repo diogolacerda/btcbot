@@ -418,7 +418,9 @@ class BingXClient:
                 stop_price=new_tp_price,
             )
 
-            new_order_id = new_tp_order["data"]["order"]["orderId"]
+            new_order_id = new_tp_order.get("orderId") or new_tp_order.get("order", {}).get(
+                "orderId"
+            )
             orders_logger.info(f"New TP order created: {new_order_id[:8]} at ${new_tp_price:,.2f}")
 
             # Invalidate cache after modification
