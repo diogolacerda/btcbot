@@ -55,6 +55,9 @@ async def run_bot() -> None:
             )
             main_logger.info(f"Using account ID: {account_id}")
 
+            # Configure HealthServer with account_id for API operations
+            health_server.set_account_id(account_id)
+
         # Try to restore previous state (using a new session)
         assert account_id is not None, "Account ID must be set before restoring state"
         async for session in get_session():
@@ -159,8 +162,8 @@ async def run_bot() -> None:
                 repo = TradingConfigRepository(session)
                 return await repo.create_or_update(account_id, **kwargs)
 
-        # Monkey-patch the repository into the grid manager
-        grid_manager._trading_config_repository = type(
+        # Create wrapper repository for session management
+        trading_config_wrapper = type(
             "TradingConfigRepositoryWrapper",
             (),
             {
@@ -172,6 +175,10 @@ async def run_bot() -> None:
                 **kwargs: _create_or_update_trading_config_with_session(*args, **kwargs),
             },
         )()
+
+        # Configure wrapper in both GridManager and HealthServer
+        grid_manager._trading_config_repository = trading_config_wrapper
+        health_server.set_trading_config_repo(trading_config_wrapper)
 
         # Create a wrapper grid config repository that creates sessions on demand
         async def _get_grid_config_with_session(account_id):
