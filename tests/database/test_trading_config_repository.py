@@ -213,3 +213,88 @@ class TestTradingConfigRepository:
         # Test delete
         assert await repository.delete(config.id) is True
         assert await repository.get_by_id(config.id) is None
+
+    @pytest.mark.asyncio
+    async def test_dynamic_tp_default_values(
+        self, repository: TradingConfigRepository, test_account: Account
+    ):
+        """Test that Dynamic TP fields have correct default values (BE-035)."""
+        config = await repository.create_or_update(account_id=test_account.id)
+
+        # Verify Dynamic TP defaults
+        assert config.tp_dynamic_enabled is False
+        assert config.tp_base_percent == Decimal("0.30")
+        assert config.tp_min_percent == Decimal("0.30")
+        assert config.tp_max_percent == Decimal("1.00")
+        assert config.tp_safety_margin == Decimal("0.05")
+        assert config.tp_check_interval_min == 60
+
+    @pytest.mark.asyncio
+    async def test_create_config_with_dynamic_tp_values(
+        self, repository: TradingConfigRepository, test_account: Account
+    ):
+        """Test creating config with custom Dynamic TP values (BE-035)."""
+        config = await repository.create_or_update(
+            account_id=test_account.id,
+            tp_dynamic_enabled=True,
+            tp_base_percent=Decimal("0.40"),
+            tp_min_percent=Decimal("0.35"),
+            tp_max_percent=Decimal("1.50"),
+            tp_safety_margin=Decimal("0.10"),
+            tp_check_interval_min=120,
+        )
+
+        assert config.tp_dynamic_enabled is True
+        assert config.tp_base_percent == Decimal("0.40")
+        assert config.tp_min_percent == Decimal("0.35")
+        assert config.tp_max_percent == Decimal("1.50")
+        assert config.tp_safety_margin == Decimal("0.10")
+        assert config.tp_check_interval_min == 120
+
+    @pytest.mark.asyncio
+    async def test_update_dynamic_tp_using_create_or_update(
+        self, repository: TradingConfigRepository, test_account: Account
+    ):
+        """Test updating Dynamic TP fields using create_or_update (BE-035)."""
+        # Create with defaults
+        config1 = await repository.create_or_update(account_id=test_account.id)
+        assert config1.tp_dynamic_enabled is False
+
+        # Update Dynamic TP enabled
+        config2 = await repository.create_or_update(
+            account_id=test_account.id,
+            tp_dynamic_enabled=True,
+            tp_base_percent=Decimal("0.50"),
+        )
+
+        assert config1.id == config2.id  # Same config
+        assert config2.tp_dynamic_enabled is True
+        assert config2.tp_base_percent == Decimal("0.50")
+        # Other TP fields should remain default
+        assert config2.tp_min_percent == Decimal("0.30")
+        assert config2.tp_max_percent == Decimal("1.00")
+
+    @pytest.mark.asyncio
+    async def test_update_dynamic_tp_using_update_config(
+        self, repository: TradingConfigRepository, test_account: Account
+    ):
+        """Test updating Dynamic TP fields using update_config (BE-035)."""
+        # Create with defaults
+        await repository.create_or_update(account_id=test_account.id)
+
+        # Update specific Dynamic TP fields
+        config = await repository.update_config(
+            test_account.id,
+            tp_dynamic_enabled=True,
+            tp_min_percent=Decimal("0.40"),
+            tp_max_percent=Decimal("2.00"),
+            tp_check_interval_min=90,
+        )
+
+        assert config.tp_dynamic_enabled is True
+        assert config.tp_min_percent == Decimal("0.40")
+        assert config.tp_max_percent == Decimal("2.00")
+        assert config.tp_check_interval_min == 90
+        # Unchanged TP fields
+        assert config.tp_base_percent == Decimal("0.30")
+        assert config.tp_safety_margin == Decimal("0.05")

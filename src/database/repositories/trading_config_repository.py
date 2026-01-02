@@ -63,6 +63,12 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         order_size_usdt: Decimal | None = None,
         margin_mode: str | None = None,
         take_profit_percent: Decimal | None = None,
+        tp_dynamic_enabled: bool | None = None,
+        tp_base_percent: Decimal | None = None,
+        tp_min_percent: Decimal | None = None,
+        tp_max_percent: Decimal | None = None,
+        tp_safety_margin: Decimal | None = None,
+        tp_check_interval_min: int | None = None,
     ) -> TradingConfig:
         """Create new trading config or update existing one.
 
@@ -76,6 +82,12 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
             order_size_usdt: Order size in USDT. Optional.
             margin_mode: Margin mode ('CROSSED' or 'ISOLATED'). Optional.
             take_profit_percent: Take profit percentage. Optional.
+            tp_dynamic_enabled: Enable dynamic TP. Optional.
+            tp_base_percent: Base TP percentage. Optional.
+            tp_min_percent: Minimum TP percentage. Optional.
+            tp_max_percent: Maximum TP percentage. Optional.
+            tp_safety_margin: Safety margin above funding cost. Optional.
+            tp_check_interval_min: Check interval in minutes. Optional.
 
         Returns:
             Created or updated TradingConfig instance.
@@ -105,6 +117,18 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                     existing.margin_mode = margin_mode
                 if take_profit_percent is not None:
                     existing.take_profit_percent = take_profit_percent
+                if tp_dynamic_enabled is not None:
+                    existing.tp_dynamic_enabled = tp_dynamic_enabled
+                if tp_base_percent is not None:
+                    existing.tp_base_percent = tp_base_percent
+                if tp_min_percent is not None:
+                    existing.tp_min_percent = tp_min_percent
+                if tp_max_percent is not None:
+                    existing.tp_max_percent = tp_max_percent
+                if tp_safety_margin is not None:
+                    existing.tp_safety_margin = tp_safety_margin
+                if tp_check_interval_min is not None:
+                    existing.tp_check_interval_min = tp_check_interval_min
 
                 return await super().update(existing)
             else:
@@ -116,6 +140,15 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                     order_size_usdt=order_size_usdt or Decimal("100.00"),
                     margin_mode=margin_mode or "CROSSED",
                     take_profit_percent=take_profit_percent or Decimal("0.50"),
+                    # Dynamic TP fields (BE-035)
+                    tp_dynamic_enabled=tp_dynamic_enabled
+                    if tp_dynamic_enabled is not None
+                    else False,
+                    tp_base_percent=tp_base_percent or Decimal("0.30"),
+                    tp_min_percent=tp_min_percent or Decimal("0.30"),
+                    tp_max_percent=tp_max_percent or Decimal("1.00"),
+                    tp_safety_margin=tp_safety_margin or Decimal("0.05"),
+                    tp_check_interval_min=tp_check_interval_min or 60,
                 )
                 return await super().create(new_config)
         except Exception as e:
@@ -127,15 +160,17 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
     async def update_config(
         self,
         account_id: UUID,
-        **kwargs: str | int | Decimal,
+        **kwargs: str | int | Decimal | bool,
     ) -> TradingConfig:
         """Update specific configuration fields for an account.
 
         Args:
             account_id: UUID of the account.
             **kwargs: Field-value pairs to update.
-                Valid fields: symbol, leverage, order_size_usdt,
-                             margin_mode, take_profit_percent.
+                Valid fields: symbol, leverage, order_size_usdt, margin_mode,
+                             take_profit_percent, tp_dynamic_enabled, tp_base_percent,
+                             tp_min_percent, tp_max_percent, tp_safety_margin,
+                             tp_check_interval_min.
 
         Returns:
             Updated TradingConfig instance.
