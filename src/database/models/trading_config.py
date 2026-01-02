@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.base import Base
@@ -28,6 +28,12 @@ class TradingConfig(Base):
         order_size_usdt: Order size in USDT.
         margin_mode: Margin mode ('CROSSED' or 'ISOLATED').
         take_profit_percent: Take profit percentage (0.1 - 5.0).
+        tp_dynamic_enabled: Enable dynamic TP based on funding rate.
+        tp_base_percent: Base TP percentage for dynamic TP.
+        tp_min_percent: Minimum TP percentage (never below this).
+        tp_max_percent: Maximum TP percentage (cap).
+        tp_safety_margin: Safety margin above funding cost.
+        tp_check_interval_min: How often to check positions (minutes).
         created_at: Timestamp of configuration creation.
         updated_at: Timestamp of last update.
     """
@@ -52,6 +58,22 @@ class TradingConfig(Base):
     take_profit_percent: Mapped[Decimal] = mapped_column(
         Numeric(precision=5, scale=2), nullable=False, default=Decimal("0.50")
     )
+
+    # Dynamic TP parameters (BE-035)
+    tp_dynamic_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    tp_base_percent: Mapped[Decimal] = mapped_column(
+        Numeric(precision=5, scale=2), nullable=False, default=Decimal("0.30")
+    )
+    tp_min_percent: Mapped[Decimal] = mapped_column(
+        Numeric(precision=5, scale=2), nullable=False, default=Decimal("0.30")
+    )
+    tp_max_percent: Mapped[Decimal] = mapped_column(
+        Numeric(precision=5, scale=2), nullable=False, default=Decimal("1.00")
+    )
+    tp_safety_margin: Mapped[Decimal] = mapped_column(
+        Numeric(precision=5, scale=2), nullable=False, default=Decimal("0.05")
+    )
+    tp_check_interval_min: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
