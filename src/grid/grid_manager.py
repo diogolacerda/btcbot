@@ -2,6 +2,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
@@ -69,6 +70,11 @@ class GridManager:
         self.symbol = config.trading.symbol
         self.order_size = config.trading.order_size_usdt
 
+        # Database repositories for dynamic config
+        self._account_id = account_id
+        self._grid_config_repo = grid_config_repository
+        self._trading_config_repository = trading_config_repository
+
         self.strategy = MACDStrategy(
             config.macd,
             account_id=account_id,
@@ -135,7 +141,11 @@ class GridManager:
 
         Falls back to config.py values if repositories are not set or database is unavailable.
         """
-        if not self._grid_config_repo or not self._trading_config_repo or not self._account_id:
+        if (
+            not self._grid_config_repo
+            or not self._trading_config_repository
+            or not self._account_id
+        ):
             # No database integration - use config.py values (already set)
             return
 
@@ -144,7 +154,7 @@ class GridManager:
             grid_config = await self._grid_config_repo.get_or_create(self._account_id)
 
             # Fetch trading config from database
-            trading_config = await self._trading_config_repo.get_by_account(self._account_id)
+            trading_config = await self._trading_config_repository.get_by_account(self._account_id)
 
             # Update calculator properties with database values
             self.calculator.spacing_type = grid_config.spacing_type  # type: ignore[assignment]
@@ -414,6 +424,41 @@ class GridManager:
                 pass
 
         main_logger.info("WebSocket encerrado")
+
+    async def _get_trading_config(self):
+        """Fetch current trading config from database.
+
+        Returns config from DB or creates with defaults if not exists.
+        Falls back to env vars if DB unavailable.
+
+        Returns:
+            TradingConfig object if successful, None if fallback needed.
+        """
+        if not self._trading_config_repository or not self._account_id:
+            # No repository configured - use env vars
+            return None
+
+        try:
+            config = await self._trading_config_repository.get_by_account(self._account_id)
+
+            if not config:
+                # Create with defaults from current Config
+                config = await self._trading_config_repository.create_or_update(
+                    self._account_id,
+                    symbol=self.config.trading.symbol,
+                    leverage=self.config.trading.leverage,
+                    order_size_usdt=Decimal(str(self.config.trading.order_size_usdt)),
+                    margin_mode=self.config.trading.margin_mode.value,
+                    take_profit_percent=Decimal(str(self.config.grid.take_profit_percent)),
+                )
+                main_logger.info(f"Created default TradingConfig for account {self._account_id}")
+
+            return config
+
+        except Exception as e:
+            main_logger.warning(f"Failed to fetch TradingConfig from DB, using env vars: {e}")
+            # Fallback to env vars (return None to signal fallback)
+            return None
 
     async def stop(self) -> None:
         """Stop the grid manager and cancel pending LIMIT orders (preserves TPs)."""
@@ -724,9 +769,21 @@ class GridManager:
 
     async def _create_order(self, level: GridLevel) -> None:
         """Create a single grid order."""
+        # Fetch fresh config from DB (or fallback to env vars)
+        db_config = await self._get_trading_config()
+
+        if db_config:
+            order_size = float(db_config.order_size_usdt)
+            symbol = db_config.symbol
+            # Note: leverage and margin_mode are set on account setup, not per-order
+        else:
+            # Fallback to env vars
+            order_size = self.order_size
+            symbol = self.symbol
+
         # Convert USDT to BTC quantity (6 decimal places for precision)
         # Use current price for most accurate conversion
-        quantity_btc = round(self.order_size / self._current_price, 6)
+        quantity_btc = round(order_size / self._current_price, 6)
 
         # BingX minimum order: 0.0001 BTC
         if quantity_btc < 0.0001:
@@ -734,7 +791,7 @@ class GridManager:
             return
 
         result = await self.client.create_limit_order_with_tp(
-            symbol=self.symbol,
+            symbol=symbol,
             side="BUY",
             position_side="BOTH",  # One-way mode
             price=level.entry_price,

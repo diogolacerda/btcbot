@@ -14,6 +14,7 @@ from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
 from src.database.repositories.bot_state_repository import BotStateRepository
 from src.database.repositories.trade_repository import TradeRepository
+from src.database.repositories.trading_config_repository import TradingConfigRepository
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
@@ -110,6 +111,7 @@ async def run_bot() -> None:
         account_id=account_id,
         bot_state_repository=None,  # Will be set after
         trade_repository=None,  # Will be set after
+        trading_config_repository=None,  # Will be set after
     )
 
     # Set up bot state repository with a session factory
@@ -141,6 +143,33 @@ async def run_bot() -> None:
             "TradeRepositoryWrapper",
             (),
             {"save_trade": lambda self, *args, **kwargs: _save_trade_with_session(*args, **kwargs)},
+        )()
+
+        # Create a wrapper trading config repository that creates sessions on demand
+        async def _get_trading_config_with_session(account_id):
+            """Helper to get trading config with a new session."""
+            async for session in get_session():
+                repo = TradingConfigRepository(session)
+                return await repo.get_by_account(account_id)
+
+        async def _create_or_update_trading_config_with_session(account_id, **kwargs):
+            """Helper to create/update trading config with a new session."""
+            async for session in get_session():
+                repo = TradingConfigRepository(session)
+                return await repo.create_or_update(account_id, **kwargs)
+
+        # Monkey-patch the repository into the grid manager
+        grid_manager._trading_config_repository = type(
+            "TradingConfigRepositoryWrapper",
+            (),
+            {
+                "get_by_account": lambda self, *args, **kwargs: _get_trading_config_with_session(
+                    *args, **kwargs
+                ),
+                "create_or_update": lambda self,
+                *args,
+                **kwargs: _create_or_update_trading_config_with_session(*args, **kwargs),
+            },
         )()
 
     # Restore state if available
