@@ -17,7 +17,9 @@ from src.utils.logger import main_logger, orders_logger
 
 if TYPE_CHECKING:
     from src.database.repositories.bot_state_repository import BotStateRepository
+    from src.database.repositories.grid_config_repository import GridConfigRepository
     from src.database.repositories.trade_repository import TradeRepository
+    from src.database.repositories.trading_config_repository import TradingConfigRepository
 
 
 @dataclass
@@ -59,6 +61,8 @@ class GridManager:
         account_id: UUID | None = None,
         bot_state_repository: "BotStateRepository | None" = None,
         trade_repository: "TradeRepository | None" = None,
+        grid_config_repository: "GridConfigRepository | None" = None,
+        trading_config_repository: "TradingConfigRepository | None" = None,
     ):
         self.config = config
         self.client = client
@@ -75,6 +79,11 @@ class GridManager:
             trade_repository=trade_repository,
             account_id=account_id,
         )
+
+        # Database repositories for dynamic config
+        self._account_id = account_id
+        self._grid_config_repo = grid_config_repository
+        self._trading_config_repo = trading_config_repository
 
         # Filter system
         self._filter_registry = FilterRegistry()
@@ -116,6 +125,43 @@ class GridManager:
     @property
     def current_state(self) -> GridState:
         return self._current_state
+
+    async def _refresh_grid_calculator(self) -> None:
+        """
+        Refresh grid calculator with latest config from database.
+
+        Fetches grid config and trading config from database (if repositories are set)
+        and updates the calculator's properties.
+
+        Falls back to config.py values if repositories are not set or database is unavailable.
+        """
+        if not self._grid_config_repo or not self._trading_config_repo or not self._account_id:
+            # No database integration - use config.py values (already set)
+            return
+
+        try:
+            # Fetch grid config from database (or create with defaults)
+            grid_config = await self._grid_config_repo.get_or_create(self._account_id)
+
+            # Fetch trading config from database
+            trading_config = await self._trading_config_repo.get_by_account(self._account_id)
+
+            # Update calculator properties with database values
+            self.calculator.spacing_type = grid_config.spacing_type  # type: ignore[assignment]
+            self.calculator.spacing_value = float(grid_config.spacing_value)
+            self.calculator.range_percent = float(grid_config.range_percent)
+            self.calculator.max_total_orders = grid_config.max_total_orders
+            self.calculator.anchor_mode = grid_config.anchor_mode  # type: ignore[assignment]
+            self.calculator.anchor_value = float(grid_config.anchor_value)
+
+            # Update take_profit_percent from trading config
+            if trading_config:
+                self.calculator.tp_percent = float(trading_config.take_profit_percent)
+
+        except Exception as e:
+            main_logger.warning(
+                f"Failed to refresh grid config from database: {e}. Using config.py values."
+            )
 
     def get_status(self) -> GridStatus:
         """Get current grid status."""
@@ -558,6 +604,9 @@ class GridManager:
         # Check rate limiting
         if time.time() < self._rate_limited_until:
             return  # Still rate limited
+
+        # Refresh grid calculator with latest config from database
+        await self._refresh_grid_calculator()
 
         # Get existing orders from exchange
         exchange_orders = await self.client.get_open_orders(self.symbol)
