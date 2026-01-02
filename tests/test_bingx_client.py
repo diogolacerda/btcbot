@@ -40,9 +40,7 @@ class TestModifyTPOrder:
 
         # Mock create_order to simulate successful new TP order creation
         mock_new_order_response = {
-            "code": 0,
-            "msg": "Success",
-            "data": {"order": {"orderId": "new_tp_order_123"}},
+            "orderId": "new_tp_order_123",
         }
         client.create_order = AsyncMock(return_value=mock_new_order_response)
 
@@ -129,9 +127,7 @@ class TestModifyTPOrder:
 
         # Mock create_order
         mock_new_order_response = {
-            "code": 0,
-            "msg": "Success",
-            "data": {"order": {"orderId": "new_tp_order_123"}},
+            "orderId": "new_tp_order_123",
         }
         client.create_order = AsyncMock(return_value=mock_new_order_response)
 
@@ -158,9 +154,7 @@ class TestModifyTPOrder:
         client.cancel_order = AsyncMock(return_value={"code": 0, "msg": "Success", "data": {}})
         client.create_order = AsyncMock(
             return_value={
-                "code": 0,
-                "msg": "Success",
-                "data": {"order": {"orderId": "new_tp_order_123"}},
+                "orderId": "new_tp_order_123",
             }
         )
 
@@ -188,9 +182,7 @@ class TestModifyTPOrder:
         client.cancel_order = AsyncMock(return_value={"code": 0, "msg": "Success", "data": {}})
         client.create_order = AsyncMock(
             return_value={
-                "code": 0,
-                "msg": "Success",
-                "data": {"order": {"orderId": "new_tp_order_123"}},
+                "orderId": "new_tp_order_123",
             }
         )
 
