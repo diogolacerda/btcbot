@@ -2,32 +2,25 @@
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID, uuid4
+from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
-from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.testclient import TestClient
 
+from src.api.dependencies import get_trade_repository
 from src.api.main import app
-from src.database import get_session
 from src.database.models.trade import Trade
 
 
 @pytest.fixture
-async def db_session():
-    """Create a test database session."""
-    async for session in get_session():
-        yield session
-
-
-@pytest.fixture
-async def test_account_id():
+def test_account_id():
     """Provide a test account ID."""
     return uuid4()
 
 
 @pytest.fixture
-async def sample_trades(db_session: AsyncSession, test_account_id: UUID):
+def sample_trades(test_account_id):
     """Create sample trades for testing."""
     trades = []
     now = datetime.now(UTC)
@@ -40,6 +33,7 @@ async def sample_trades(db_session: AsyncSession, test_account_id: UUID):
         pnl = (exit_price - entry_price) * Decimal("0.001")
 
         trade = Trade(
+            id=uuid4(),  # Add UUID
             account_id=test_account_id,
             symbol="BTC-USDT",
             side="LONG",
@@ -58,13 +52,15 @@ async def sample_trades(db_session: AsyncSession, test_account_id: UUID):
             opened_at=now - timedelta(hours=i + 1),
             filled_at=now - timedelta(hours=i + 1),
             closed_at=now - timedelta(hours=i),
+            created_at=now - timedelta(hours=i + 1),  # Add created_at
+            updated_at=now - timedelta(hours=i),  # Add updated_at
         )
-        db_session.add(trade)
         trades.append(trade)
 
     # Create 2 open trades
     for i in range(2):
         trade = Trade(
+            id=uuid4(),  # Add UUID
             account_id=test_account_id,
             symbol="BTC-USDT",
             side="LONG",
@@ -79,19 +75,29 @@ async def sample_trades(db_session: AsyncSession, test_account_id: UUID):
             grid_level=i + 6,
             opened_at=now - timedelta(minutes=30 * (i + 1)),
             filled_at=now - timedelta(minutes=30 * (i + 1)),
+            created_at=now - timedelta(minutes=30 * (i + 1)),  # Add created_at
+            updated_at=now - timedelta(minutes=30 * (i + 1)),  # Add updated_at
         )
-        db_session.add(trade)
         trades.append(trade)
 
-    await db_session.commit()
     return trades
 
 
-@pytest.mark.asyncio
-async def test_get_positions(sample_trades, test_account_id):
+def test_get_positions(sample_trades, test_account_id):
     """Test GET /trading/positions/{account_id} endpoint."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.get(f"/trading/positions/{test_account_id}")
+    # Mock the repository to return only open trades
+    open_trades = [t for t in sample_trades if t.status == "OPEN"]
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_open_trades.return_value = open_trades
+        return mock_repo
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/trading/positions/{test_account_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -108,13 +114,23 @@ async def test_get_positions(sample_trades, test_account_id):
         assert "entry_price" in position
         assert "quantity" in position
         assert position["symbol"] == "BTC-USDT"
+    finally:
+        app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
-async def test_get_trades_all(sample_trades, test_account_id):
+def test_get_trades_all(sample_trades, test_account_id):
     """Test GET /trading/trades/{account_id} without filters."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.get(f"/trading/trades/{test_account_id}")
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_account.return_value = sample_trades
+        return mock_repo
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/trading/trades/{test_account_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -125,28 +141,46 @@ async def test_get_trades_all(sample_trades, test_account_id):
         assert "offset" in data
         assert data["total"] == 7  # 5 closed + 2 open
         assert len(data["trades"]) == 7
+    finally:
+        app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
-async def test_get_trades_with_status_filter(sample_trades, test_account_id):
+def test_get_trades_with_status_filter(sample_trades, test_account_id):
     """Test GET /trading/trades/{account_id} with status filter."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.get(
-            f"/trading/trades/{test_account_id}", params={"status": "CLOSED"}
-        )
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_account.return_value = sample_trades
+        return mock_repo
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/trading/trades/{test_account_id}", params={"status": "CLOSED"})
 
         assert response.status_code == 200
         data = response.json()
 
         assert data["total"] == 5  # 5 closed trades
         assert all(trade["status"] == "CLOSED" for trade in data["trades"])
+    finally:
+        app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
-async def test_get_trades_with_pagination(sample_trades, test_account_id):
+def test_get_trades_with_pagination(sample_trades, test_account_id):
     """Test GET /trading/trades/{account_id} with pagination."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.get(
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_account.return_value = sample_trades
+        return mock_repo
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(
             f"/trading/trades/{test_account_id}", params={"limit": 3, "offset": 2}
         )
 
@@ -156,25 +190,41 @@ async def test_get_trades_with_pagination(sample_trades, test_account_id):
         assert data["limit"] == 3
         assert data["offset"] == 2
         assert len(data["trades"]) == 3
+    finally:
+        app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
-async def test_get_trades_invalid_status(test_account_id):
+def test_get_trades_invalid_status(test_account_id):
     """Test GET /trading/trades/{account_id} with invalid status."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.get(
-            f"/trading/trades/{test_account_id}", params={"status": "INVALID"}
-        )
+
+    async def mock_get_trade_repository():
+        return AsyncMock()
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/trading/trades/{test_account_id}", params={"status": "INVALID"})
 
         assert response.status_code == 400
         assert "Invalid status" in response.json()["detail"]
+    finally:
+        app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
-async def test_get_trade_stats(sample_trades, test_account_id):
+def test_get_trade_stats(sample_trades, test_account_id):
     """Test GET /trading/stats/{account_id} endpoint."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        response = await client.get(f"/trading/stats/{test_account_id}")
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_account.return_value = sample_trades
+        return mock_repo
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/trading/stats/{test_account_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -199,30 +249,46 @@ async def test_get_trade_stats(sample_trades, test_account_id):
 
         # Win rate should be 60% (3 wins out of 5 closed)
         assert float(data["win_rate"]) == 60.0
+    finally:
+        app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
-async def test_get_positions_empty(test_account_id):
+def test_get_positions_empty(test_account_id):
     """Test GET /trading/positions/{account_id} with no positions."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        # Use a different account ID with no trades
-        new_account_id = uuid4()
-        response = await client.get(f"/trading/positions/{new_account_id}")
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_open_trades.return_value = []
+        return mock_repo
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/trading/positions/{test_account_id}")
 
         assert response.status_code == 200
         data = response.json()
 
         assert data["total"] == 0
         assert len(data["positions"]) == 0
+    finally:
+        app.dependency_overrides.clear()
 
 
-@pytest.mark.asyncio
-async def test_get_stats_empty(test_account_id):
+def test_get_stats_empty(test_account_id):
     """Test GET /trading/stats/{account_id} with no trades."""
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        # Use a different account ID with no trades
-        new_account_id = uuid4()
-        response = await client.get(f"/trading/stats/{new_account_id}")
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_account.return_value = []
+        return mock_repo
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+
+    try:
+        client = TestClient(app)
+        response = client.get(f"/trading/stats/{test_account_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -232,3 +298,5 @@ async def test_get_stats_empty(test_account_id):
         assert data["closed_trades"] == 0
         assert float(data["win_rate"]) == 0.0
         assert float(data["total_pnl"]) == 0.0
+    finally:
+        app.dependency_overrides.clear()
