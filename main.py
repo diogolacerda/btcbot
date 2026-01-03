@@ -11,6 +11,7 @@ import sys
 import uvicorn
 
 from config import load_config
+from src.api.dependencies import set_global_account_id
 from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
@@ -74,6 +75,10 @@ async def run_bot() -> None:
 
             # Configure HealthServer with account_id for API operations
             health_server.set_account_id(account_id)
+
+            # Configure global account ID for FastAPI endpoints
+            set_global_account_id(account_id)
+            main_logger.info("Global account ID configured for FastAPI endpoints")
 
         # Fetch trading config from database for startup display
         if account_id:
