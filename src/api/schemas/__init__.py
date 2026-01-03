@@ -8,6 +8,13 @@ from .config import (
     TradingConfigResponse,
     TradingConfigUpdate,
 )
+from .trading_data import (
+    PositionSchema,
+    PositionsListResponse,
+    TradeSchema,
+    TradesListResponse,
+    TradeStatsSchema,
+)
 
 __all__ = [
     "TradingConfigBase",
@@ -16,4 +23,9 @@ __all__ = [
     "GridConfigBase",
     "GridConfigUpdate",
     "GridConfigResponse",
+    "PositionSchema",
+    "PositionsListResponse",
+    "TradeSchema",
+    "TradesListResponse",
+    "TradeStatsSchema",
 ]

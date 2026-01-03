@@ -2,6 +2,7 @@
 
 This module provides dependency injection functions for:
 - Database sessions
+- Repositories
 - BingX client
 - GridManager instance
 - Filter registry
@@ -9,8 +10,14 @@ This module provides dependency injection functions for:
 - Global account ID (single-account mode)
 """
 
+from collections.abc import AsyncGenerator
 from uuid import UUID
 
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.database import get_session
+from src.database.repositories.trade_repository import TradeRepository
 from src.filters.registry import FilterRegistry
 
 # Global account ID for single-account mode
@@ -48,8 +55,31 @@ def get_filter_registry() -> FilterRegistry:
     return FilterRegistry()
 
 
-# TODO: Add dependency functions as needed:
-# - get_db_session()
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """Get async database session for dependency injection.
+
+    Yields:
+        AsyncSession: Database session
+    """
+    async for session in get_session():
+        yield session
+
+
+async def get_trade_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> TradeRepository:
+    """Get TradeRepository instance for dependency injection.
+
+    Args:
+        session: Database session from get_db_session
+
+    Returns:
+        TradeRepository: Trade repository instance
+    """
+    return TradeRepository(session)
+
+
+# TODO: Add more dependency functions as needed:
 # - get_bingx_client()
 # - get_grid_manager()
 # - get_current_user() (for authentication)
