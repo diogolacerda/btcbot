@@ -37,9 +37,12 @@ services:
     container_name: btcbot-prod
     restart: unless-stopped
 
-    # Porta externa 3000 mapeada para 8080 interna (healthcheck)
+    # Portas externas mapeadas para servicos internos
+    # 3000 -> 8080 (healthcheck)
+    # 3100 -> 8081 (FastAPI)
     ports:
       - "3000:8080"
+      - "3100:8081"
 
     # Labels para Watchtower - auto-update habilitado
     labels:
