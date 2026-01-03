@@ -4,11 +4,14 @@ This module provides dependency injection functions for:
 - Database sessions
 - BingX client
 - GridManager instance
+- Filter registry
 - Authentication
 - Global account ID (single-account mode)
 """
 
 from uuid import UUID
+
+from src.filters.registry import FilterRegistry
 
 # Global account ID for single-account mode
 # Set during startup in main.py
@@ -34,3 +37,19 @@ def get_global_account_id() -> UUID | None:
         UUID of the account, or None if not set.
     """
     return _GLOBAL_ACCOUNT_ID
+
+
+def get_filter_registry() -> FilterRegistry:
+    """Get the singleton FilterRegistry instance.
+
+    Returns:
+        FilterRegistry: The global filter registry instance
+    """
+    return FilterRegistry()
+
+
+# TODO: Add dependency functions as needed:
+# - get_db_session()
+# - get_bingx_client()
+# - get_grid_manager()
+# - get_current_user() (for authentication)
