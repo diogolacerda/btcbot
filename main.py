@@ -8,11 +8,7 @@ Grid trading com estratégia MACD para futuros perpétuos BTC-USDT.
 import asyncio
 import sys
 
-import uvicorn
-
 from config import load_config
-from src.api.dependencies import Dependencies  # Import Dependencies
-from src.api.main import app as fastapi_app
 from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
@@ -20,6 +16,7 @@ from src.database.repositories.bot_state_repository import BotStateRepository
 from src.database.repositories.grid_config_repository import GridConfigRepository
 from src.database.repositories.trade_repository import TradeRepository
 from src.grid.grid_manager import GridManager
+from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
 from src.ui.alerts import AudioAlerts
 from src.utils.logger import main_logger
@@ -28,15 +25,6 @@ from src.utils.logger import main_logger
 async def run_bot() -> None:
     """Main bot execution loop."""
     config = load_config()
-
-    async def start_fastapi_server():
-        """Starts the Uvicorn server for FastAPI."""
-        main_logger.info("Starting FastAPI server on http://127.0.0.1:8081")
-        uvicorn_config = uvicorn.Config(fastapi_app, host="127.0.0.1", port=8081, log_level="info")
-        server = uvicorn.Server(uvicorn_config)
-        await server.serve()
-
-    fastapi_task = asyncio.create_task(start_fastapi_server())
 
     # Validate configuration
     if not config.bingx.api_key or not config.bingx.secret_key:
@@ -48,8 +36,10 @@ async def run_bot() -> None:
     client = BingXClient(config.bingx)
     alerts = AudioAlerts(enabled=True)
 
-    # Set up global dependencies for FastAPI
-    Dependencies.bingx_client = client
+    # Initialize health server (starts early for Docker healthcheck)
+    health_server = HealthServer()
+    health_server.set_bingx_client(client)
+    await health_server.start()
 
     # Initialize database and restore state
     account_id = None
@@ -64,6 +54,9 @@ async def run_bot() -> None:
                 trading_config=config.trading,
             )
             main_logger.info(f"Using account ID: {account_id}")
+
+            # Configure HealthServer with account_id for API operations
+            health_server.set_account_id(account_id)
 
         # Fetch trading config from database for startup display
         if account_id:
@@ -144,9 +137,6 @@ async def run_bot() -> None:
         trading_config_repository=None,  # Will be set after
     )
 
-    # Set up global dependencies for FastAPI
-    Dependencies.grid_manager = grid_manager
-
     # Set up bot state repository with a session factory
     if account_id:
         # Create a wrapper repository that creates sessions on demand
@@ -205,8 +195,9 @@ async def run_bot() -> None:
             },
         )()
 
-        # Configure wrapper in GridManager
+        # Configure wrapper in both GridManager and HealthServer
         grid_manager._trading_config_repository = trading_config_wrapper
+        health_server.set_trading_config_repo(trading_config_wrapper)
 
         # Create a wrapper grid config repository that creates sessions on demand
         async def _get_grid_config_with_session(account_id):
@@ -282,6 +273,14 @@ async def run_bot() -> None:
         except Exception as e:
             main_logger.warning(f"Failed to load trade history: {e}. Starting with empty history.")
 
+    # Link grid manager to health server for status reporting
+    health_server.set_grid_manager(grid_manager)
+
+    # Set grid config repository and account ID on health server
+    if account_id and hasattr(grid_manager, "_grid_config_repo"):
+        health_server.set_grid_config_repo(grid_manager._grid_config_repo)  # type: ignore[arg-type]
+        health_server.set_account_id(account_id)
+
     # Print startup info
     main_logger.info("═══════════════════════════════════════════")
     main_logger.info("       BTC Grid Bot - BingX Futures        ")
@@ -338,6 +337,10 @@ async def run_bot() -> None:
     # Start grid manager
     await grid_manager.start()
 
+    # Link WebSocket to health server (after grid_manager.start() creates it)
+    if grid_manager._account_ws:
+        health_server.set_account_websocket(grid_manager._account_ws)
+
     main_logger.info("Bot iniciado. Pressione Ctrl+C para encerrar.")
 
     try:
@@ -360,13 +363,8 @@ async def run_bot() -> None:
         pass
     finally:
         main_logger.info("Encerrando bot...")
-        if fastapi_task:
-            fastapi_task.cancel()
-            try:
-                await fastapi_task
-            except asyncio.CancelledError:
-                main_logger.info("FastAPI server task cancelled.")
         await grid_manager.stop()
+        await health_server.stop()
         await client.close()
         main_logger.info("Bot encerrado com sucesso.")
 
