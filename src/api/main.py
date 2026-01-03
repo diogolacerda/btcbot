@@ -3,7 +3,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import configs, filters, health, trading_data
+from src.api.routes import auth, configs, filters, health, trading_data
 
 app = FastAPI(
     title="BTC Grid Bot API",
@@ -23,6 +23,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, tags=["Authentication"])
 app.include_router(health.router, tags=["Health"])
 app.include_router(configs.router)
 app.include_router(filters.router, tags=["Filters"])
