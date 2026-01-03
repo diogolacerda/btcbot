@@ -8,6 +8,8 @@ Grid trading com estratégia MACD para futuros perpétuos BTC-USDT.
 import asyncio
 import sys
 
+import uvicorn
+
 from config import load_config
 from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
@@ -20,6 +22,21 @@ from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
 from src.ui.alerts import AudioAlerts
 from src.utils.logger import main_logger
+
+
+async def run_api_server() -> None:
+    """Run FastAPI server on port 8081."""
+    config = uvicorn.Config(
+        "src.api.main:app",
+        host="0.0.0.0",
+        port=8081,
+        log_level="info",
+        access_log=False,  # Reduce noise, we have our own logging
+    )
+    server = uvicorn.Server(config)
+    main_logger.info("FastAPI server starting on http://0.0.0.0:8081")
+    main_logger.info("API docs available at http://localhost:8081/docs")
+    await server.serve()
 
 
 async def run_bot() -> None:
@@ -370,9 +387,13 @@ async def run_bot() -> None:
 
 
 async def main():
-    """Entry point."""
+    """Entry point - runs both bot and FastAPI server concurrently."""
     try:
-        await run_bot()
+        # Run both bot and API server concurrently
+        await asyncio.gather(
+            run_bot(),
+            run_api_server(),
+        )
     except KeyboardInterrupt:
         pass
     except Exception as e:
