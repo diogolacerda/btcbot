@@ -1,9 +1,16 @@
 """FastAPI application for BTC Grid Bot."""
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import auth, configs, filters, health, trading_data
+
+# Load CORS origins from environment variable
+# Default to localhost:3000 if not set
+CORS_ORIGINS_ENV = os.getenv("CORS_ORIGINS", "http://localhost:3000")
+ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ORIGINS_ENV.split(",")]
 
 app = FastAPI(
     title="BTC Grid Bot API",
@@ -14,9 +21,10 @@ app = FastAPI(
 )
 
 # CORS middleware for Web UI
+# Origins are loaded from CORS_ORIGINS environment variable
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Configure specific origins in production
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
