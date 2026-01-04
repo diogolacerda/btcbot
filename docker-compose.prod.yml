@@ -25,6 +25,44 @@
 
 services:
   # ---------------------------------------------------------------------------
+  # Frontend Service (Production)
+  # ---------------------------------------------------------------------------
+  # Interface web do bot para ambiente de Production.
+  # - Usa imagem btcbot-frontend:latest do Docker Hub
+  # - Porta 3200 exposta
+  # - Watchtower habilitado para auto-update
+  # ---------------------------------------------------------------------------
+  frontend-prod:
+    image: docker.io/${DOCKER_USERNAME}/btcbot-frontend:latest
+    container_name: btcbot-frontend-prod
+    restart: unless-stopped
+
+    # Porta exposta (3200 para Production)
+    ports:
+      - "3200:80"
+
+    # Labels para Watchtower - auto-update habilitado
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    # Environment variables - API URL aponta para bot-prod
+    environment:
+      - VITE_API_URL=http://192.168.68.99:3100
+      - VITE_API_BASE_PATH=/api
+
+    # Network isolada para Production
+    networks:
+      - btcbot-prod-network
+
+  # ---------------------------------------------------------------------------
   # Bot Service - BTC Grid Trading Bot (Production)
   # ---------------------------------------------------------------------------
   # Servico principal do bot, configurado para ambiente de Production.
