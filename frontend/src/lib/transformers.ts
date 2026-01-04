@@ -25,6 +25,7 @@ export function camelToSnake(str: string): string {
  * Recursively transform object keys from snake_case to camelCase
  * Also converts string representations of Decimals to numbers
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function transformKeysToCamel<T = any>(obj: any): T {
   if (obj === null || obj === undefined) {
     return obj
@@ -35,6 +36,7 @@ export function transformKeysToCamel<T = any>(obj: any): T {
   }
 
   if (typeof obj === 'object' && obj.constructor === Object) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: Record<string, any> = {}
 
     for (const [key, value] of Object.entries(obj)) {
@@ -60,6 +62,7 @@ export function transformKeysToCamel<T = any>(obj: any): T {
  * Recursively transform object keys from camelCase to snake_case
  * For sending data to the backend API
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function transformKeysToSnake<T = any>(obj: any): T {
   if (obj === null || obj === undefined) {
     return obj
@@ -70,6 +73,7 @@ export function transformKeysToSnake<T = any>(obj: any): T {
   }
 
   if (typeof obj === 'object' && obj.constructor === Object) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: Record<string, any> = {}
 
     for (const [key, value] of Object.entries(obj)) {
@@ -111,6 +115,7 @@ export function numberToDecimalString(value: number, precision: number = 2): str
 /**
  * Safe parser for API responses that transforms keys and handles errors
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function parseApiResponse<T>(response: any): T {
   try {
     return transformKeysToCamel<T>(response)
@@ -123,6 +128,7 @@ export function parseApiResponse<T>(response: any): T {
 /**
  * Safe serializer for API requests that transforms keys
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function serializeApiRequest<T>(data: any): T {
   try {
     return transformKeysToSnake<T>(data)
