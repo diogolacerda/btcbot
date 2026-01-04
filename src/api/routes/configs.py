@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.dependencies import get_current_active_user
 from src.api.schemas.config import (
     GridConfigResponse,
     GridConfigUpdate,
@@ -15,6 +16,7 @@ from src.api.schemas.config import (
     TradingConfigUpdate,
 )
 from src.database.engine import get_session
+from src.database.models.user import User
 from src.database.repositories.grid_config_repository import GridConfigRepository
 from src.database.repositories.trading_config_repository import TradingConfigRepository
 
@@ -84,6 +86,7 @@ async def get_account_id() -> UUID:
 
 @router.get("/trading", response_model=TradingConfigResponse)
 async def get_trading_config(
+    current_user: Annotated[User, Depends(get_current_active_user)],
     account_id: Annotated[UUID, Depends(get_account_id)],
     repo: Annotated[TradingConfigRepository, Depends(get_trading_config_repo)],
 ) -> TradingConfigResponse:
@@ -141,6 +144,7 @@ async def get_trading_config(
 @router.patch("/trading", response_model=TradingConfigResponse)
 async def update_trading_config(
     update_data: TradingConfigUpdate,
+    current_user: Annotated[User, Depends(get_current_active_user)],
     account_id: Annotated[UUID, Depends(get_account_id)],
     repo: Annotated[TradingConfigRepository, Depends(get_trading_config_repo)],
 ) -> TradingConfigResponse:
@@ -261,6 +265,7 @@ async def update_trading_config(
 
 @router.get("/grid", response_model=GridConfigResponse)
 async def get_grid_config(
+    current_user: Annotated[User, Depends(get_current_active_user)],
     account_id: Annotated[UUID, Depends(get_account_id)],
     repo: Annotated[GridConfigRepository, Depends(get_grid_config_repo)],
 ) -> GridConfigResponse:
@@ -306,6 +311,7 @@ async def get_grid_config(
 @router.patch("/grid", response_model=GridConfigResponse)
 async def update_grid_config(
     update_data: GridConfigUpdate,
+    current_user: Annotated[User, Depends(get_current_active_user)],
     account_id: Annotated[UUID, Depends(get_account_id)],
     repo: Annotated[GridConfigRepository, Depends(get_grid_config_repo)],
 ) -> GridConfigResponse:
