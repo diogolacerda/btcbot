@@ -3,7 +3,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator
 
 
 class TradingConfigBase(BaseModel):
@@ -86,6 +86,27 @@ class TradingConfigResponse(BaseModel):
     tp_check_interval_min: int
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer(
+        "order_size_usdt",
+        "take_profit_percent",
+        "tp_base_percent",
+        "tp_min_percent",
+        "tp_max_percent",
+        "tp_safety_margin",
+    )
+    def serialize_decimal(self, value: Decimal) -> str:
+        """Normalize Decimal values to remove trailing zeros.
+
+        Example: Decimal("0.60") -> "0.6", Decimal("100.00") -> "100"
+        This ensures consistent formatting in API responses without scientific notation.
+        """
+        # Convert to string and strip trailing zeros and decimal point if not needed
+        # This avoids scientific notation (e.g., "1E+2") from normalize()
+        result = str(value)
+        if "." in result:
+            result = result.rstrip("0").rstrip(".")
+        return result
 
     class Config:
         """Pydantic config."""
@@ -170,6 +191,20 @@ class GridConfigResponse(BaseModel):
     anchor_value: Decimal
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer("spacing_value", "range_percent", "anchor_value")
+    def serialize_decimal(self, value: Decimal) -> str:
+        """Normalize Decimal values to remove trailing zeros.
+
+        Example: Decimal("100.00") -> "100", Decimal("2.50") -> "2.5"
+        This ensures consistent formatting in API responses without scientific notation.
+        """
+        # Convert to string and strip trailing zeros and decimal point if not needed
+        # This avoids scientific notation (e.g., "1E+2") from normalize()
+        result = str(value)
+        if "." in result:
+            result = result.rstrip("0").rstrip(".")
+        return result
 
     class Config:
         """Pydantic config."""
