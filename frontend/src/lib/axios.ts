@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-const API_BASE_PATH = import.meta.env.VITE_API_BASE_PATH || '/api';
+// Runtime environment variables injected by Docker entrypoint
+// These placeholders (__VITE_*__) are replaced by sed at container startup
+const API_URL = '__VITE_API_URL__';
+const API_BASE_PATH = '__VITE_API_BASE_PATH__';
 
 export const axiosInstance = axios.create({
   baseURL: `${API_URL}${API_BASE_PATH}`,
