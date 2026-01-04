@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import type { User } from '@/types'
-import type { LoginRequest, RegisterRequest } from '@/types/api'
-import * as authService from '@/services/auth'
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import type { User } from '@/types';
+import type { LoginRequest, RegisterRequest } from '@/types/api';
+import * as authService from '@/services/auth';
 
 interface AuthContextType {
   user: User | null
