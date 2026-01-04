@@ -11,6 +11,7 @@ This module provides dependency injection functions for:
 - Global account ID (single-account mode)
 """
 
+import logging
 import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
@@ -29,6 +30,8 @@ from src.database.models.user import User
 from src.database.repositories.trade_repository import TradeRepository
 from src.filters.registry import FilterRegistry
 
+logger = logging.getLogger(__name__)
+
 # Global account ID for single-account mode
 # Set during startup in main.py
 _GLOBAL_ACCOUNT_ID: UUID | None = None
@@ -39,6 +42,51 @@ SECRET_KEY = os.getenv(
 )  # pragma: allowlist secret
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))  # 30 days
+
+
+def _validate_secret_key() -> None:
+    """Validate SECRET_KEY strength and warn if using default or weak key.
+
+    This function is called automatically when the module is imported.
+    It checks:
+    - If SECRET_KEY is the default value
+    - If SECRET_KEY has sufficient entropy (minimum 32 characters)
+    - Logs appropriate warnings for production environments
+    """
+    default_key = "your-secret-key-change-in-production"
+    min_length = 32
+
+    # Check if using default key
+    if SECRET_KEY == default_key:
+        logger.warning(
+            "⚠️  SECURITY WARNING: Using default SECRET_KEY! "
+            "This is INSECURE and should be changed immediately. "
+            "Generate a strong key with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
+        return
+
+    # Check minimum length for entropy
+    if len(SECRET_KEY) < min_length:
+        logger.warning(
+            f"⚠️  SECURITY WARNING: SECRET_KEY is too short ({len(SECRET_KEY)} characters). "
+            f"Minimum recommended length is {min_length} characters for adequate security. "
+            "Generate a strong key with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
+        return
+
+    # Check if key looks like a weak pattern (all same character, sequential, etc)
+    if len(set(SECRET_KEY)) < 10:  # Less than 10 unique characters
+        logger.warning(
+            "⚠️  SECURITY WARNING: SECRET_KEY has low entropy (too few unique characters). "
+            "Generate a strong key with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
+        return
+
+    logger.debug(f"✓ SECRET_KEY validated successfully ({len(SECRET_KEY)} characters)")
+
+
+# Validate SECRET_KEY on module import
+_validate_secret_key()
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
