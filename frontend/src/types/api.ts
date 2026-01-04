@@ -47,7 +47,7 @@ export interface TradesListResponse {
   offset: number
 }
 
-export interface TradeStatsResponse extends TradeStats {}
+export type TradeStatsResponse = TradeStats
 
 // ============================================================================
 // Config API Types
