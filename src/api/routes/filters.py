@@ -1,8 +1,10 @@
 """Filters endpoints for managing trading filters."""
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.api.dependencies import get_filter_registry
+from src.api.dependencies import get_current_active_user, get_filter_registry
 from src.api.schemas.filters import (
     BulkFilterResponse,
     FiltersResponse,
@@ -12,6 +14,7 @@ from src.api.schemas.filters import (
     ToggleFilterRequest,
     ToggleFilterResponse,
 )
+from src.database.models.user import User
 from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 from src.utils.logger import main_logger
@@ -20,7 +23,10 @@ router = APIRouter(prefix="/api/v1/filters", tags=["Filters"])
 
 
 @router.get("", response_model=FiltersResponse)
-async def get_filters(registry: FilterRegistry = Depends(get_filter_registry)):
+async def get_filters(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    registry: FilterRegistry = Depends(get_filter_registry),
+):
     """Get status of all registered filters.
 
     Returns:
@@ -58,6 +64,7 @@ async def get_filters(registry: FilterRegistry = Depends(get_filter_registry)):
 async def toggle_filter(
     filter_name: str,
     request: ToggleFilterRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
     registry: FilterRegistry = Depends(get_filter_registry),
 ):
     """Toggle a specific filter on or off.
@@ -116,7 +123,10 @@ async def toggle_filter(
 
 
 @router.post("/disable-all", response_model=BulkFilterResponse)
-async def disable_all_filters(registry: FilterRegistry = Depends(get_filter_registry)):
+async def disable_all_filters(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    registry: FilterRegistry = Depends(get_filter_registry),
+):
     """Disable all registered filters.
 
     This allows trading without any filter restrictions.
@@ -141,7 +151,10 @@ async def disable_all_filters(registry: FilterRegistry = Depends(get_filter_regi
 
 
 @router.post("/enable-all", response_model=BulkFilterResponse)
-async def enable_all_filters(registry: FilterRegistry = Depends(get_filter_registry)):
+async def enable_all_filters(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    registry: FilterRegistry = Depends(get_filter_registry),
+):
     """Enable all registered filters.
 
     Restores all filters to their default enabled state.
@@ -166,7 +179,10 @@ async def enable_all_filters(registry: FilterRegistry = Depends(get_filter_regis
 
 
 @router.post("/macd/activate", response_model=MACDTriggerResponse)
-async def activate_macd(registry: FilterRegistry = Depends(get_filter_registry)):
+async def activate_macd(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    registry: FilterRegistry = Depends(get_filter_registry),
+):
     """Manually activate the MACD cycle and trigger.
 
     Activates the MACD strategy and persists state to database.
@@ -223,7 +239,10 @@ async def activate_macd(registry: FilterRegistry = Depends(get_filter_registry))
 
 
 @router.post("/macd/deactivate", response_model=MACDTriggerResponse)
-async def deactivate_macd(registry: FilterRegistry = Depends(get_filter_registry)):
+async def deactivate_macd(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    registry: FilterRegistry = Depends(get_filter_registry),
+):
     """Manually deactivate the MACD cycle and trigger.
 
     Deactivates the MACD strategy and persists state to database.
@@ -282,6 +301,7 @@ async def deactivate_macd(registry: FilterRegistry = Depends(get_filter_registry
 @router.post("/macd/trigger", response_model=MACDTriggerResponse)
 async def macd_trigger(
     request: MACDTriggerRequest,
+    current_user: Annotated[User, Depends(get_current_active_user)],
     registry: FilterRegistry = Depends(get_filter_registry),
 ):
     """Control MACD trigger state.
