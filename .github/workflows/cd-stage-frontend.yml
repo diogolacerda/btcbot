@@ -1,0 +1,94 @@
+# CD Stage Frontend - Deploy automatico para ambiente de staging
+#
+# Trigger: Push para branch main (apos merge de PR)
+# Acao: Build da imagem Docker frontend e push para Docker Hub com tags:
+#   - stage (sempre atualizada em cada merge)
+#   - stage-<sha> (rastreabilidade por commit)
+#
+# O Watchtower no homeserver monitora a tag :stage e atualiza
+# automaticamente o container btcbot-frontend-stage quando detecta mudanca.
+#
+# Porta: 3003 (frontend-stage)
+# Documentacao: /docs/GITFLOW.md
+
+name: CD Stage Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/cd-stage-frontend.yml'
+
+# Cancelar builds anteriores da mesma branch para economizar recursos
+# Apenas um deploy de stage por vez e suficiente
+concurrency:
+  group: cd-stage-frontend
+  cancel-in-progress: true
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/btcbot-frontend
+
+jobs:
+  build-and-push-stage:
+    name: Build and Push Stage Frontend Image
+    runs-on: ubuntu-latest
+
+    # Permissoes minimas necessarias
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        # Buildx permite builds mais eficientes com cache
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Tag fixa 'stage' - sempre atualizada
+            type=raw,value=stage
+            # Tag com SHA para rastreabilidade (stage-abc1234)
+            type=sha,prefix=stage-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Cache usando GitHub Actions cache para builds mais rapidos
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Build para amd64 (compativel com homeserver)
+          platforms: linux/amd64
+
+      - name: Print deployment info
+        run: |
+          echo "=========================================="
+          echo "CD Stage Frontend - Deploy Completed"
+          echo "=========================================="
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          echo "Tags pushed:"
+          echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | sed 's/^/  - /'
+          echo ""
+          echo "Watchtower will automatically update btcbot-frontend-stage container"
+          echo "Stage Frontend URL: http://192.168.68.99:3003"
+          echo "=========================================="
