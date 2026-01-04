@@ -18,6 +18,42 @@
 
 services:
   # ---------------------------------------------------------------------------
+  # Frontend Service (Development)
+  # ---------------------------------------------------------------------------
+  # Interface web do bot para desenvolvimento local.
+  # - Build local do codigo em ./frontend
+  # - Porta 3000 exposta
+  # - Nginx serve assets estaticos e roteia API para backend
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: btcbot-frontend-dev
+    restart: unless-stopped
+
+    # Porta exposta para acesso local
+    ports:
+      - "3000:80"
+
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+    # Environment variables
+    environment:
+      - VITE_API_URL=http://localhost:8081
+      - VITE_API_BASE_PATH=/api
+
+    # Network para desenvolvimento
+    networks:
+      - btcbot-dev-network
+
+  # ---------------------------------------------------------------------------
   # PostgreSQL Service (Development)
   # ---------------------------------------------------------------------------
   # Banco de dados PostgreSQL para desenvolvimento local.
