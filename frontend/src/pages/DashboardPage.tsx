@@ -1,27 +1,19 @@
 import { useAuth } from '@/contexts/AuthContext'
 
 export function DashboardPage() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
 
   return (
     <div className="min-h-screen bg-background p-8">
       <div className="max-w-4xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-primary-600 dark:text-primary-400">
-              Dashboard
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Welcome back, {user?.email}
-            </p>
-          </div>
-          <button
-            onClick={logout}
-            className="px-4 py-2 border border-border hover:bg-muted rounded-md transition-colors"
-          >
-            Sign out
-          </button>
+        <div>
+          <h1 className="text-3xl font-bold text-primary-600 dark:text-primary-400">
+            Dashboard
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Welcome back, {user?.email}
+          </p>
         </div>
 
         {/* Content */}

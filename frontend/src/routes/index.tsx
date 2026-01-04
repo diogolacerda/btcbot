@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppLayout } from '@/layouts/AppLayout';
 import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { TradeHistoryPage } from '@/pages/TradeHistoryPage';
@@ -10,12 +11,12 @@ import { SettingsPage } from '@/pages/SettingsPage';
  * Application route configuration
  *
  * Routes:
- * - /login - Public login page
+ * - /login - Public login page (no layout)
  * - / - Redirects to /dashboard
- * - /dashboard - Protected dashboard page
- * - /trade-history - Protected trade history page
- * - /strategy - Protected strategy configuration page
- * - /settings - Protected settings page
+ * - /dashboard - Protected dashboard page (with AppLayout)
+ * - /trade-history - Protected trade history page (with AppLayout)
+ * - /strategy - Protected strategy configuration page (with AppLayout)
+ * - /settings - Protected settings page (with AppLayout)
  */
 export const router = createBrowserRouter([
   {
@@ -30,7 +31,9 @@ export const router = createBrowserRouter([
     path: '/dashboard',
     element: (
       <ProtectedRoute>
-        <DashboardPage />
+        <AppLayout>
+          <DashboardPage />
+        </AppLayout>
       </ProtectedRoute>
     ),
   },
@@ -38,7 +41,9 @@ export const router = createBrowserRouter([
     path: '/trade-history',
     element: (
       <ProtectedRoute>
-        <TradeHistoryPage />
+        <AppLayout>
+          <TradeHistoryPage />
+        </AppLayout>
       </ProtectedRoute>
     ),
   },
@@ -46,7 +51,9 @@ export const router = createBrowserRouter([
     path: '/strategy',
     element: (
       <ProtectedRoute>
-        <StrategyPage />
+        <AppLayout>
+          <StrategyPage />
+        </AppLayout>
       </ProtectedRoute>
     ),
   },
@@ -54,7 +61,9 @@ export const router = createBrowserRouter([
     path: '/settings',
     element: (
       <ProtectedRoute>
-        <SettingsPage />
+        <AppLayout>
+          <SettingsPage />
+        </AppLayout>
       </ProtectedRoute>
     ),
   },
