@@ -586,7 +586,7 @@ class GridManager:
             await self._sync_with_exchange()
 
         except Exception as e:
-            main_logger.error(f"Erro no update: {e}")
+            main_logger.error(f"Erro no update: {e}", exc_info=True)
 
     async def _handle_state_change(self, new_state: GridState) -> None:
         """Handle transition to new state."""
