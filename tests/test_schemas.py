@@ -140,6 +140,6 @@ class TestDecimalSerialization:
 
         # BUG-002: Before fix, this would be "0.60"
         # After fix, it should be "0.6" (normalized)
-        assert (
-            data["take_profit_percent"] == "0.6"
-        ), f"BUG-002 not fixed: Expected normalized '0.6' but got '{data['take_profit_percent']}'"
+        assert data["take_profit_percent"] == "0.6", (
+            f"BUG-002 not fixed: Expected normalized '0.6' but got '{data['take_profit_percent']}'"
+        )
