@@ -136,6 +136,23 @@ class GridManager:
     def current_state(self) -> GridState:
         return self._current_state
 
+    def _get_anchor_mode_value(self) -> str:
+        """
+        Get anchor mode value, handling both string and enum types.
+
+        Returns string value regardless of whether anchor_mode is stored as
+        a string (from database) or GridAnchorMode enum (from config).
+
+        Returns:
+            Anchor mode value as string ("none", "hundred", etc.)
+        """
+        anchor_mode = self.calculator.anchor_mode
+        # If it's already a string (from database), return it directly
+        if isinstance(anchor_mode, str):
+            return anchor_mode
+        # If it's an enum (from config), return its value
+        return anchor_mode.value
+
     async def _refresh_grid_calculator(self) -> None:
         """
         Refresh grid calculator with latest config from database.
@@ -637,7 +654,7 @@ class GridManager:
         tp_multiplier = 1 + (self.config.grid.take_profit_percent / 100)
 
         # Check if anchor mode is enabled
-        use_anchor = self.calculator.anchor_mode.value != "none"
+        use_anchor = self._get_anchor_mode_value() != "none"
         anchor_value = self.calculator.anchor_value if use_anchor else 0
 
         for order in orders:
@@ -705,7 +722,7 @@ class GridManager:
                 await self.client.cancel_order(self.symbol, order_id)
 
                 # Log cancellation reason based on mode
-                if self.calculator.anchor_mode.value != "none":
+                if self._get_anchor_mode_value() != "none":
                     orders_logger.info(
                         f"Ordem cancelada (muito distante): ${order_price:,.2f} - ID: {order_id}"
                     )
@@ -836,7 +853,7 @@ class GridManager:
                 self._on_order_created(level)
 
             # Log with additional context for anchored mode
-            if self.calculator.anchor_mode.value != "none":
+            if self._get_anchor_mode_value() != "none":
                 anchor_level = self.calculator.get_anchor_level(level.entry_price)
                 orders_logger.info(f"Ordem criada (nível ancorado ${anchor_level:,.0f}): {level}")
             else:
