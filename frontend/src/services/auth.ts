@@ -14,12 +14,13 @@ const USER_KEY = 'user'
 /**
  * Login with email and password
  * Uses form-data format (application/x-www-form-urlencoded)
- * Backend expects 'email' and 'password' fields
+ * Backend expects 'username' and 'password' fields (OAuth2 standard)
  */
 export async function login(credentials: LoginRequest): Promise<User> {
   // Convert to form data
+  // Backend expects 'username' field (OAuth2 standard), not 'email'
   const formData = new URLSearchParams()
-  formData.append('email', credentials.email)
+  formData.append('username', credentials.email)
   formData.append('password', credentials.password)
 
   const response = await axiosInstance.post<TokenResponse>(
