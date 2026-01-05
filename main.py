@@ -11,7 +11,7 @@ import sys
 import uvicorn
 
 from config import load_config
-from src.api.dependencies import set_global_account_id
+from src.api.dependencies import set_global_account_id, set_grid_manager
 from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
@@ -297,6 +297,9 @@ async def run_bot() -> None:
 
     # Link grid manager to health server for status reporting
     health_server.set_grid_manager(grid_manager)
+
+    # Configure GridManager for FastAPI endpoints
+    set_grid_manager(grid_manager)
 
     # Set grid config repository and account ID on health server
     if account_id and hasattr(grid_manager, "_grid_config_repo"):
