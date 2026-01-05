@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import (
+    activity,
     auth,
     bot_control,
     configs,
@@ -50,6 +51,7 @@ app.include_router(orders.router)
 app.include_router(trading_data.router, tags=["Trading Data"])
 app.include_router(market_data.router)
 app.include_router(metrics.router, tags=["Metrics"])
+app.include_router(activity.router)
 
 
 @app.get("/")
