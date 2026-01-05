@@ -15,6 +15,7 @@ from src.api.dependencies import set_global_account_id, set_grid_manager, set_or
 from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
+from src.database.repositories.activity_event_repository import ActivityEventRepository
 from src.database.repositories.bot_state_repository import BotStateRepository
 from src.database.repositories.grid_config_repository import GridConfigRepository
 from src.database.repositories.trade_repository import TradeRepository
@@ -253,6 +254,26 @@ async def run_bot() -> None:
                     "anchor_mode": config.anchor_mode,
                     "anchor_value": float(config.anchor_value),
                 },
+            },
+        )()
+
+        # Create a wrapper activity event repository that creates sessions on demand
+        async def _create_activity_event_with_session(
+            account_id, event_type, description, **kwargs
+        ):
+            """Helper to create activity event with a new session."""
+            async for session in get_session():
+                repo = ActivityEventRepository(session)
+                return await repo.create_event(account_id, event_type, description, **kwargs)
+
+        # Monkey-patch the repository into the grid manager
+        grid_manager._activity_event_repository = type(
+            "ActivityEventRepositoryWrapper",
+            (),
+            {
+                "create_event": lambda self, *args, **kwargs: _create_activity_event_with_session(
+                    *args, **kwargs
+                ),
             },
         )()
 

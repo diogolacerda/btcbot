@@ -18,6 +18,9 @@ from src.strategy.macd_strategy import GridState, MACDStrategy
 from src.utils.logger import main_logger, orders_logger
 
 if TYPE_CHECKING:
+    from src.database.repositories.activity_event_repository import (
+        ActivityEventRepository,
+    )
     from src.database.repositories.bot_state_repository import BotStateRepository
     from src.database.repositories.grid_config_repository import GridConfigRepository
     from src.database.repositories.trade_repository import TradeRepository
@@ -65,6 +68,7 @@ class GridManager:
         trade_repository: "TradeRepository | None" = None,
         grid_config_repository: "GridConfigRepository | None" = None,
         trading_config_repository: "TradingConfigRepository | None" = None,
+        activity_event_repository: "ActivityEventRepository | None" = None,
     ):
         self.config = config
         self.client = client
@@ -91,6 +95,7 @@ class GridManager:
         self._account_id = account_id
         self._grid_config_repo = grid_config_repository
         self._trading_config_repo = trading_config_repository
+        self._activity_event_repository = activity_event_repository
 
         # Filter system
         self._filter_registry = FilterRegistry()
@@ -135,6 +140,47 @@ class GridManager:
     @property
     def current_state(self) -> GridState:
         return self._current_state
+
+    def _log_activity_event(
+        self,
+        event_type: str,
+        description: str,
+        event_data: dict | None = None,
+    ) -> None:
+        """Log an activity event to the database (non-blocking).
+
+        Creates an activity event record for the dashboard timeline.
+        Runs asynchronously to avoid blocking the main bot loop.
+
+        Args:
+            event_type: Type of event (from EventType enum).
+            description: Human-readable description of the event.
+            event_data: Optional additional event data as dictionary.
+        """
+        if not self._activity_event_repository or not self._account_id:
+            return
+
+        # Capture values for closure (type narrowing)
+        repo = self._activity_event_repository
+        account_id = self._account_id
+
+        async def _persist_event() -> None:
+            try:
+                await repo.create_event(
+                    account_id=account_id,
+                    event_type=event_type,
+                    description=description,
+                    event_data=event_data,
+                )
+            except Exception as e:
+                main_logger.warning(f"Failed to log activity event: {e}")
+
+        # Schedule task in background (fire and forget)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_persist_event())
+        except RuntimeError:
+            main_logger.debug("No event loop, skipping activity event logging")
 
     def _get_anchor_mode_value(self) -> str:
         """
@@ -286,6 +332,7 @@ class GridManager:
             symbol=self.symbol,
             tp_adjustment_repository=None,  # Will be integrated in future task
             account_id=self._account_id,
+            activity_event_repository=self._activity_event_repository,
         )
 
         # Iniciar monitoramento
@@ -422,6 +469,19 @@ class GridManager:
                     self._on_order_filled(order)
                 orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
 
+                # Log ORDER_FILLED activity event
+                self._log_activity_event(
+                    event_type="ORDER_FILLED",
+                    description=f"Grid order filled at ${order.entry_price:,.2f}",
+                    event_data={
+                        "order_id": order_id,
+                        "entry_price": order.entry_price,
+                        "quantity": order.quantity,
+                        "tp_price": order.tp_price,
+                        "side": "LONG",  # Grid bot only does LONG positions
+                    },
+                )
+
         # Order canceled
         elif status == "CANCELED":
             self.tracker.cancel_order(order_id)
@@ -441,6 +501,20 @@ class GridManager:
                 if self._on_tp_hit:
                     self._on_tp_hit(order)
                 orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
+
+                # Log TRADE_CLOSED activity event
+                profit = (self._current_price - order.entry_price) * order.quantity
+                self._log_activity_event(
+                    event_type="TRADE_CLOSED",
+                    description=f"Take profit hit at ${self._current_price:,.2f} (+${profit:,.2f})",
+                    event_data={
+                        "order_id": order.order_id,
+                        "entry_price": order.entry_price,
+                        "exit_price": self._current_price,
+                        "quantity": order.quantity,
+                        "profit_usdt": profit,
+                    },
+                )
 
     async def _stop_websocket(self) -> None:
         """Stop WebSocket and cleanup."""
@@ -595,6 +669,32 @@ class GridManager:
 
         if self._on_state_change:
             self._on_state_change(old_state, new_state)
+
+        # Log activity events for state changes
+        if new_state == GridState.ACTIVE and old_state != GridState.ACTIVE:
+            # CYCLE_ACTIVATED - entering ACTIVE state
+            self._log_activity_event(
+                event_type="CYCLE_ACTIVATED",
+                description="Grid cycle activated (MACD bullish)",
+                event_data={
+                    "old_state": old_state.value,
+                    "new_state": new_state.value,
+                    "macd_line": self._last_macd_line,
+                    "histogram": self._last_histogram,
+                },
+            )
+        elif new_state in (GridState.PAUSE, GridState.INACTIVE) and old_state == GridState.ACTIVE:
+            # STRATEGY_PAUSED - leaving ACTIVE state
+            self._log_activity_event(
+                event_type="STRATEGY_PAUSED",
+                description="Grid cycle paused (MACD bearish)",
+                event_data={
+                    "old_state": old_state.value,
+                    "new_state": new_state.value,
+                    "macd_line": self._last_macd_line,
+                    "histogram": self._last_histogram,
+                },
+            )
 
         # Cancel pending orders on INACTIVE
         if new_state == GridState.INACTIVE:
