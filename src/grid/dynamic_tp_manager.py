@@ -11,6 +11,9 @@ from src.utils.logger import orders_logger
 
 if TYPE_CHECKING:
     from src.client.bingx_client import BingXClient
+    from src.database.repositories.activity_event_repository import (
+        ActivityEventRepository,
+    )
     from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
     from src.grid.order_tracker import OrderTracker, TrackedOrder
 
@@ -47,6 +50,7 @@ class DynamicTPManager:
         symbol: str,
         tp_adjustment_repository: "TPAdjustmentRepository | None" = None,
         account_id: UUID | None = None,
+        activity_event_repository: "ActivityEventRepository | None" = None,
     ):
         self.config = config
         self.client = client
@@ -54,6 +58,7 @@ class DynamicTPManager:
         self.symbol = symbol
         self._tp_adjustment_repository = tp_adjustment_repository
         self._account_id = account_id
+        self._activity_event_repository = activity_event_repository
         self._running = False
         self._task: asyncio.Task | None = None
         self._last_update: dict[str, datetime] = {}  # order_id -> last update time
@@ -63,6 +68,47 @@ class DynamicTPManager:
     def is_enabled(self) -> bool:
         """Check if dynamic TP is enabled."""
         return self.config.enabled
+
+    def _log_activity_event(
+        self,
+        event_type: str,
+        description: str,
+        event_data: dict | None = None,
+    ) -> None:
+        """Log an activity event to the database (non-blocking).
+
+        Creates an activity event record for the dashboard timeline.
+        Runs asynchronously to avoid blocking the monitoring loop.
+
+        Args:
+            event_type: Type of event (from EventType enum).
+            description: Human-readable description of the event.
+            event_data: Optional additional event data as dictionary.
+        """
+        if not self._activity_event_repository or not self._account_id:
+            return
+
+        # Capture values for closure (type narrowing)
+        repo = self._activity_event_repository
+        account_id = self._account_id
+
+        async def _persist_event() -> None:
+            try:
+                await repo.create_event(
+                    account_id=account_id,
+                    event_type=event_type,
+                    description=description,
+                    event_data=event_data,
+                )
+            except Exception as e:
+                orders_logger.warning(f"Failed to log activity event: {e}")
+
+        # Schedule task in background (fire and forget)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_persist_event())
+        except RuntimeError:
+            orders_logger.debug("No event loop, skipping activity event logging")
 
     async def start(self) -> None:
         """Start the dynamic TP monitoring task."""
@@ -221,6 +267,26 @@ class DynamicTPManager:
                     funding_accumulated=funding_accumulated,
                     updated_at=datetime.now(),
                 )
+            )
+
+            # Log TP_ADJUSTED activity event
+            self._log_activity_event(
+                event_type="TP_ADJUSTED",
+                description=(
+                    f"Take profit adjusted: {current_tp_percent:.2f}% → {new_tp_percent:.2f}% "
+                    f"(funding: {funding_accumulated:.4f}%)"
+                ),
+                event_data={
+                    "order_id": order.order_id,
+                    "entry_price": order.entry_price,
+                    "old_tp_price": old_tp_price,
+                    "new_tp_price": new_tp_price,
+                    "old_tp_percent": current_tp_percent,
+                    "new_tp_percent": new_tp_percent,
+                    "funding_rate": funding_rate,
+                    "funding_accumulated": funding_accumulated,
+                    "hours_open": hours_open,
+                },
             )
 
             # Persist to database (async, non-blocking)
