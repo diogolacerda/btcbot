@@ -261,3 +261,63 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+
+# BingX Client dependency
+# Singleton instance shared across requests
+_bingx_client: "BingXClient | None" = None
+
+
+async def get_bingx_client() -> "BingXClient":
+    """Get BingXClient instance for API endpoints.
+
+    Returns a singleton instance that is created on first call.
+    The client uses environment variables for configuration.
+
+    Returns:
+        BingXClient: Configured BingX API client.
+    """
+    global _bingx_client
+
+    if _bingx_client is None:
+        from config import load_config
+        from src.client.bingx_client import BingXClient
+
+        config = load_config()
+        _bingx_client = BingXClient(config.bingx)
+        logger.info("BingXClient singleton created for API")
+
+    return _bingx_client
+
+
+def get_grid_calculator() -> "GridCalculator":
+    """Get GridCalculator instance for API endpoints.
+
+    Returns:
+        GridCalculator: Configured grid calculator.
+    """
+    from config import load_config
+    from src.grid.grid_calculator import GridCalculator
+
+    config = load_config()
+    return GridCalculator(config.grid)
+
+
+def get_macd_strategy() -> "MACDStrategy":
+    """Get MACDStrategy instance for API endpoints.
+
+    Returns:
+        MACDStrategy: Configured MACD strategy.
+    """
+    from config import load_config
+    from src.strategy.macd_strategy import MACDStrategy
+
+    config = load_config()
+    return MACDStrategy(config.macd)
+
+
+# Type hints for imports (avoid circular imports)
+if False:  # TYPE_CHECKING alternative that works at runtime
+    from src.client.bingx_client import BingXClient
+    from src.grid.grid_calculator import GridCalculator
+    from src.strategy.macd_strategy import MACDStrategy
