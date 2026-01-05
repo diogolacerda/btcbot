@@ -209,8 +209,8 @@ async def activate_macd(
                 detail="MACD filter does not support manual activation",
             )
 
-        # Activate via filter (triggers strategy.manual_activate())
-        success = macd_filter.set_trigger(True)
+        # Activate cycle and trigger via manual_activate()
+        success = macd_filter.manual_activate()
 
         if not success:
             raise HTTPException(
@@ -269,14 +269,8 @@ async def deactivate_macd(
                 detail="MACD filter does not support manual deactivation",
             )
 
-        # Deactivate via filter
-        success = macd_filter.set_trigger(False)
-
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to deactivate MACD",
-            )
+        # Deactivate cycle and trigger via manual_deactivate()
+        macd_filter.manual_deactivate()
 
         # Get updated state
         state = macd_filter.get_state()
@@ -333,19 +327,16 @@ async def macd_trigger(
                 detail="MACD filter does not support trigger control",
             )
 
-        # Activate or deactivate via filter
-        success = macd_filter.set_trigger(request.activated)
-
-        if not success:
-            error_msg = (
-                "Failed to activate MACD (might be in INACTIVE state)"
-                if request.activated
-                else "Failed to deactivate MACD"
-            )
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=error_msg,
-            )
+        # Activate or deactivate cycle and trigger
+        if request.activated:
+            success = macd_filter.manual_activate()
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to activate MACD (might be in INACTIVE state - market falling)",
+                )
+        else:
+            macd_filter.manual_deactivate()
 
         # Get updated state
         state = macd_filter.get_state()
