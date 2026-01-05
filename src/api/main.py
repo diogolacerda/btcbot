@@ -17,6 +17,7 @@ from src.api.routes import (
     orders,
     trading_data,
 )
+from src.api.websocket import dashboard_ws
 
 # Load CORS origins from environment variable
 # Default to localhost:3000 if not set
@@ -52,6 +53,9 @@ app.include_router(trading_data.router, tags=["Trading Data"])
 app.include_router(market_data.router)
 app.include_router(metrics.router, tags=["Metrics"])
 app.include_router(activity.router)
+
+# WebSocket endpoint for real-time dashboard updates
+app.include_router(dashboard_ws.router, tags=["WebSocket"])
 
 
 @app.get("/")
