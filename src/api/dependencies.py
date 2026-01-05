@@ -15,6 +15,7 @@ import logging
 import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import jwt
@@ -31,6 +32,12 @@ from src.database.repositories.trade_repository import TradeRepository
 from src.filters.registry import FilterRegistry
 from src.grid.order_tracker import OrderTracker
 
+if TYPE_CHECKING:
+    from src.client.bingx_client import BingXClient
+    from src.grid.grid_calculator import GridCalculator
+    from src.grid.grid_manager import GridManager
+    from src.strategy.macd_strategy import MACDStrategy
+
 logger = logging.getLogger(__name__)
 
 # Global account ID for single-account mode
@@ -40,6 +47,10 @@ _GLOBAL_ACCOUNT_ID: UUID | None = None
 # Global OrderTracker reference for API access
 # Set during bot startup in main.py
 _ORDER_TRACKER: OrderTracker | None = None
+
+# Global GridManager instance for API access
+# Set during startup in main.py after GridManager is created
+_GRID_MANAGER: "GridManager | None" = None
 
 # JWT Configuration
 SECRET_KEY = os.getenv(
@@ -288,3 +299,86 @@ def get_order_tracker() -> OrderTracker | None:
         OrderTracker instance, or None if not set.
     """
     return _ORDER_TRACKER
+
+
+def set_grid_manager(grid_manager: "GridManager") -> None:
+    """Set the global GridManager instance for API access.
+
+    This is called during bot startup in main.py after GridManager is created.
+
+    Args:
+        grid_manager: The GridManager instance to use globally.
+    """
+    global _GRID_MANAGER
+    _GRID_MANAGER = grid_manager
+    logger.info("GridManager configured for FastAPI endpoints")
+
+
+def get_grid_manager() -> "GridManager":
+    """Get the global GridManager instance.
+
+    Returns:
+        GridManager instance.
+
+    Raises:
+        HTTPException: If GridManager is not initialized.
+    """
+    if _GRID_MANAGER is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Bot not initialized. GridManager is not available.",
+        )
+    return _GRID_MANAGER
+
+
+# BingX Client dependency
+# Singleton instance shared across requests
+_bingx_client: "BingXClient | None" = None
+
+
+async def get_bingx_client() -> "BingXClient":
+    """Get BingXClient instance for API endpoints.
+
+    Returns a singleton instance that is created on first call.
+    The client uses environment variables for configuration.
+
+    Returns:
+        BingXClient: Configured BingX API client.
+    """
+    global _bingx_client
+
+    if _bingx_client is None:
+        from config import load_config
+        from src.client.bingx_client import BingXClient
+
+        config = load_config()
+        _bingx_client = BingXClient(config.bingx)
+        logger.info("BingXClient singleton created for API")
+
+    return _bingx_client
+
+
+def get_grid_calculator() -> "GridCalculator":
+    """Get GridCalculator instance for API endpoints.
+
+    Returns:
+        GridCalculator: Configured grid calculator.
+    """
+    from config import load_config
+    from src.grid.grid_calculator import GridCalculator
+
+    config = load_config()
+    return GridCalculator(config.grid)
+
+
+def get_macd_strategy() -> "MACDStrategy":
+    """Get MACDStrategy instance for API endpoints.
+
+    Returns:
+        MACDStrategy: Configured MACD strategy.
+    """
+    from config import load_config
+    from src.strategy.macd_strategy import MACDStrategy
+
+    config = load_config()
+    return MACDStrategy(config.macd)
