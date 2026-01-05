@@ -29,12 +29,17 @@ from src.database import get_session
 from src.database.models.user import User
 from src.database.repositories.trade_repository import TradeRepository
 from src.filters.registry import FilterRegistry
+from src.grid.order_tracker import OrderTracker
 
 logger = logging.getLogger(__name__)
 
 # Global account ID for single-account mode
 # Set during startup in main.py
 _GLOBAL_ACCOUNT_ID: UUID | None = None
+
+# Global OrderTracker reference for API access
+# Set during bot startup in main.py
+_ORDER_TRACKER: OrderTracker | None = None
 
 # JWT Configuration
 SECRET_KEY = os.getenv(
@@ -261,3 +266,25 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+
+def set_order_tracker(order_tracker: OrderTracker) -> None:
+    """Set the global OrderTracker reference for API access.
+
+    This is called during bot startup in main.py after GridManager is initialized.
+
+    Args:
+        order_tracker: The OrderTracker instance from GridManager.
+    """
+    global _ORDER_TRACKER
+    _ORDER_TRACKER = order_tracker
+    logger.debug("OrderTracker reference set for API access")
+
+
+def get_order_tracker() -> OrderTracker | None:
+    """Get the global OrderTracker reference.
+
+    Returns:
+        OrderTracker instance, or None if not set.
+    """
+    return _ORDER_TRACKER

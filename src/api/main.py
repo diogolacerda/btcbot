@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import auth, configs, filters, health, trading_data
+from src.api.routes import auth, configs, filters, health, orders, trading_data
 
 # Load CORS origins from environment variable
 # Default to localhost:3000 if not set
@@ -35,6 +35,7 @@ app.include_router(auth.router, tags=["Authentication"])
 app.include_router(health.router, tags=["Health"])
 app.include_router(configs.router)
 app.include_router(filters.router, tags=["Filters"])
+app.include_router(orders.router)
 app.include_router(trading_data.router, tags=["Trading Data"])
 
 
