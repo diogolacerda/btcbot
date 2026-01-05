@@ -13,6 +13,7 @@ from src.api.routes import (
     health,
     market_data,
     metrics,
+    orders,
     trading_data,
 )
 
@@ -45,6 +46,7 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(bot_control.router, tags=["Bot Control"])
 app.include_router(configs.router)
 app.include_router(filters.router, tags=["Filters"])
+app.include_router(orders.router)
 app.include_router(trading_data.router, tags=["Trading Data"])
 app.include_router(market_data.router)
 app.include_router(metrics.router, tags=["Metrics"])
