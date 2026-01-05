@@ -353,6 +353,8 @@ See `docs/HOMESERVER_SETUP.md` for complete setup instructions.
 
 GitHub Projects is the **source of truth** for task status. Follow this workflow for every task:
 
+**IMPORTANT:** Always use Git Worktrees for development. This enables parallel work on multiple tasks without conflicts. See the [Git Worktrees](#git-worktrees-parallel-development) section for detailed setup.
+
 ### 1. Starting a Task
 
 ```bash
@@ -379,15 +381,26 @@ query {
 gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
   --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id 1609e48b
 
-# 3. Create feature branch
-git checkout main
-git pull origin main
-git checkout -b feature/TASK-ID-description
+# 3. Create worktree with feature branch (REQUIRED)
+cd /Users/diogolacerda/Sites/btcbot
+git fetch origin main
+git worktree add ../btcbot-worktrees/feature-TASK-ID -b feature/TASK-ID-description origin/main
+
+# 4. Setup environment in worktree
+cd ../btcbot-worktrees/feature-TASK-ID
+python3.12 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+pre-commit install
+cp /Users/diogolacerda/Sites/btcbot/.env .env
+alembic upgrade head
 ```
 
 ### 2. Development & PR
 
 ```bash
+# Work inside the worktree directory
+cd /Users/diogolacerda/Sites/btcbot-worktrees/feature-TASK-ID
+
 # Run checks before pushing
 pytest && ruff check . && mypy .
 
@@ -405,6 +418,11 @@ gh pr merge --merge
 # Update status to "Acceptance Testing"
 gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
   --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id d9f2871e
+
+# Cleanup worktree
+cd /Users/diogolacerda/Sites/btcbot
+git worktree remove ../btcbot-worktrees/feature-TASK-ID
+git branch -d feature/TASK-ID-description  # Delete local branch
 ```
 
 CD Stage automatically deploys to Stage environment after merge.
