@@ -433,3 +433,34 @@ class TestTradeRepository:
         assert trades[1].id == trade_1.id
         # Verify ordering by created_at
         assert trades[0].created_at >= trades[1].created_at
+
+    async def test_save_trade_idempotent_duplicate_prevention(
+        self,
+        repository: TradeRepository,
+        account: Account,
+    ):
+        """Test that saving a trade with duplicate exchange_order_id is idempotent."""
+        # Arrange - Create trade data with exchange_order_id
+        exchange_order_id = "TEST_ORDER_12345"
+        trade_data = {
+            "account_id": account.id,
+            "exchange_order_id": exchange_order_id,
+            "symbol": "BTC-USDT",
+            "side": "LONG",
+            "leverage": 10,
+            "entry_price": Decimal("50000.00"),
+            "quantity": Decimal("0.1"),
+            "status": "OPEN",
+        }
+
+        # Act - Save the same trade twice (simulating race condition)
+        first_id = await repository.save_trade(trade_data)
+        second_id = await repository.save_trade(trade_data)
+
+        # Assert - Both calls should return the same ID (idempotent)
+        assert first_id == second_id
+
+        # Verify only one trade was created
+        trades = await repository.get_trades_by_account(account.id)
+        assert len(trades) == 1
+        assert trades[0].exchange_order_id == exchange_order_id

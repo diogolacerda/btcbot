@@ -34,6 +34,8 @@ class TradeRepository(BaseRepository[Trade]):
         """Save a new trade record.
 
         Uses BaseRepository.create() internally for database operations.
+        If a trade with the same exchange_order_id already exists, returns
+        the existing trade ID (idempotent operation).
 
         Args:
             trade_data: Dictionary containing trade data with keys:
@@ -55,15 +57,29 @@ class TradeRepository(BaseRepository[Trade]):
                 - filled_at (datetime, optional): Fill timestamp
 
         Returns:
-            UUID of the created trade.
+            UUID of the created or existing trade.
 
         Raises:
             Exception: If database operation fails.
         """
         try:
+            # Check if trade already exists (race condition protection)
+            exchange_order_id = trade_data.get("exchange_order_id")
+            if exchange_order_id:
+                existing_trade = await self.get_by_exchange_order_id(
+                    account_id=trade_data["account_id"],
+                    exchange_order_id=exchange_order_id,
+                )
+                if existing_trade:
+                    main_logger.debug(
+                        f"Trade with exchange_order_id {exchange_order_id} already exists, "
+                        f"returning existing ID: {existing_trade.id}"
+                    )
+                    return existing_trade.id  # type: ignore[no-any-return]
+
             trade = Trade(
                 account_id=trade_data["account_id"],
-                exchange_order_id=trade_data.get("exchange_order_id"),
+                exchange_order_id=exchange_order_id,
                 exchange_tp_order_id=trade_data.get("exchange_tp_order_id"),
                 symbol=trade_data.get("symbol", "BTC-USDT"),
                 side=trade_data.get("side", "LONG"),
