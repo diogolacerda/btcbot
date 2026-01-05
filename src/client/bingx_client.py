@@ -197,10 +197,15 @@ class BingXClient:
         }
         data = await self._request("GET", endpoint, params, signed=False)
 
-        df = pd.DataFrame(
-            data,
-            columns=["timestamp", "open", "high", "low", "close", "volume", "close_time"],
-        )
+        # BingX API v2 returns list of dicts with keys: open, close, high, low, volume, time
+        # Create DataFrame from list of dicts
+        df = pd.DataFrame(data)
+
+        # Rename 'time' column to 'timestamp' for consistency with rest of code
+        if "time" in df.columns:
+            df = df.rename(columns={"time": "timestamp"})
+
+        # Convert numeric columns to float
         df = df.astype(
             {
                 "open": float,
@@ -210,6 +215,8 @@ class BingXClient:
                 "volume": float,
             }
         )
+
+        # Convert timestamp from milliseconds to datetime
         # Use errors='coerce' to handle invalid timestamps from BingX API
         # This prevents FloatingPointError on extreme/invalid timestamp values
         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", errors="coerce")
