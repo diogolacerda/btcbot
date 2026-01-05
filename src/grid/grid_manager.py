@@ -901,18 +901,6 @@ class GridManager:
             exchange_orders = await self.client.get_open_orders(self.symbol)
             positions = await self.client.get_positions(self.symbol)
 
-            # 1. Check for filled orders (pending -> filled)
-            exchange_order_ids = {str(o.get("orderId")) for o in exchange_orders}
-
-            for order in list(self.tracker.pending_orders):
-                if order.order_id not in exchange_order_ids:
-                    # Order was filled or cancelled
-                    self.tracker.order_filled(order.order_id)
-                    if self._on_order_filled:
-                        self._on_order_filled(order)
-                    orders_logger.info(f"Ordem detectada como executada: {order.order_id}")
-
-            # 2. Check for closed positions (filled positions that no longer exist)
             # Get current position amount from exchange
             current_position_amt = 0.0
             for pos in positions:
@@ -921,6 +909,31 @@ class GridManager:
                     current_position_amt = abs(amt)
                     break
 
+            # 1. Check for filled/cancelled orders (pending orders no longer on exchange)
+            exchange_order_ids = {str(o.get("orderId")) for o in exchange_orders}
+
+            # Calculate expected position from filled orders in tracker
+            expected_position = sum(o.quantity for o in self.tracker.filled_orders)
+
+            for order in list(self.tracker.pending_orders):
+                if order.order_id not in exchange_order_ids:
+                    # Order disappeared - determine if it was FILLED or CANCELLED
+                    # If current position > expected, this order was likely filled
+                    position_delta = current_position_amt - expected_position
+
+                    if position_delta >= order.quantity * 0.99:  # 1% tolerance for rounding
+                        # Order was FILLED - position increased
+                        self.tracker.order_filled(order.order_id)
+                        expected_position += order.quantity  # Update expected for next iteration
+                        if self._on_order_filled:
+                            self._on_order_filled(order)
+                        orders_logger.info(f"Ordem detectada como EXECUTADA: {order.order_id}")
+                    else:
+                        # Order was CANCELLED - no position increase
+                        self.tracker.cancel_order(order.order_id)
+                        orders_logger.info(f"Ordem detectada como CANCELADA: {order.order_id}")
+
+            # 2. Check for closed positions (filled positions that no longer exist)
             # If no position on exchange but we have filled orders in tracker, they were closed
             if current_position_amt == 0 and self.tracker.filled_orders:
                 for order in list(self.tracker.filled_orders):
