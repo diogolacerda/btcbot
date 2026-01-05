@@ -143,6 +143,172 @@ export interface HealthResponse {
 }
 
 // ============================================================================
+// Dashboard API Types (FE-DASH-001)
+// ============================================================================
+
+// Bot Control Types
+export interface MACDValues {
+  macdLine: number
+  histogram: number
+}
+
+export interface OrderStats {
+  pendingOrders: number
+  openPositions: number
+  totalTrades: number
+  totalPnl: number
+}
+
+export interface ErrorStatus {
+  marginError: boolean
+  rateLimited: boolean
+}
+
+export interface BotStatusResponse {
+  status: 'running' | 'stopped' | 'paused'
+  state: 'INACTIVE' | 'WAIT' | 'ACTIVATE' | 'ACTIVE' | 'PAUSE'
+  stateDescription: string
+  isRunning: boolean
+  cycleActivated: boolean
+  cycleActivatedAt: string | null
+  lastUpdate: string
+  currentPrice: number
+  macd: MACDValues
+  orders: OrderStats
+  errors: ErrorStatus
+}
+
+// Market Data Types
+export type MACDSignal = 'bullish' | 'bearish' | 'neutral'
+
+export interface PriceResponse {
+  symbol: string
+  price: number
+  change24h: number
+  change24hPercent: number
+  high24h: number
+  low24h: number
+  volume24h: number
+  timestamp: string
+}
+
+export interface FundingRateResponse {
+  symbol: string
+  fundingRate: number
+  fundingRatePercent: number
+  nextFundingTime: string
+  fundingIntervalHours: number
+  markPrice: number
+  timestamp: string
+}
+
+export interface MACDDataResponse {
+  symbol: string
+  macdLine: number
+  signalLine: number
+  histogram: number
+  signal: MACDSignal
+  histogramRising: boolean
+  bothLinesNegative: boolean
+  timeframe: string
+  timestamp: string
+}
+
+export interface GridRangeResponse {
+  symbol: string
+  currentPrice: number
+  gridLow: number
+  gridHigh: number
+  rangePercent: number
+  pricePositionPercent: number
+  levelsPossible: number
+  timestamp: string
+}
+
+// Performance Metrics Types
+export type TimePeriod = 'today' | '7days' | '30days' | 'custom'
+
+export interface PeriodMetrics {
+  period: string
+  startDate: string
+  endDate: string
+  realizedPnl: number
+  pnlPercent: number
+  tradesClosed: number
+  winningTrades: number
+  losingTrades: number
+  winRate: number
+}
+
+export interface TotalMetrics {
+  totalPnl: number
+  totalTrades: number
+  avgProfitPerTrade: number
+  totalFees: number
+  netPnl: number
+  bestTrade: number
+  worstTrade: number
+}
+
+export interface PerformanceMetricsResponse {
+  periodMetrics: PeriodMetrics
+  totalMetrics: TotalMetrics
+}
+
+// Orders Types
+export type OrderStatusEnum = 'PENDING' | 'FILLED' | 'TP_HIT' | 'CANCELLED'
+
+export interface OrderSchema {
+  orderId: string
+  price: number
+  tpPrice: number
+  quantity: number
+  side: 'LONG' | 'SHORT'
+  status: OrderStatusEnum
+  createdAt: string
+  filledAt: string | null
+  closedAt: string | null
+  exchangeTpOrderId: string | null
+}
+
+export interface OrdersListResponse {
+  orders: OrderSchema[]
+  total: number
+  limit: number
+  offset: number
+  pendingCount: number
+  filledCount: number
+}
+
+// Activity Events Types
+export type EventTypeEnum =
+  | 'ORDER_FILLED'
+  | 'TRADE_CLOSED'
+  | 'STRATEGY_PAUSED'
+  | 'STRATEGY_RESUMED'
+  | 'TP_ADJUSTED'
+  | 'CYCLE_ACTIVATED'
+  | 'CYCLE_DEACTIVATED'
+  | 'BOT_STARTED'
+  | 'BOT_STOPPED'
+  | 'ERROR_OCCURRED'
+
+export interface ActivityEventSchema {
+  id: string
+  eventType: EventTypeEnum
+  description: string
+  eventData: Record<string, unknown> | null
+  timestamp: string
+}
+
+export interface ActivityEventsListResponse {
+  events: ActivityEventSchema[]
+  total: number
+  limit: number
+  offset: number
+}
+
+// ============================================================================
 // Generic API Response Types
 // ============================================================================
 
