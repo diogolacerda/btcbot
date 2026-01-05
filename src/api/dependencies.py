@@ -32,7 +32,10 @@ from src.database.repositories.trade_repository import TradeRepository
 from src.filters.registry import FilterRegistry
 
 if TYPE_CHECKING:
+    from src.client.bingx_client import BingXClient
+    from src.grid.grid_calculator import GridCalculator
     from src.grid.grid_manager import GridManager
+    from src.strategy.macd_strategy import MACDStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -299,3 +302,56 @@ def get_grid_manager() -> "GridManager":
             detail="Bot not initialized. GridManager is not available.",
         )
     return _GRID_MANAGER
+
+
+# BingX Client dependency
+# Singleton instance shared across requests
+_bingx_client: "BingXClient | None" = None
+
+
+async def get_bingx_client() -> "BingXClient":
+    """Get BingXClient instance for API endpoints.
+
+    Returns a singleton instance that is created on first call.
+    The client uses environment variables for configuration.
+
+    Returns:
+        BingXClient: Configured BingX API client.
+    """
+    global _bingx_client
+
+    if _bingx_client is None:
+        from config import load_config
+        from src.client.bingx_client import BingXClient
+
+        config = load_config()
+        _bingx_client = BingXClient(config.bingx)
+        logger.info("BingXClient singleton created for API")
+
+    return _bingx_client
+
+
+def get_grid_calculator() -> "GridCalculator":
+    """Get GridCalculator instance for API endpoints.
+
+    Returns:
+        GridCalculator: Configured grid calculator.
+    """
+    from config import load_config
+    from src.grid.grid_calculator import GridCalculator
+
+    config = load_config()
+    return GridCalculator(config.grid)
+
+
+def get_macd_strategy() -> "MACDStrategy":
+    """Get MACDStrategy instance for API endpoints.
+
+    Returns:
+        MACDStrategy: Configured MACD strategy.
+    """
+    from config import load_config
+    from src.strategy.macd_strategy import MACDStrategy
+
+    config = load_config()
+    return MACDStrategy(config.macd)

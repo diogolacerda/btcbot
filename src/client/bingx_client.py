@@ -167,6 +167,48 @@ class BingXClient:
         data = await self._request("GET", endpoint, params, signed=False)
         return float(data["price"])
 
+    async def get_ticker_24h(self, symbol: str) -> dict[str, Any]:
+        """
+        Get 24-hour ticker data for a symbol (cached for 30s).
+
+        Returns:
+            dict with:
+                - symbol: Trading symbol
+                - lastPrice: Current price
+                - priceChange: 24h price change
+                - priceChangePercent: 24h price change percentage
+                - highPrice: 24h high
+                - lowPrice: 24h low
+                - volume: 24h trading volume
+                - quoteVolume: 24h quote volume (in USDT)
+                - openPrice: Price 24h ago
+        """
+        cache_key = f"ticker_24h:{symbol}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return cached  # type: ignore[no-any-return]
+
+        endpoint = "/openApi/swap/v2/quote/ticker"
+        params = {"symbol": symbol}
+        data = await self._request("GET", endpoint, params, signed=False)
+
+        result = {
+            "symbol": symbol,
+            "lastPrice": float(data.get("lastPrice", 0)),
+            "priceChange": float(data.get("priceChange", 0)),
+            "priceChangePercent": float(data.get("priceChangePercent", 0)),
+            "highPrice": float(data.get("highPrice", 0)),
+            "lowPrice": float(data.get("lowPrice", 0)),
+            "volume": float(data.get("volume", 0)),
+            "quoteVolume": float(data.get("quoteVolume", 0)),
+            "openPrice": float(data.get("openPrice", 0)),
+        }
+
+        # Add custom cache TTL for ticker (30s)
+        self._cache_ttl["ticker_24h"] = 30
+        self._set_cache(cache_key, result)
+        return result
+
     async def get_klines(
         self,
         symbol: str,
