@@ -210,7 +210,16 @@ class BingXClient:
                 "volume": float,
             }
         )
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        # Use errors='coerce' to handle invalid timestamps from BingX API
+        # This prevents FloatingPointError on extreme/invalid timestamp values
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", errors="coerce")
+
+        # Filter out rows with invalid timestamps (NaT)
+        if df["timestamp"].isna().any():
+            error_logger.warning(
+                f"Filtered {df['timestamp'].isna().sum()} invalid timestamps from klines data"
+            )
+            df = df.dropna(subset=["timestamp"])
 
         self._set_cache(cache_key, df)
         return df
