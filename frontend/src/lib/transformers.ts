@@ -6,9 +6,10 @@
  * Examples:
  *   snake_to_camel('user_name') => 'userName'
  *   snake_to_camel('api_key_id') => 'apiKeyId'
+ *   snake_to_camel('volume_24h') => 'volume24h'
  */
 export function snakeToCamel(str: string): string {
-  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())
+  return str.replace(/_([a-z0-9])/g, (_, char) => char.toUpperCase())
 }
 
 /**
