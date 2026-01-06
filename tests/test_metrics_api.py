@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.dependencies import get_trade_repository
+from src.api.dependencies import get_account_id, get_trade_repository
 from src.api.main import app
 from src.database.models.trade import Trade
 
@@ -93,7 +93,7 @@ def sample_trades(test_account_id):
 
 
 def test_get_performance_metrics_today(sample_trades, test_account_id):
-    """Test GET /api/v1/metrics/performance/{account_id} with today period."""
+    """Test GET /api/v1/metrics/performance with today period."""
     # Filter trades opened today
     today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     today_trades = [t for t in sample_trades if t.opened_at >= today_start]
@@ -104,12 +104,16 @@ def test_get_performance_metrics_today(sample_trades, test_account_id):
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
         response = client.get(
-            f"/api/v1/metrics/performance/{test_account_id}",
+            "/api/v1/metrics/performance",
             params={"period": "today"},
         )
 
@@ -149,7 +153,7 @@ def test_get_performance_metrics_today(sample_trades, test_account_id):
 
 
 def test_get_performance_metrics_7days(sample_trades, test_account_id):
-    """Test GET /api/v1/metrics/performance/{account_id} with 7days period."""
+    """Test GET /api/v1/metrics/performance with 7days period."""
     # All trades from last 7 days (only today's trades in our sample)
     now = datetime.now(UTC)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -162,12 +166,16 @@ def test_get_performance_metrics_7days(sample_trades, test_account_id):
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
         response = client.get(
-            f"/api/v1/metrics/performance/{test_account_id}",
+            "/api/v1/metrics/performance",
             params={"period": "7days"},
         )
 
@@ -184,7 +192,7 @@ def test_get_performance_metrics_7days(sample_trades, test_account_id):
 
 
 def test_get_performance_metrics_30days(sample_trades, test_account_id):
-    """Test GET /api/v1/metrics/performance/{account_id} with 30days period."""
+    """Test GET /api/v1/metrics/performance with 30days period."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
@@ -193,12 +201,16 @@ def test_get_performance_metrics_30days(sample_trades, test_account_id):
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
         response = client.get(
-            f"/api/v1/metrics/performance/{test_account_id}",
+            "/api/v1/metrics/performance",
             params={"period": "30days"},
         )
 
@@ -214,7 +226,7 @@ def test_get_performance_metrics_30days(sample_trades, test_account_id):
 
 
 def test_get_performance_metrics_custom_period(sample_trades, test_account_id):
-    """Test GET /api/v1/metrics/performance/{account_id} with custom period."""
+    """Test GET /api/v1/metrics/performance with custom period."""
     now = datetime.now(UTC)
     start_date = (now - timedelta(days=15)).isoformat()
     end_date = (now - timedelta(days=5)).isoformat()
@@ -228,12 +240,16 @@ def test_get_performance_metrics_custom_period(sample_trades, test_account_id):
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
         response = client.get(
-            f"/api/v1/metrics/performance/{test_account_id}",
+            "/api/v1/metrics/performance",
             params={
                 "period": "custom",
                 "start_date": start_date,
@@ -252,17 +268,21 @@ def test_get_performance_metrics_custom_period(sample_trades, test_account_id):
 
 
 def test_get_performance_metrics_custom_without_dates(test_account_id):
-    """Test GET /api/v1/metrics/performance/{account_id} custom period without dates."""
+    """Test GET /api/v1/metrics/performance custom period without dates."""
 
     async def mock_get_trade_repository():
         return AsyncMock()
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
         response = client.get(
-            f"/api/v1/metrics/performance/{test_account_id}",
+            "/api/v1/metrics/performance",
             params={"period": "custom"},
         )
 
@@ -273,7 +293,7 @@ def test_get_performance_metrics_custom_without_dates(test_account_id):
 
 
 def test_get_performance_metrics_empty(test_account_id):
-    """Test GET /api/v1/metrics/performance/{account_id} with no trades."""
+    """Test GET /api/v1/metrics/performance with no trades."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
@@ -281,11 +301,15 @@ def test_get_performance_metrics_empty(test_account_id):
         mock_repo.get_trades_by_account.return_value = []
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/api/v1/metrics/performance/{test_account_id}")
+        response = client.get("/api/v1/metrics/performance")
 
         assert response.status_code == 200
         data = response.json()
@@ -339,11 +363,15 @@ def test_get_performance_metrics_win_rate_calculation(test_account_id):
         mock_repo.get_trades_by_account.return_value = trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/api/v1/metrics/performance/{test_account_id}")
+        response = client.get("/api/v1/metrics/performance")
 
         assert response.status_code == 200
         data = response.json()
@@ -374,12 +402,16 @@ def test_get_performance_metrics_default_period(test_account_id):
         mock_repo.get_trades_by_account.return_value = []
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
         # No period parameter - should default to today
-        response = client.get(f"/api/v1/metrics/performance/{test_account_id}")
+        response = client.get("/api/v1/metrics/performance")
 
         assert response.status_code == 200
         data = response.json()

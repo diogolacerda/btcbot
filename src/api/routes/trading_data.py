@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.dependencies import get_trade_repository
+from src.api.dependencies import get_account_id, get_trade_repository
 from src.api.schemas.trading_data import (
     PositionSchema,
     PositionsListResponse,
@@ -20,15 +20,15 @@ from src.database.repositories.trade_repository import TradeRepository
 router = APIRouter(prefix="/trading")
 
 
-@router.get("/positions/{account_id}", response_model=PositionsListResponse)
+@router.get("/positions", response_model=PositionsListResponse)
 async def get_positions(
-    account_id: UUID,
+    account_id: Annotated[UUID, Depends(get_account_id)],
     trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
 ):
-    """Get all open positions for an account.
+    """Get all open positions for the current account.
 
     Args:
-        account_id: Account UUID to get positions for
+        account_id: Account UUID (injected via dependency)
         trade_repo: Injected trade repository
 
     Returns:
@@ -66,9 +66,9 @@ async def get_positions(
         raise HTTPException(status_code=500, detail=f"Failed to fetch positions: {str(e)}") from e
 
 
-@router.get("/trades/{account_id}", response_model=TradesListResponse)
+@router.get("/trades", response_model=TradesListResponse)
 async def get_trades(
-    account_id: UUID,
+    account_id: Annotated[UUID, Depends(get_account_id)],
     trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
     status: Annotated[
         str | None, Query(description="Filter by status (OPEN, CLOSED, CANCELLED)")
@@ -84,10 +84,10 @@ async def get_trades(
     ] = 100,
     offset: Annotated[int, Query(ge=0, description="Number of trades to skip")] = 0,
 ):
-    """Get trades for an account with optional filtering and pagination.
+    """Get trades for the current account with optional filtering and pagination.
 
     Args:
-        account_id: Account UUID to get trades for
+        account_id: Account UUID (injected via dependency)
         trade_repo: Injected trade repository
         status: Optional status filter (OPEN, CLOSED, CANCELLED)
         start_date: Optional start date filter
@@ -144,9 +144,9 @@ async def get_trades(
         raise HTTPException(status_code=500, detail=f"Failed to fetch trades: {str(e)}") from e
 
 
-@router.get("/stats/{account_id}", response_model=TradeStatsSchema)
+@router.get("/stats", response_model=TradeStatsSchema)
 async def get_trade_stats(
-    account_id: UUID,
+    account_id: Annotated[UUID, Depends(get_account_id)],
     trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
     start_date: Annotated[
         datetime | None, Query(description="Calculate stats from this date")
@@ -155,13 +155,13 @@ async def get_trade_stats(
         datetime | None, Query(description="Calculate stats until this date")
     ] = None,
 ):
-    """Get trading statistics for an account.
+    """Get trading statistics for the current account.
 
     Calculates comprehensive statistics including win rate, total P&L,
     fees, and average trade performance.
 
     Args:
-        account_id: Account UUID to get stats for
+        account_id: Account UUID (injected via dependency)
         trade_repo: Injected trade repository
         start_date: Optional start date for stats calculation
         end_date: Optional end date for stats calculation

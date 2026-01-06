@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_active_user
+from src.api.dependencies import get_account_id, get_current_active_user
 from src.api.schemas.config import (
     GridConfigResponse,
     GridConfigUpdate,
@@ -53,32 +53,6 @@ async def get_grid_config_repo(
         GridConfigRepository instance.
     """
     return GridConfigRepository(session)
-
-
-async def get_account_id() -> UUID:
-    """Get current account ID.
-
-    TODO: Replace with actual authentication/multi-account logic.
-    For now, uses a global account ID set at startup.
-
-    Returns:
-        Account UUID.
-
-    Raises:
-        HTTPException: If account ID is not set.
-    """
-    # Single-account mode (backward compatibility)
-    # Account ID is set globally during startup in main.py
-    # TODO: Extract from JWT token or user session for multi-account support
-    from src.api.dependencies import get_global_account_id
-
-    account_id = get_global_account_id()
-    if account_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Account ID not configured. Ensure bot is fully initialized.",
-        )
-    return account_id
 
 
 # Trading Config Endpoints
