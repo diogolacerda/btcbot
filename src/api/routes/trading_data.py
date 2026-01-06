@@ -8,17 +8,21 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.dependencies import get_account_id, get_trade_repository
+from src.api.dependencies import get_account_id, get_tp_adjustment_repository, get_trade_repository
 from src.api.schemas.trading_data import (
     BestWorstTradeSchema,
     PerformanceMetricsSchema,
     PositionSchema,
     PositionsListResponse,
+    TpAdjustmentSchema,
+    TradeFeesSchema,
     TradeSchema,
     TradesListResponse,
     TradeStatsSchema,
 )
+from src.database.models.tp_adjustment import TPAdjustment
 from src.database.models.trade import Trade
+from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
 from src.database.repositories.trade_repository import TradeRepository
 
 
@@ -40,6 +44,113 @@ class PeriodFilter(str, Enum):
 
 
 router = APIRouter(prefix="/api/v1/trading")
+
+
+def _build_adjustment_reason(adjustment: TPAdjustment) -> str:
+    """Build a human-readable reason string from TP adjustment data.
+
+    Args:
+        adjustment: TPAdjustment model instance
+
+    Returns:
+        Formatted reason string describing the adjustment context
+    """
+    parts = []
+    if adjustment.funding_rate is not None:
+        parts.append(f"Funding rate: {adjustment.funding_rate:.4f}%")
+    if adjustment.funding_accumulated is not None:
+        parts.append(f"accumulated: {adjustment.funding_accumulated:.2f}%")
+    if adjustment.hours_open is not None:
+        parts.append(f"{adjustment.hours_open:.1f}h open")
+
+    return ", ".join(parts) if parts else "Dynamic TP adjustment"
+
+
+def _convert_tp_adjustment(adjustment: TPAdjustment) -> TpAdjustmentSchema:
+    """Convert TPAdjustment model to TpAdjustmentSchema.
+
+    Args:
+        adjustment: TPAdjustment model instance
+
+    Returns:
+        TpAdjustmentSchema with simplified fields
+    """
+    return TpAdjustmentSchema(
+        timestamp=adjustment.adjusted_at,
+        old_tp=adjustment.old_tp_percent,
+        new_tp=adjustment.new_tp_percent,
+        reason=_build_adjustment_reason(adjustment),
+    )
+
+
+def _calculate_fees(trade: Trade) -> TradeFeesSchema:
+    """Calculate fee breakdown with net P&L.
+
+    Args:
+        trade: Trade model instance
+
+    Returns:
+        TradeFeesSchema with trading_fee, funding_fee, and net_pnl
+    """
+    pnl = trade.pnl if trade.pnl is not None else Decimal("0")
+    net_pnl = pnl - trade.trading_fee - trade.funding_fee
+
+    return TradeFeesSchema(
+        trading_fee=trade.trading_fee,
+        funding_fee=trade.funding_fee,
+        net_pnl=net_pnl,
+    )
+
+
+async def _enrich_trade(
+    trade: Trade,
+    tp_adjustment_repo: TPAdjustmentRepository,
+) -> TradeSchema:
+    """Enrich a trade with TP adjustments, duration, and fees.
+
+    Args:
+        trade: Trade model instance
+        tp_adjustment_repo: Repository to fetch TP adjustments
+
+    Returns:
+        TradeSchema with all fields populated including new BE-TRADE-003 fields
+    """
+    # Fetch TP adjustments for this trade
+    adjustments = await tp_adjustment_repo.get_by_trade(trade.id)
+    tp_adjustment_schemas = [_convert_tp_adjustment(adj) for adj in adjustments]
+
+    # Calculate duration and fees
+    duration = _calculate_duration_seconds(trade)
+    fees = _calculate_fees(trade)
+
+    return TradeSchema(
+        id=trade.id,
+        account_id=trade.account_id,
+        exchange_order_id=trade.exchange_order_id,
+        exchange_tp_order_id=trade.exchange_tp_order_id,
+        symbol=trade.symbol,
+        side=trade.side,
+        leverage=trade.leverage,
+        entry_price=trade.entry_price,
+        exit_price=trade.exit_price,
+        quantity=trade.quantity,
+        tp_price=trade.tp_price,
+        tp_percent=trade.tp_percent,
+        pnl=trade.pnl,
+        pnl_percent=trade.pnl_percent,
+        trading_fee=trade.trading_fee,
+        funding_fee=trade.funding_fee,
+        status=trade.status,
+        grid_level=trade.grid_level,
+        opened_at=trade.opened_at,
+        filled_at=trade.filled_at,
+        closed_at=trade.closed_at,
+        created_at=trade.created_at,
+        updated_at=trade.updated_at,
+        duration=duration,
+        fees=fees,
+        tp_adjustments=tp_adjustment_schemas,
+    )
 
 
 @router.get("/positions", response_model=PositionsListResponse)
@@ -160,6 +271,7 @@ def _apply_in_memory_filters(
 async def get_trades(
     account_id: Annotated[UUID, Depends(get_account_id)],
     trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
+    tp_adjustment_repo: Annotated[TPAdjustmentRepository, Depends(get_tp_adjustment_repository)],
     status: Annotated[
         str | None, Query(description="Filter by status (OPEN, CLOSED, CANCELLED)")
     ] = None,
@@ -302,8 +414,8 @@ async def get_trades(
         else:
             total = sql_total
 
-        # Convert to schemas
-        trade_schemas = [TradeSchema.model_validate(trade) for trade in trades]
+        # Enrich trades with TP adjustments, duration, and fees
+        trade_schemas = [await _enrich_trade(trade, tp_adjustment_repo) for trade in trades]
 
         return TradesListResponse(
             trades=trade_schemas,

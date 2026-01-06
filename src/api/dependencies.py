@@ -29,6 +29,7 @@ from src.api.schemas.auth import TokenData
 from src.database import get_session
 from src.database.models.user import User
 from src.database.repositories.activity_event_repository import ActivityEventRepository
+from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
 from src.database.repositories.trade_repository import TradeRepository
 from src.filters.registry import FilterRegistry
 from src.grid.order_tracker import OrderTracker
@@ -255,6 +256,20 @@ async def get_activity_event_repository(
         ActivityEventRepository: Activity event repository instance
     """
     return ActivityEventRepository(session)
+
+
+async def get_tp_adjustment_repository(
+    session: AsyncSession = Depends(get_db_session),
+) -> TPAdjustmentRepository:
+    """Get TPAdjustmentRepository instance for dependency injection.
+
+    Args:
+        session: Database session from get_db_session
+
+    Returns:
+        TPAdjustmentRepository: TP adjustment repository instance
+    """
+    return TPAdjustmentRepository(session)
 
 
 async def get_current_user(

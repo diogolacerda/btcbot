@@ -8,8 +8,13 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.dependencies import get_account_id, get_trade_repository
+from src.api.dependencies import (
+    get_account_id,
+    get_tp_adjustment_repository,
+    get_trade_repository,
+)
 from src.api.main import app
+from src.database.models.tp_adjustment import TPAdjustment
 from src.database.models.trade import Trade
 
 
@@ -131,6 +136,26 @@ def _create_mock_repository(trades: list[Trade]):
     return mock_get_trade_repository
 
 
+def _create_mock_tp_adjustment_repository(adjustments_by_trade_id: dict | None = None):
+    """Create a mock TP adjustment repository.
+
+    Args:
+        adjustments_by_trade_id: Dict mapping trade_id (UUID) to list of TPAdjustment objects.
+                                 If None, returns empty list for all trades.
+    """
+    if adjustments_by_trade_id is None:
+        adjustments_by_trade_id = {}
+
+    async def mock_get_tp_adjustment_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_by_trade.side_effect = lambda trade_id: adjustments_by_trade_id.get(
+            trade_id, []
+        )
+        return mock_repo
+
+    return mock_get_tp_adjustment_repository
+
+
 def test_get_positions(sample_trades, test_account_id):
     """Test GET /trading/positions endpoint."""
     app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
@@ -163,6 +188,7 @@ def test_get_trades_all(sample_trades, test_account_id):
     """Test GET /trading/trades without filters."""
     app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
     app.dependency_overrides[get_account_id] = lambda: test_account_id
+    app.dependency_overrides[get_tp_adjustment_repository] = _create_mock_tp_adjustment_repository()
 
     try:
         client = TestClient(app)
@@ -185,6 +211,7 @@ def test_get_trades_with_status_filter(sample_trades, test_account_id):
     """Test GET /trading/trades with status filter."""
     app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
     app.dependency_overrides[get_account_id] = lambda: test_account_id
+    app.dependency_overrides[get_tp_adjustment_repository] = _create_mock_tp_adjustment_repository()
 
     try:
         client = TestClient(app)
@@ -203,6 +230,7 @@ def test_get_trades_with_pagination(sample_trades, test_account_id):
     """Test GET /trading/trades with pagination."""
     app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
     app.dependency_overrides[get_account_id] = lambda: test_account_id
+    app.dependency_overrides[get_tp_adjustment_repository] = _create_mock_tp_adjustment_repository()
 
     try:
         client = TestClient(app)
@@ -222,6 +250,7 @@ def test_get_trades_invalid_status(test_account_id):
     """Test GET /trading/trades with invalid status."""
     app.dependency_overrides[get_trade_repository] = _create_mock_repository([])
     app.dependency_overrides[get_account_id] = lambda: test_account_id
+    app.dependency_overrides[get_tp_adjustment_repository] = _create_mock_tp_adjustment_repository()
 
     try:
         client = TestClient(app)
@@ -332,6 +361,9 @@ class TestProfitFilter:
         """Test filtering for profitable trades only."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -351,6 +383,9 @@ class TestProfitFilter:
         """Test filtering for losing trades only."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -370,6 +405,9 @@ class TestProfitFilter:
         """Test profit_filter=all returns all trades."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -390,6 +428,9 @@ class TestPriceRangeFilter:
         """Test filtering by minimum entry price."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -408,6 +449,9 @@ class TestPriceRangeFilter:
         """Test filtering by maximum entry price."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -426,6 +470,9 @@ class TestPriceRangeFilter:
         """Test filtering by price range."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -446,6 +493,9 @@ class TestPriceRangeFilter:
         """Test that min > max price returns 400 error."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -467,6 +517,9 @@ class TestDurationFilter:
         """Test filtering by minimum duration."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -487,6 +540,9 @@ class TestDurationFilter:
         """Test filtering by maximum duration."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -505,6 +561,9 @@ class TestDurationFilter:
         """Test that min > max duration returns 400 error."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -525,6 +584,9 @@ class TestQuantityFilter:
         """Test filtering by minimum quantity."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -542,6 +604,9 @@ class TestQuantityFilter:
         """Test filtering by maximum quantity."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -559,6 +624,9 @@ class TestQuantityFilter:
         """Test that min > max quantity returns 400 error."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -579,6 +647,9 @@ class TestSearchFilter:
         """Test searching by exchange_order_id."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -596,6 +667,9 @@ class TestSearchFilter:
         """Test searching by exchange_tp_order_id."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -612,6 +686,9 @@ class TestSearchFilter:
         """Test partial match search."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -629,6 +706,9 @@ class TestSearchFilter:
         """Test search with no matches."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -649,6 +729,9 @@ class TestCombinedFilters:
         """Test combining profit and price filters."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -671,6 +754,9 @@ class TestCombinedFilters:
         """Test combining status and duration filters."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -693,6 +779,9 @@ class TestCombinedFilters:
         """Test applying all filters at once."""
         app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
         app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
 
         try:
             client = TestClient(app)
@@ -1191,3 +1280,265 @@ def test_get_performance_metrics_single_breakeven_trade(test_account_id):
         assert float(data["worst_trade"]["pnl"]) == 0.0
     finally:
         app.dependency_overrides.clear()
+
+
+# ============================================================================
+# Trade Enrichment Tests (BE-TRADE-003)
+# ============================================================================
+
+
+class TestTradeEnrichment:
+    """Tests for trade enrichment with duration, fees, and TP adjustments."""
+
+    def test_trade_includes_duration_for_closed_trade(self, test_account_id):
+        """Test that closed trades include calculated duration in seconds."""
+        now = datetime.now(UTC)
+        trade = Trade(
+            id=uuid4(),
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=Decimal("95500.00"),
+            quantity=Decimal("0.001"),
+            pnl=Decimal("0.50"),
+            pnl_percent=Decimal("0.53"),
+            trading_fee=Decimal("0.05"),
+            funding_fee=Decimal("0.01"),
+            status="CLOSED",
+            opened_at=now - timedelta(hours=2, minutes=30),  # 2.5 hours = 9000 seconds
+            closed_at=now,
+            created_at=now - timedelta(hours=3),
+            updated_at=now,
+        )
+
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository([trade])
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/trades")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["trades"]) == 1
+
+            trade_data = data["trades"][0]
+            assert "duration" in trade_data
+            assert trade_data["duration"] == 9000  # 2.5 hours in seconds
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_trade_includes_fees_breakdown(self, test_account_id):
+        """Test that trades include fees breakdown with net P&L."""
+        now = datetime.now(UTC)
+        trade = Trade(
+            id=uuid4(),
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=Decimal("95500.00"),
+            quantity=Decimal("0.001"),
+            pnl=Decimal("0.50"),  # Gross PnL
+            pnl_percent=Decimal("0.53"),
+            trading_fee=Decimal("0.05"),  # Trading fee
+            funding_fee=Decimal("0.02"),  # Funding fee
+            status="CLOSED",
+            opened_at=now - timedelta(hours=1),
+            closed_at=now,
+            created_at=now - timedelta(hours=1),
+            updated_at=now,
+        )
+
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository([trade])
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/trades")
+
+            assert response.status_code == 200
+            data = response.json()
+            trade_data = data["trades"][0]
+
+            assert "fees" in trade_data
+            fees = trade_data["fees"]
+            assert float(fees["trading_fee"]) == 0.05
+            assert float(fees["funding_fee"]) == 0.02
+            # Net P&L = 0.50 - 0.05 - 0.02 = 0.43
+            assert float(fees["net_pnl"]) == 0.43
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_trade_includes_tp_adjustments_empty(self, test_account_id):
+        """Test that trades include empty tp_adjustments when none exist."""
+        now = datetime.now(UTC)
+        trade = Trade(
+            id=uuid4(),
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=Decimal("95500.00"),
+            quantity=Decimal("0.001"),
+            pnl=Decimal("0.50"),
+            pnl_percent=Decimal("0.53"),
+            trading_fee=Decimal("0.05"),
+            funding_fee=Decimal("0.01"),
+            status="CLOSED",
+            opened_at=now - timedelta(hours=1),
+            closed_at=now,
+            created_at=now - timedelta(hours=1),
+            updated_at=now,
+        )
+
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository([trade])
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/trades")
+
+            assert response.status_code == 200
+            data = response.json()
+            trade_data = data["trades"][0]
+
+            assert "tp_adjustments" in trade_data
+            assert trade_data["tp_adjustments"] == []
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_trade_includes_tp_adjustments_with_data(self, test_account_id):
+        """Test that trades include TP adjustments when they exist."""
+        now = datetime.now(UTC)
+        trade_id = uuid4()
+        trade = Trade(
+            id=trade_id,
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=Decimal("95500.00"),
+            quantity=Decimal("0.001"),
+            pnl=Decimal("0.50"),
+            pnl_percent=Decimal("0.53"),
+            trading_fee=Decimal("0.05"),
+            funding_fee=Decimal("0.01"),
+            status="CLOSED",
+            opened_at=now - timedelta(hours=2),
+            closed_at=now,
+            created_at=now - timedelta(hours=2),
+            updated_at=now,
+        )
+
+        # Mock TP adjustments
+        adjustments = [
+            TPAdjustment(
+                id=uuid4(),
+                trade_id=trade_id,
+                old_tp_percent=Decimal("0.50"),
+                new_tp_percent=Decimal("0.55"),
+                funding_rate=Decimal("0.01"),
+                funding_accumulated=Decimal("0.2"),
+                hours_open=Decimal("1.5"),
+                adjusted_at=now - timedelta(hours=1),
+            ),
+            TPAdjustment(
+                id=uuid4(),
+                trade_id=trade_id,
+                old_tp_percent=Decimal("0.55"),
+                new_tp_percent=Decimal("0.60"),
+                funding_rate=Decimal("0.02"),
+                funding_accumulated=Decimal("0.4"),
+                hours_open=Decimal("2.0"),
+                adjusted_at=now - timedelta(minutes=30),
+            ),
+        ]
+
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository([trade])
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository({trade_id: adjustments})
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/trades")
+
+            assert response.status_code == 200
+            data = response.json()
+            trade_data = data["trades"][0]
+
+            assert "tp_adjustments" in trade_data
+            assert len(trade_data["tp_adjustments"]) == 2
+
+            # Check first adjustment
+            adj1 = trade_data["tp_adjustments"][0]
+            assert float(adj1["old_tp"]) == 0.50
+            assert float(adj1["new_tp"]) == 0.55
+            assert "Funding rate: 0.0100%" in adj1["reason"]
+            assert "accumulated: 0.20%" in adj1["reason"]
+            assert "1.5h open" in adj1["reason"]
+
+            # Check second adjustment
+            adj2 = trade_data["tp_adjustments"][1]
+            assert float(adj2["old_tp"]) == 0.55
+            assert float(adj2["new_tp"]) == 0.60
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_open_trade_duration_is_none(self, test_account_id):
+        """Test that open trades have null duration."""
+        now = datetime.now(UTC)
+        trade = Trade(
+            id=uuid4(),
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=None,
+            quantity=Decimal("0.001"),
+            pnl=None,
+            pnl_percent=None,
+            trading_fee=Decimal("0.00"),
+            funding_fee=Decimal("0.00"),
+            status="OPEN",
+            opened_at=now - timedelta(hours=1),
+            closed_at=None,  # Open trade
+            created_at=now - timedelta(hours=1),
+            updated_at=now,
+        )
+
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository([trade])
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/trades")
+
+            assert response.status_code == 200
+            data = response.json()
+            trade_data = data["trades"][0]
+
+            # Open trade should have null duration
+            assert trade_data["duration"] is None
+        finally:
+            app.dependency_overrides.clear()
