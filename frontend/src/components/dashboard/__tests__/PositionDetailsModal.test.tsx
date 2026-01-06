@@ -1,0 +1,283 @@
+/**
+ * PositionDetailsModal Component Tests
+ *
+ * Tests for the position details modal dialog.
+ */
+
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@/test/test-utils'
+import userEvent from '@testing-library/user-event'
+import { PositionDetailsModal } from '../PositionDetailsModal'
+import { mockPositions } from '@/test/mocks'
+
+describe('PositionDetailsModal', () => {
+  const defaultProps = {
+    position: mockPositions[0],
+    currentPrice: 98000.00,
+    isOpen: true,
+    onClose: vi.fn(),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('rendering', () => {
+    it('renders nothing when closed', () => {
+      render(<PositionDetailsModal {...defaultProps} isOpen={false} />)
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('renders nothing when position is null', () => {
+      render(<PositionDetailsModal {...defaultProps} position={null} />)
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('renders dialog when open with position', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('renders title and order ID', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Position Details')).toBeInTheDocument()
+      expect(screen.getByText(/Order ID:/)).toBeInTheDocument()
+    })
+  })
+
+  describe('position info', () => {
+    it('renders side with correct color', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      const sideElement = screen.getByText('LONG')
+      expect(sideElement).toHaveClass('text-green-500')
+    })
+
+    it('renders quantity', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('0.0010 BTC')).toBeInTheDocument()
+    })
+
+    it('renders status badge for FILLED', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Filled (Awaiting TP)')).toBeInTheDocument()
+    })
+
+    it('renders different status badges', () => {
+      const pendingPosition = { ...mockPositions[0], status: 'PENDING' as const }
+      render(<PositionDetailsModal {...defaultProps} position={pendingPosition} />)
+
+      expect(screen.getByText('Pending')).toBeInTheDocument()
+    })
+  })
+
+  describe('P&L display', () => {
+    it('shows unrealized P&L for filled positions', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Unrealized P&L')).toBeInTheDocument()
+    })
+
+    it('calculates positive P&L correctly', () => {
+      // Entry: 97500, Current: 98000, Qty: 0.001
+      // PnL = (98000 - 97500) * 0.001 = 0.50
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      // P&L appears multiple times (unrealized and expected profit)
+      const pnlElements = screen.getAllByText('+$0.50')
+      expect(pnlElements.length).toBeGreaterThan(0)
+    })
+
+    it('renders P&L in green when profitable', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      // Find the unrealized P&L specifically (inside the bg-muted/50 section)
+      const pnlElements = screen.getAllByText('+$0.50')
+      expect(pnlElements[0]).toHaveClass('text-green-500')
+    })
+
+    it('renders P&L in red when losing', () => {
+      render(<PositionDetailsModal {...defaultProps} currentPrice={97000.00} />)
+
+      const pnlElements = screen.getAllByText(/\$0\.50/)
+      // Find the one with red class
+      const redPnl = pnlElements.find(el => el.classList.contains('text-red-500'))
+      expect(redPnl).toBeTruthy()
+    })
+
+    it('does not show P&L for pending positions', () => {
+      const pendingPosition = { ...mockPositions[0], status: 'PENDING' as const }
+      render(<PositionDetailsModal {...defaultProps} position={pendingPosition} />)
+
+      expect(screen.queryByText('Unrealized P&L')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('price information', () => {
+    it('renders entry price', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Entry Price')).toBeInTheDocument()
+      expect(screen.getByText('$97,500.00')).toBeInTheDocument()
+    })
+
+    it('renders TP price', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('TP Price')).toBeInTheDocument()
+      // TP price ($98,000) and current price ($98,000) are the same, so multiple elements
+      const priceElements = screen.getAllByText('$98,000.00')
+      expect(priceElements.length).toBeGreaterThan(0)
+    })
+
+    it('renders current price when available', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Current Price')).toBeInTheDocument()
+    })
+
+    it('renders distance to TP', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Distance to TP')).toBeInTheDocument()
+    })
+  })
+
+  describe('position value', () => {
+    it('renders entry value', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Entry Value')).toBeInTheDocument()
+    })
+
+    it('renders TP value', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('TP Value')).toBeInTheDocument()
+    })
+
+    it('renders expected profit', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Expected Profit')).toBeInTheDocument()
+    })
+  })
+
+  describe('timeline', () => {
+    it('renders created timestamp', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Created')).toBeInTheDocument()
+    })
+
+    it('renders filled timestamp when available', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Filled')).toBeInTheDocument()
+    })
+
+    it('does not render closed timestamp when not available', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.queryByText('Closed')).not.toBeInTheDocument()
+    })
+
+    it('renders closed timestamp when available', () => {
+      const closedPosition = {
+        ...mockPositions[0],
+        status: 'TP_HIT' as const,
+        closedAt: '2025-01-06T12:00:00Z',
+      }
+      render(<PositionDetailsModal {...defaultProps} position={closedPosition} />)
+
+      expect(screen.getByText('Closed')).toBeInTheDocument()
+    })
+  })
+
+  describe('exchange reference', () => {
+    it('renders exchange TP order ID when available', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      expect(screen.getByText('Exchange Reference')).toBeInTheDocument()
+      expect(screen.getByText(/tp-123/)).toBeInTheDocument()
+    })
+
+    it('does not render exchange reference when not available', () => {
+      const positionWithoutExchange = {
+        ...mockPositions[0],
+        exchangeTpOrderId: null,
+      }
+      render(<PositionDetailsModal {...defaultProps} position={positionWithoutExchange} />)
+
+      expect(screen.queryByText('Exchange Reference')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('interactions', () => {
+    it('calls onClose when close button is clicked', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      render(<PositionDetailsModal {...defaultProps} onClose={onClose} />)
+
+      // Click the X button
+      await user.click(screen.getByText('×'))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onClose when footer Close button is clicked', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      render(<PositionDetailsModal {...defaultProps} onClose={onClose} />)
+
+      await user.click(screen.getByRole('button', { name: 'Close' }))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onClose when backdrop is clicked', async () => {
+      const user = userEvent.setup()
+      const onClose = vi.fn()
+      const { container } = render(<PositionDetailsModal {...defaultProps} onClose={onClose} />)
+
+      const backdrop = container.querySelector('.bg-black\\/50')
+      if (backdrop) {
+        await user.click(backdrop)
+      }
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('calls onClose when Escape key is pressed', () => {
+      const onClose = vi.fn()
+      render(<PositionDetailsModal {...defaultProps} onClose={onClose} />)
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe('accessibility', () => {
+    it('has correct aria attributes', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      const dialog = screen.getByRole('dialog')
+      expect(dialog).toHaveAttribute('aria-modal', 'true')
+      expect(dialog).toHaveAttribute('aria-labelledby', 'position-modal-title')
+    })
+
+    it('dialog is focusable', () => {
+      render(<PositionDetailsModal {...defaultProps} />)
+
+      const dialog = screen.getByRole('dialog')
+      expect(dialog).toHaveAttribute('tabIndex', '-1')
+    })
+  })
+})
