@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.dependencies import get_trade_repository
+from src.api.dependencies import get_account_id, get_trade_repository
 from src.api.schemas.metrics import (
     PerformanceMetricsResponse,
     PeriodMetrics,
@@ -144,9 +144,9 @@ def _calculate_total_metrics(trades: list[Trade]) -> TotalMetrics:
     )
 
 
-@router.get("/performance/{account_id}", response_model=PerformanceMetricsResponse)
+@router.get("/performance", response_model=PerformanceMetricsResponse)
 async def get_performance_metrics(
-    account_id: UUID,
+    account_id: Annotated[UUID, Depends(get_account_id)],
     trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
     period: Annotated[
         TimePeriod,
@@ -161,12 +161,13 @@ async def get_performance_metrics(
         Query(description="End date for custom period (required if period=custom)"),
     ] = None,
 ):
-    """Get performance metrics for an account.
+    """Get performance metrics for the current account.
 
     Returns both period-specific metrics and all-time total metrics.
+    Account ID is obtained automatically from the global configuration.
 
     Args:
-        account_id: Account UUID to get metrics for.
+        account_id: Account UUID (injected via dependency).
         trade_repo: Injected trade repository.
         period: Time period filter (today, 7days, 30days, custom).
         start_date: Start date for custom period.

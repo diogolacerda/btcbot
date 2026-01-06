@@ -133,6 +133,27 @@ def get_global_account_id() -> UUID | None:
     return _GLOBAL_ACCOUNT_ID
 
 
+async def get_account_id() -> UUID:
+    """Get current account ID for API endpoints.
+
+    In single-account mode, returns the global account ID set at startup.
+    TODO: Extract from JWT token or user session for multi-account support.
+
+    Returns:
+        Account UUID.
+
+    Raises:
+        HTTPException: If account ID is not set.
+    """
+    account_id = get_global_account_id()
+    if account_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Account ID not configured. Ensure bot is fully initialized.",
+        )
+    return account_id
+
+
 def get_filter_registry() -> FilterRegistry:
     """Get the singleton FilterRegistry instance.
 

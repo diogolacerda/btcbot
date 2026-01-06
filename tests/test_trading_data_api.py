@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from src.api.dependencies import get_trade_repository
+from src.api.dependencies import get_account_id, get_trade_repository
 from src.api.main import app
 from src.database.models.trade import Trade
 
@@ -84,7 +84,7 @@ def sample_trades(test_account_id):
 
 
 def test_get_positions(sample_trades, test_account_id):
-    """Test GET /trading/positions/{account_id} endpoint."""
+    """Test GET /trading/positions endpoint."""
     # Mock the repository to return only open trades
     open_trades = [t for t in sample_trades if t.status == "OPEN"]
 
@@ -93,11 +93,15 @@ def test_get_positions(sample_trades, test_account_id):
         mock_repo.get_open_trades.return_value = open_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/trading/positions/{test_account_id}")
+        response = client.get("/trading/positions")
 
         assert response.status_code == 200
         data = response.json()
@@ -119,18 +123,22 @@ def test_get_positions(sample_trades, test_account_id):
 
 
 def test_get_trades_all(sample_trades, test_account_id):
-    """Test GET /trading/trades/{account_id} without filters."""
+    """Test GET /trading/trades without filters."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/trading/trades/{test_account_id}")
+        response = client.get("/trading/trades")
 
         assert response.status_code == 200
         data = response.json()
@@ -146,18 +154,22 @@ def test_get_trades_all(sample_trades, test_account_id):
 
 
 def test_get_trades_with_status_filter(sample_trades, test_account_id):
-    """Test GET /trading/trades/{account_id} with status filter."""
+    """Test GET /trading/trades with status filter."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/trading/trades/{test_account_id}", params={"status": "CLOSED"})
+        response = client.get("/trading/trades", params={"status": "CLOSED"})
 
         assert response.status_code == 200
         data = response.json()
@@ -169,20 +181,22 @@ def test_get_trades_with_status_filter(sample_trades, test_account_id):
 
 
 def test_get_trades_with_pagination(sample_trades, test_account_id):
-    """Test GET /trading/trades/{account_id} with pagination."""
+    """Test GET /trading/trades with pagination."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(
-            f"/trading/trades/{test_account_id}", params={"limit": 3, "offset": 2}
-        )
+        response = client.get("/trading/trades", params={"limit": 3, "offset": 2})
 
         assert response.status_code == 200
         data = response.json()
@@ -195,16 +209,20 @@ def test_get_trades_with_pagination(sample_trades, test_account_id):
 
 
 def test_get_trades_invalid_status(test_account_id):
-    """Test GET /trading/trades/{account_id} with invalid status."""
+    """Test GET /trading/trades with invalid status."""
 
     async def mock_get_trade_repository():
         return AsyncMock()
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/trading/trades/{test_account_id}", params={"status": "INVALID"})
+        response = client.get("/trading/trades", params={"status": "INVALID"})
 
         assert response.status_code == 400
         assert "Invalid status" in response.json()["detail"]
@@ -213,18 +231,22 @@ def test_get_trades_invalid_status(test_account_id):
 
 
 def test_get_trade_stats(sample_trades, test_account_id):
-    """Test GET /trading/stats/{account_id} endpoint."""
+    """Test GET /trading/stats endpoint."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/trading/stats/{test_account_id}")
+        response = client.get("/trading/stats")
 
         assert response.status_code == 200
         data = response.json()
@@ -254,18 +276,22 @@ def test_get_trade_stats(sample_trades, test_account_id):
 
 
 def test_get_positions_empty(test_account_id):
-    """Test GET /trading/positions/{account_id} with no positions."""
+    """Test GET /trading/positions with no positions."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
         mock_repo.get_open_trades.return_value = []
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/trading/positions/{test_account_id}")
+        response = client.get("/trading/positions")
 
         assert response.status_code == 200
         data = response.json()
@@ -277,18 +303,22 @@ def test_get_positions_empty(test_account_id):
 
 
 def test_get_stats_empty(test_account_id):
-    """Test GET /trading/stats/{account_id} with no trades."""
+    """Test GET /trading/stats with no trades."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
         mock_repo.get_trades_by_account.return_value = []
         return mock_repo
 
+    async def mock_get_account_id():
+        return test_account_id
+
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
 
     try:
         client = TestClient(app)
-        response = client.get(f"/trading/stats/{test_account_id}")
+        response = client.get("/trading/stats")
 
         assert response.status_code == 200
         data = response.json()
