@@ -1,0 +1,15 @@
+/**
+ * Dashboard Components
+ *
+ * Re-exports all dashboard components for convenient imports.
+ */
+
+export { PeriodSelector } from './PeriodSelector'
+export { BotStatusCard } from './BotStatusCard'
+export { MarketOverviewCard } from './MarketOverviewCard'
+export { PerformanceMetricsCard } from './PerformanceMetricsCard'
+export { PositionsTable } from './PositionsTable'
+export { OrdersTable } from './OrdersTable'
+export { ActivityFeed } from './ActivityFeed'
+export { ConfirmDialog } from './ConfirmDialog'
+export { PositionDetailsModal } from './PositionDetailsModal'
