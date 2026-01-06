@@ -464,16 +464,40 @@ def _find_best_worst_trades(
 
     Returns:
         Tuple of (best_trade, worst_trade) schemas.
+
+    Notes:
+        - Empty list: both null
+        - Single trade: appears only in best (if positive) or worst (if negative),
+          not both. Break-even trades (pnl=0) result in both being null.
+        - Multiple trades: standard max/min logic
     """
+    null_trade = BestWorstTradeSchema(id=None, pnl=Decimal("0"), date=None)
+
     if not trades:
-        return (
-            BestWorstTradeSchema(id=None, pnl=Decimal("0"), date=None),
-            BestWorstTradeSchema(id=None, pnl=Decimal("0"), date=None),
+        return (null_trade, null_trade)
+
+    # Special case: single trade should only appear in one field
+    if len(trades) == 1:
+        trade = trades[0]
+        pnl = trade.pnl if trade.pnl is not None else Decimal("0")
+        trade_schema = BestWorstTradeSchema(
+            id=trade.id,
+            pnl=Decimal(str(pnl)).quantize(Decimal("0.01")),
+            date=trade.closed_at,
         )
 
-    # Find best trade (max pnl)
+        if pnl > 0:
+            # Positive trade: it's the best, no worst
+            return (trade_schema, null_trade)
+        elif pnl < 0:
+            # Negative trade: it's the worst, no best
+            return (null_trade, trade_schema)
+        else:
+            # Break-even trade: neither best nor worst
+            return (null_trade, null_trade)
+
+    # Multiple trades: find best (max pnl) and worst (min pnl)
     best = max(trades, key=lambda t: t.pnl if t.pnl is not None else Decimal("-999999"))
-    # Find worst trade (min pnl)
     worst = min(trades, key=lambda t: t.pnl if t.pnl is not None else Decimal("999999"))
 
     return (

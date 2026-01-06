@@ -1020,3 +1020,174 @@ def test_get_performance_metrics_best_worst_trade_with_id(sample_trades, test_ac
         assert data["worst_trade"]["id"] == str(worst.id)
     finally:
         app.dependency_overrides.clear()
+
+
+# ============================================================================
+# Single Trade Edge Case Tests (BUG-013)
+# ============================================================================
+
+
+def test_get_performance_metrics_single_positive_trade(test_account_id):
+    """Test that single positive trade appears only in best_trade, not worst_trade."""
+    now = datetime.now(UTC)
+
+    # Single trade with positive PnL
+    trades = [
+        Trade(
+            id=uuid4(),
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=Decimal("95500.00"),
+            quantity=Decimal("0.001"),
+            pnl=Decimal("5.00"),
+            pnl_percent=Decimal("0.53"),
+            trading_fee=Decimal("0.05"),
+            funding_fee=Decimal("0.01"),
+            status="CLOSED",
+            opened_at=now - timedelta(hours=1),
+            closed_at=now,
+            created_at=now - timedelta(hours=1),
+            updated_at=now,
+        ),
+    ]
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_period.return_value = trades
+        return mock_repo
+
+    async def mock_get_account_id():
+        return test_account_id
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
+
+    try:
+        client = TestClient(app)
+        response = client.get("/api/v1/trading/performance-metrics")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Positive trade should be best_trade only
+        assert float(data["best_trade"]["pnl"]) == 5.00
+        assert data["best_trade"]["id"] == str(trades[0].id)
+
+        # worst_trade should be null
+        assert data["worst_trade"]["id"] is None
+        assert float(data["worst_trade"]["pnl"]) == 0.0
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_get_performance_metrics_single_negative_trade(test_account_id):
+    """Test that single negative trade appears only in worst_trade, not best_trade."""
+    now = datetime.now(UTC)
+
+    # Single trade with negative PnL
+    trades = [
+        Trade(
+            id=uuid4(),
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=Decimal("94500.00"),
+            quantity=Decimal("0.001"),
+            pnl=Decimal("-5.00"),
+            pnl_percent=Decimal("-0.53"),
+            trading_fee=Decimal("0.05"),
+            funding_fee=Decimal("0.01"),
+            status="CLOSED",
+            opened_at=now - timedelta(hours=1),
+            closed_at=now,
+            created_at=now - timedelta(hours=1),
+            updated_at=now,
+        ),
+    ]
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_period.return_value = trades
+        return mock_repo
+
+    async def mock_get_account_id():
+        return test_account_id
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
+
+    try:
+        client = TestClient(app)
+        response = client.get("/api/v1/trading/performance-metrics")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # best_trade should be null
+        assert data["best_trade"]["id"] is None
+        assert float(data["best_trade"]["pnl"]) == 0.0
+
+        # Negative trade should be worst_trade only
+        assert float(data["worst_trade"]["pnl"]) == -5.00
+        assert data["worst_trade"]["id"] == str(trades[0].id)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_get_performance_metrics_single_breakeven_trade(test_account_id):
+    """Test that single break-even trade (pnl=0) results in both fields being null."""
+    now = datetime.now(UTC)
+
+    # Single trade with zero PnL (break-even)
+    trades = [
+        Trade(
+            id=uuid4(),
+            account_id=test_account_id,
+            symbol="BTC-USDT",
+            side="LONG",
+            leverage=10,
+            entry_price=Decimal("95000.00"),
+            exit_price=Decimal("95000.00"),
+            quantity=Decimal("0.001"),
+            pnl=Decimal("0.00"),
+            pnl_percent=Decimal("0.00"),
+            trading_fee=Decimal("0.00"),
+            funding_fee=Decimal("0.00"),
+            status="CLOSED",
+            opened_at=now - timedelta(hours=1),
+            closed_at=now,
+            created_at=now - timedelta(hours=1),
+            updated_at=now,
+        ),
+    ]
+
+    async def mock_get_trade_repository():
+        mock_repo = AsyncMock()
+        mock_repo.get_trades_by_period.return_value = trades
+        return mock_repo
+
+    async def mock_get_account_id():
+        return test_account_id
+
+    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+    app.dependency_overrides[get_account_id] = mock_get_account_id
+
+    try:
+        client = TestClient(app)
+        response = client.get("/api/v1/trading/performance-metrics")
+
+        assert response.status_code == 200
+        data = response.json()
+
+        # Both should be null for break-even trade
+        assert data["best_trade"]["id"] is None
+        assert float(data["best_trade"]["pnl"]) == 0.0
+        assert data["worst_trade"]["id"] is None
+        assert float(data["worst_trade"]["pnl"]) == 0.0
+    finally:
+        app.dependency_overrides.clear()
