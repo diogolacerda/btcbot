@@ -6,8 +6,8 @@
  * Wraps components with necessary providers (QueryClient, Router).
  */
 
-import { ReactNode } from 'react'
-import { render, RenderOptions } from '@testing-library/react'
+import type { ReactNode } from 'react'
+import { render, type RenderOptions } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 

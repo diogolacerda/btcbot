@@ -4,7 +4,7 @@
  * Tests for the position details modal dialog.
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@/test/test-utils'
 import userEvent from '@testing-library/user-event'
 import { PositionDetailsModal } from '../PositionDetailsModal'

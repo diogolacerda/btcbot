@@ -5,7 +5,7 @@
  * to filter dashboard data by time periods.
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@/test/test-utils'
 import userEvent from '@testing-library/user-event'
 import { PeriodSelector } from '../PeriodSelector'
