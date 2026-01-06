@@ -82,15 +82,19 @@ git checkout -b feature/TASK-ID-description
 
 ### 2. Development & PR
 
+**ALWAYS use the `/commit-push-pr` skill** for commits and PRs to save tokens:
+
+```
+/commit-push-pr
+```
+
+This skill automatically:
+- Runs `git status` and `git diff` to analyze changes
+- Generates a proper commit message following conventions
+- Commits, pushes, and creates the PR
+
+After CI passes, merge the PR:
 ```bash
-# Run checks before pushing
-pytest && ruff check . && mypy .
-
-# Push and create PR
-git push -u origin feature/TASK-ID-description
-gh pr create --title "[TASK-ID] Feature: Description" --body "..."
-
-# After CI passes, merge the PR
 gh pr merge --merge
 ```
 
@@ -253,6 +257,18 @@ Types: feat, fix, refactor, test, docs, chore
 
 See `docs/GITFLOW.md` for complete workflow details.
 
+## Available Skills (Token-Saving)
+
+Use these skills instead of manual git commands:
+
+| Skill | Usage | Description |
+|-------|-------|-------------|
+| `/commit` | After finishing code changes | Commits staged changes with auto-generated message |
+| `/commit-push-pr` | When ready to create PR | Commits, pushes, and creates PR in one step |
+| `/clean_gone` | After merging PRs | Cleans up local branches deleted on remote |
+
+**IMPORTANT**: Always prefer `/commit-push-pr` over manual `git commit`, `git push`, and `gh pr create` commands.
+
 ## Git Worktrees (Parallel Development)
 
 Git worktrees allow multiple agents to work on different tasks simultaneously, each in an independent working directory with its own branch.
@@ -321,9 +337,9 @@ git worktree remove --force ../btcbot-worktrees/feature-TASK-ID
 2. **Update main**: `git checkout main && git pull origin main`
 3. **Create worktree**: `git worktree add ../btcbot-worktrees/TASK-ID -b feature/TASK-ID main`
 4. **Setup environment**: venv, deps, pre-commit, .env
-5. **Develop**: edit, test (`pytest`), commit, push
-6. **Create PR** and wait for merge
-7. **Cleanup**: `git worktree remove ../btcbot-worktrees/TASK-ID`
+5. **Develop**: edit, test (`pytest`)
+6. **Commit and PR**: Use `/commit-push-pr` skill (saves tokens)
+7. **Wait for merge and cleanup**: `git worktree remove ../btcbot-worktrees/TASK-ID`
 
 ### Important Notes
 
