@@ -254,6 +254,90 @@ class TradeRepository(BaseRepository[Trade]):
             main_logger.error(f"Error updating trade exit for {trade_id}: {e}")
             raise
 
+    async def get_trades_with_filters(
+        self,
+        account_id: UUID,
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        status: str | None = None,
+        min_entry_price: Decimal | None = None,
+        max_entry_price: Decimal | None = None,
+        min_quantity: Decimal | None = None,
+        max_quantity: Decimal | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[Trade], int]:
+        """Get trades with SQL-level filtering.
+
+        Applies filters at database level for efficiency. Returns both
+        filtered trades and total count for pagination.
+
+        Args:
+            account_id: Account UUID.
+            start_date: Filter trades opened after this date.
+            end_date: Filter trades opened before this date.
+            status: Filter by status (OPEN, CLOSED, CANCELLED).
+            min_entry_price: Minimum entry price filter.
+            max_entry_price: Maximum entry price filter.
+            min_quantity: Minimum quantity filter.
+            max_quantity: Maximum quantity filter.
+            limit: Maximum number of trades to return.
+            offset: Number of trades to skip.
+
+        Returns:
+            Tuple of (list of Trade instances, total count before pagination).
+
+        Raises:
+            Exception: If database operation fails.
+        """
+        try:
+            # Build base query
+            conditions = [Trade.account_id == account_id]
+
+            # Date filters
+            if start_date:
+                conditions.append(Trade.opened_at >= start_date)
+            if end_date:
+                conditions.append(Trade.opened_at <= end_date)
+
+            # Status filter
+            if status:
+                conditions.append(Trade.status == status)
+
+            # Price range filters
+            if min_entry_price is not None:
+                conditions.append(Trade.entry_price >= min_entry_price)
+            if max_entry_price is not None:
+                conditions.append(Trade.entry_price <= max_entry_price)
+
+            # Quantity range filters
+            if min_quantity is not None:
+                conditions.append(Trade.quantity >= min_quantity)
+            if max_quantity is not None:
+                conditions.append(Trade.quantity <= max_quantity)
+
+            # Get total count first
+            count_stmt = select(Trade).where(*conditions)
+            count_result = await self.session.execute(count_stmt)
+            total_count = len(list(count_result.scalars().all()))
+
+            # Get paginated results
+            stmt = (
+                select(Trade)
+                .where(*conditions)
+                .order_by(Trade.created_at.desc())
+                .limit(limit)
+                .offset(offset)
+            )
+            result = await self.session.execute(stmt)
+            trades = list(result.scalars().all())
+
+            return trades, total_count
+        except Exception as e:
+            main_logger.error(f"Error fetching trades with filters for account {account_id}: {e}")
+            raise
+
     async def get_by_exchange_order_id(
         self,
         account_id: UUID,
