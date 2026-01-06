@@ -131,9 +131,6 @@ class GridManager:
         self._on_tp_hit = on_tp_hit
         self._on_state_change = on_state_change
 
-        # Activity event logging repository (set by main.py)
-        self._activity_event_repository: ActivityEventRepository | None = None
-
         # Dynamic TP Manager
         self.dynamic_tp: DynamicTPManager | None = None
 
@@ -715,9 +712,9 @@ class GridManager:
         if new_state == GridState.ACTIVE and old_state != GridState.ACTIVE:
             # CYCLE_ACTIVATED - entering ACTIVE state
             self._log_activity_event(
-                event_type="CYCLE_ACTIVATED",
-                description="Grid cycle activated (MACD bullish)",
-                event_data={
+                EventType.CYCLE_ACTIVATED,
+                "Grid cycle activated (MACD bullish)",
+                {
                     "old_state": old_state.value,
                     "new_state": new_state.value,
                     "macd_line": self._last_macd_line,
@@ -727,9 +724,9 @@ class GridManager:
         elif new_state in (GridState.PAUSE, GridState.INACTIVE) and old_state == GridState.ACTIVE:
             # STRATEGY_PAUSED - leaving ACTIVE state
             self._log_activity_event(
-                event_type="STRATEGY_PAUSED",
-                description="Grid cycle paused (MACD bearish)",
-                event_data={
+                EventType.STRATEGY_PAUSED,
+                "Grid cycle paused (MACD bearish)",
+                {
                     "old_state": old_state.value,
                     "new_state": new_state.value,
                     "macd_line": self._last_macd_line,
