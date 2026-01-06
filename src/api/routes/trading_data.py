@@ -27,6 +27,7 @@ class ProfitFilter(str, Enum):
     PROFITABLE = "profitable"
     LOSSES = "losses"
 
+
 router = APIRouter(prefix="/trading")
 
 

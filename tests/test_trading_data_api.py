@@ -36,8 +36,8 @@ def sample_trades(test_account_id):
         trade = Trade(
             id=uuid4(),
             account_id=test_account_id,
-            exchange_order_id=f"ORDER-{i+1:04d}",
-            exchange_tp_order_id=f"TP-{i+1:04d}",
+            exchange_order_id=f"ORDER-{i + 1:04d}",
+            exchange_tp_order_id=f"TP-{i + 1:04d}",
             symbol="BTC-USDT",
             side="LONG",
             leverage=10,
@@ -65,7 +65,7 @@ def sample_trades(test_account_id):
         trade = Trade(
             id=uuid4(),
             account_id=test_account_id,
-            exchange_order_id=f"ORDER-OPEN-{i+1:04d}",
+            exchange_order_id=f"ORDER-OPEN-{i + 1:04d}",
             symbol="BTC-USDT",
             side="LONG",
             leverage=10,
