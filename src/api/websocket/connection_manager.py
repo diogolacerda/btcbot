@@ -69,6 +69,10 @@ class ConnectionManager:
             user_email: Email of the authenticated user.
         """
         await websocket.accept()
+
+        # Start heartbeat on first connection
+        is_first_connection = self.active_connections_count == 0
+
         async with self._lock:
             now = datetime.now()
             self._active_connections[websocket] = ConnectionInfo(
@@ -76,6 +80,10 @@ class ConnectionManager:
                 connected_at=now,
                 last_heartbeat=now,
             )
+
+        if is_first_connection:
+            await self.start_heartbeat()
+
         logger.info(
             f"WebSocket connected: {user_email} "
             f"(total connections: {self.active_connections_count})"
@@ -94,6 +102,10 @@ class ConnectionManager:
                     f"WebSocket disconnected: {info.user_email} "
                     f"(total connections: {self.active_connections_count})"
                 )
+
+        # Stop heartbeat when no more connections
+        if self.active_connections_count == 0:
+            await self.stop_heartbeat()
 
     async def broadcast(self, event: WebSocketEvent) -> None:
         """Broadcast an event to all connected clients.
