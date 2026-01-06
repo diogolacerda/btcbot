@@ -45,6 +45,8 @@ class TradeSchema(BaseModel):
 
     id: UUID = Field(..., description="Trade UUID")
     account_id: UUID = Field(..., description="Account UUID")
+    exchange_order_id: str | None = Field(None, description="Exchange order ID")
+    exchange_tp_order_id: str | None = Field(None, description="Exchange take-profit order ID")
     symbol: str = Field(..., description="Trading symbol")
     side: str = Field(..., description="Trade side (LONG or SHORT)")
     leverage: int = Field(..., description="Leverage used")

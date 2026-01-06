@@ -25,49 +25,53 @@ def sample_trades(test_account_id):
     trades = []
     now = datetime.now(UTC)
 
-    # Create 5 closed trades (3 wins, 2 losses)
+    # Create 5 closed trades (3 wins, 2 losses) with varying prices and quantities
     for i in range(5):
         is_win = i < 3
-        entry_price = Decimal("95000.00")
-        exit_price = Decimal("95500.00") if is_win else Decimal("94500.00")
-        pnl = (exit_price - entry_price) * Decimal("0.001")
+        entry_price = Decimal("95000.00") + Decimal(i * 100)  # 95000-95400
+        exit_price = entry_price + Decimal("500") if is_win else entry_price - Decimal("500")
+        quantity = Decimal("0.001") + Decimal(i) * Decimal("0.0001")  # 0.001-0.0014
+        pnl = (exit_price - entry_price) * quantity
 
         trade = Trade(
-            id=uuid4(),  # Add UUID
+            id=uuid4(),
             account_id=test_account_id,
+            exchange_order_id=f"ORDER-{i+1:04d}",
+            exchange_tp_order_id=f"TP-{i+1:04d}",
             symbol="BTC-USDT",
             side="LONG",
             leverage=10,
             entry_price=entry_price,
             exit_price=exit_price,
-            quantity=Decimal("0.001"),
+            quantity=quantity,
             tp_price=exit_price,
             tp_percent=Decimal("0.5"),
             pnl=pnl,
-            pnl_percent=(pnl / (entry_price * Decimal("0.001"))) * Decimal("100"),
+            pnl_percent=(pnl / (entry_price * quantity)) * Decimal("100"),
             trading_fee=Decimal("0.05"),
             funding_fee=Decimal("0.01"),
             status="CLOSED",
             grid_level=i + 1,
-            opened_at=now - timedelta(hours=i + 1),
-            filled_at=now - timedelta(hours=i + 1),
-            closed_at=now - timedelta(hours=i),
-            created_at=now - timedelta(hours=i + 1),  # Add created_at
-            updated_at=now - timedelta(hours=i),  # Add updated_at
+            opened_at=now - timedelta(hours=i + 2),
+            filled_at=now - timedelta(hours=i + 2),
+            closed_at=now - timedelta(hours=i + 1),  # Duration: 1 hour each
+            created_at=now - timedelta(hours=i + 2),
+            updated_at=now - timedelta(hours=i + 1),
         )
         trades.append(trade)
 
     # Create 2 open trades
     for i in range(2):
         trade = Trade(
-            id=uuid4(),  # Add UUID
+            id=uuid4(),
             account_id=test_account_id,
+            exchange_order_id=f"ORDER-OPEN-{i+1:04d}",
             symbol="BTC-USDT",
             side="LONG",
             leverage=10,
-            entry_price=Decimal("95000.00"),
-            quantity=Decimal("0.001"),
-            tp_price=Decimal("95500.00"),
+            entry_price=Decimal("96000.00"),
+            quantity=Decimal("0.002"),
+            tp_price=Decimal("96500.00"),
             tp_percent=Decimal("0.5"),
             trading_fee=Decimal("0.05"),
             funding_fee=Decimal("0.01"),
@@ -75,29 +79,62 @@ def sample_trades(test_account_id):
             grid_level=i + 6,
             opened_at=now - timedelta(minutes=30 * (i + 1)),
             filled_at=now - timedelta(minutes=30 * (i + 1)),
-            created_at=now - timedelta(minutes=30 * (i + 1)),  # Add created_at
-            updated_at=now - timedelta(minutes=30 * (i + 1)),  # Add updated_at
+            created_at=now - timedelta(minutes=30 * (i + 1)),
+            updated_at=now - timedelta(minutes=30 * (i + 1)),
         )
         trades.append(trade)
 
     return trades
 
 
-def test_get_positions(sample_trades, test_account_id):
-    """Test GET /trading/positions endpoint."""
-    # Mock the repository to return only open trades
-    open_trades = [t for t in sample_trades if t.status == "OPEN"]
+def _create_mock_repository(trades: list[Trade]):
+    """Create a mock repository with get_trades_with_filters method."""
 
     async def mock_get_trade_repository():
         mock_repo = AsyncMock()
-        mock_repo.get_open_trades.return_value = open_trades
+
+        async def mock_get_trades_with_filters(
+            account_id,
+            *,
+            start_date=None,
+            end_date=None,
+            status=None,
+            min_entry_price=None,
+            max_entry_price=None,
+            min_quantity=None,
+            max_quantity=None,
+            limit=100,
+            offset=0,
+        ):
+            result = trades
+
+            # Apply SQL-level filters
+            if status:
+                result = [t for t in result if t.status == status]
+            if min_entry_price is not None:
+                result = [t for t in result if t.entry_price >= min_entry_price]
+            if max_entry_price is not None:
+                result = [t for t in result if t.entry_price <= max_entry_price]
+            if min_quantity is not None:
+                result = [t for t in result if t.quantity >= min_quantity]
+            if max_quantity is not None:
+                result = [t for t in result if t.quantity <= max_quantity]
+
+            total = len(result)
+            result = result[offset : offset + limit]
+            return result, total
+
+        mock_repo.get_trades_with_filters = mock_get_trades_with_filters
+        mock_repo.get_open_trades.return_value = [t for t in trades if t.status == "OPEN"]
         return mock_repo
 
-    async def mock_get_account_id():
-        return test_account_id
+    return mock_get_trade_repository
 
-    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+
+def test_get_positions(sample_trades, test_account_id):
+    """Test GET /trading/positions endpoint."""
+    app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -124,17 +161,8 @@ def test_get_positions(sample_trades, test_account_id):
 
 def test_get_trades_all(sample_trades, test_account_id):
     """Test GET /trading/trades without filters."""
-
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
-        mock_repo.get_trades_by_account.return_value = sample_trades
-        return mock_repo
-
-    async def mock_get_account_id():
-        return test_account_id
-
-    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+    app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -155,17 +183,8 @@ def test_get_trades_all(sample_trades, test_account_id):
 
 def test_get_trades_with_status_filter(sample_trades, test_account_id):
     """Test GET /trading/trades with status filter."""
-
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
-        mock_repo.get_trades_by_account.return_value = sample_trades
-        return mock_repo
-
-    async def mock_get_account_id():
-        return test_account_id
-
-    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+    app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -182,17 +201,8 @@ def test_get_trades_with_status_filter(sample_trades, test_account_id):
 
 def test_get_trades_with_pagination(sample_trades, test_account_id):
     """Test GET /trading/trades with pagination."""
-
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
-        mock_repo.get_trades_by_account.return_value = sample_trades
-        return mock_repo
-
-    async def mock_get_account_id():
-        return test_account_id
-
-    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+    app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -210,15 +220,8 @@ def test_get_trades_with_pagination(sample_trades, test_account_id):
 
 def test_get_trades_invalid_status(test_account_id):
     """Test GET /trading/trades with invalid status."""
-
-    async def mock_get_trade_repository():
-        return AsyncMock()
-
-    async def mock_get_account_id():
-        return test_account_id
-
-    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+    app.dependency_overrides[get_trade_repository] = _create_mock_repository([])
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -238,11 +241,8 @@ def test_get_trade_stats(sample_trades, test_account_id):
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
-    async def mock_get_account_id():
-        return test_account_id
-
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -277,17 +277,8 @@ def test_get_trade_stats(sample_trades, test_account_id):
 
 def test_get_positions_empty(test_account_id):
     """Test GET /trading/positions with no positions."""
-
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
-        mock_repo.get_open_trades.return_value = []
-        return mock_repo
-
-    async def mock_get_account_id():
-        return test_account_id
-
-    app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+    app.dependency_overrides[get_trade_repository] = _create_mock_repository([])
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -310,11 +301,8 @@ def test_get_stats_empty(test_account_id):
         mock_repo.get_trades_by_account.return_value = []
         return mock_repo
 
-    async def mock_get_account_id():
-        return test_account_id
-
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
-    app.dependency_overrides[get_account_id] = mock_get_account_id
+    app.dependency_overrides[get_account_id] = lambda: test_account_id
 
     try:
         client = TestClient(app)
@@ -330,3 +318,404 @@ def test_get_stats_empty(test_account_id):
         assert float(data["total_pnl"]) == 0.0
     finally:
         app.dependency_overrides.clear()
+
+
+# ============================================================================
+# BE-TRADE-001: Advanced Filter Tests
+# ============================================================================
+
+
+class TestProfitFilter:
+    """Tests for profit_filter query parameter."""
+
+    def test_profit_filter_profitable(self, sample_trades, test_account_id):
+        """Test filtering for profitable trades only."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"profit_filter": "profitable"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # 3 trades have positive pnl in sample data
+            assert data["total"] == 3
+            for trade in data["trades"]:
+                assert float(trade["pnl"]) > 0
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_profit_filter_losses(self, sample_trades, test_account_id):
+        """Test filtering for losing trades only."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"profit_filter": "losses"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # 2 trades have negative pnl in sample data
+            assert data["total"] == 2
+            for trade in data["trades"]:
+                assert float(trade["pnl"]) < 0
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_profit_filter_all(self, sample_trades, test_account_id):
+        """Test profit_filter=all returns all trades."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"profit_filter": "all"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["total"] == 7  # All trades
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestPriceRangeFilter:
+    """Tests for min/max entry_price query parameters."""
+
+    def test_min_entry_price_filter(self, sample_trades, test_account_id):
+        """Test filtering by minimum entry price."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"min_entry_price": "95200"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Only trades with entry_price >= 95200 (indices 2,3,4 + 2 open at 96000)
+            for trade in data["trades"]:
+                assert float(trade["entry_price"]) >= 95200
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_max_entry_price_filter(self, sample_trades, test_account_id):
+        """Test filtering by maximum entry price."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"max_entry_price": "95100"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Only trades with entry_price <= 95100 (indices 0,1)
+            for trade in data["trades"]:
+                assert float(trade["entry_price"]) <= 95100
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_price_range_filter(self, sample_trades, test_account_id):
+        """Test filtering by price range."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/trading/trades",
+                params={"min_entry_price": "95100", "max_entry_price": "95300"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            for trade in data["trades"]:
+                assert 95100 <= float(trade["entry_price"]) <= 95300
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_invalid_price_range(self, sample_trades, test_account_id):
+        """Test that min > max price returns 400 error."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/trading/trades",
+                params={"min_entry_price": "96000", "max_entry_price": "95000"},
+            )
+
+            assert response.status_code == 400
+            assert "min_entry_price cannot be greater" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestDurationFilter:
+    """Tests for min/max duration query parameters."""
+
+    def test_min_duration_filter(self, sample_trades, test_account_id):
+        """Test filtering by minimum duration."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            # 1 hour = 3600 seconds, all closed trades have 1h duration
+            response = client.get("/trading/trades", params={"min_duration": "3600"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Only closed trades (5) have duration, open trades are excluded
+            assert data["total"] == 5
+            for trade in data["trades"]:
+                assert trade["closed_at"] is not None
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_max_duration_filter(self, sample_trades, test_account_id):
+        """Test filtering by maximum duration."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            # Less than 1 hour (3600 seconds) should return nothing
+            response = client.get("/trading/trades", params={"max_duration": "1800"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # No trades have duration < 30 minutes
+            assert data["total"] == 0
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_invalid_duration_range(self, sample_trades, test_account_id):
+        """Test that min > max duration returns 400 error."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/trading/trades", params={"min_duration": "7200", "max_duration": "3600"}
+            )
+
+            assert response.status_code == 400
+            assert "min_duration cannot be greater" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestQuantityFilter:
+    """Tests for min/max quantity query parameters."""
+
+    def test_min_quantity_filter(self, sample_trades, test_account_id):
+        """Test filtering by minimum quantity."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"min_quantity": "0.0012"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            for trade in data["trades"]:
+                assert float(trade["quantity"]) >= 0.0012
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_max_quantity_filter(self, sample_trades, test_account_id):
+        """Test filtering by maximum quantity."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"max_quantity": "0.0011"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            for trade in data["trades"]:
+                assert float(trade["quantity"]) <= 0.0011
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_invalid_quantity_range(self, sample_trades, test_account_id):
+        """Test that min > max quantity returns 400 error."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/trading/trades", params={"min_quantity": "0.002", "max_quantity": "0.001"}
+            )
+
+            assert response.status_code == 400
+            assert "min_quantity cannot be greater" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestSearchFilter:
+    """Tests for search_query query parameter."""
+
+    def test_search_by_order_id(self, sample_trades, test_account_id):
+        """Test searching by exchange_order_id."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"search_query": "ORDER-0001"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["total"] == 1
+            assert "ORDER-0001" in data["trades"][0]["exchange_order_id"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_by_tp_order_id(self, sample_trades, test_account_id):
+        """Test searching by exchange_tp_order_id."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"search_query": "TP-0003"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["total"] == 1
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_partial_match(self, sample_trades, test_account_id):
+        """Test partial match search."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            # Search for "ORDER-000" should match ORDER-0001 through ORDER-0005
+            response = client.get("/trading/trades", params={"search_query": "ORDER-000"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["total"] == 5  # All closed trades
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_search_no_match(self, sample_trades, test_account_id):
+        """Test search with no matches."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/trading/trades", params={"search_query": "NONEXISTENT"})
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["total"] == 0
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestCombinedFilters:
+    """Tests for multiple filters combined."""
+
+    def test_profit_and_price_filter(self, sample_trades, test_account_id):
+        """Test combining profit and price filters."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/trading/trades",
+                params={"profit_filter": "profitable", "min_entry_price": "95100"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Only profitable trades with entry_price >= 95100
+            for trade in data["trades"]:
+                assert float(trade["pnl"]) > 0
+                assert float(trade["entry_price"]) >= 95100
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_status_and_duration_filter(self, sample_trades, test_account_id):
+        """Test combining status and duration filters."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/trading/trades",
+                params={"status": "CLOSED", "min_duration": "3600"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # All closed trades with duration >= 1 hour
+            assert data["total"] == 5
+            for trade in data["trades"]:
+                assert trade["status"] == "CLOSED"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_all_filters_combined(self, sample_trades, test_account_id):
+        """Test applying all filters at once."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sample_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/trading/trades",
+                params={
+                    "status": "CLOSED",
+                    "profit_filter": "profitable",
+                    "min_entry_price": "95000",
+                    "max_entry_price": "95200",
+                    "min_quantity": "0.001",
+                    "max_quantity": "0.0012",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Verify all filters are applied (AND logic)
+            for trade in data["trades"]:
+                assert trade["status"] == "CLOSED"
+                assert float(trade["pnl"]) > 0
+                assert 95000 <= float(trade["entry_price"]) <= 95200
+                assert 0.001 <= float(trade["quantity"]) <= 0.0012
+        finally:
+            app.dependency_overrides.clear()

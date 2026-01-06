@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 from typing import Annotated
 from uuid import UUID
 
@@ -15,7 +16,16 @@ from src.api.schemas.trading_data import (
     TradesListResponse,
     TradeStatsSchema,
 )
+from src.database.models.trade import Trade
 from src.database.repositories.trade_repository import TradeRepository
+
+
+class ProfitFilter(str, Enum):
+    """Filter trades by profit/loss status."""
+
+    ALL = "all"
+    PROFITABLE = "profitable"
+    LOSSES = "losses"
 
 router = APIRouter(prefix="/trading")
 
@@ -66,6 +76,74 @@ async def get_positions(
         raise HTTPException(status_code=500, detail=f"Failed to fetch positions: {str(e)}") from e
 
 
+def _calculate_duration_seconds(trade: Trade) -> int | None:
+    """Calculate trade duration in seconds.
+
+    Args:
+        trade: Trade instance.
+
+    Returns:
+        Duration in seconds, or None if trade is still open.
+    """
+    if trade.closed_at and trade.opened_at:
+        return int((trade.closed_at - trade.opened_at).total_seconds())
+    return None
+
+
+def _apply_in_memory_filters(
+    trades: list[Trade],
+    *,
+    profit_filter: ProfitFilter = ProfitFilter.ALL,
+    min_duration: int | None = None,
+    max_duration: int | None = None,
+    search_query: str | None = None,
+) -> list[Trade]:
+    """Apply filters that require in-memory processing.
+
+    Args:
+        trades: List of trades to filter.
+        profit_filter: Filter by profit/loss status.
+        min_duration: Minimum duration in seconds.
+        max_duration: Maximum duration in seconds.
+        search_query: Search by exchange_order_id or exchange_tp_order_id.
+
+    Returns:
+        Filtered list of trades.
+    """
+    result = trades
+
+    # Profit filter
+    if profit_filter == ProfitFilter.PROFITABLE:
+        result = [t for t in result if t.pnl is not None and t.pnl > 0]
+    elif profit_filter == ProfitFilter.LOSSES:
+        result = [t for t in result if t.pnl is not None and t.pnl < 0]
+
+    # Duration filter
+    if min_duration is not None or max_duration is not None:
+        filtered_by_duration = []
+        for trade in result:
+            duration = _calculate_duration_seconds(trade)
+            if duration is None:
+                continue  # Skip open trades for duration filter
+            if min_duration is not None and duration < min_duration:
+                continue
+            if max_duration is not None and duration > max_duration:
+                continue
+            filtered_by_duration.append(trade)
+        result = filtered_by_duration
+
+    # Search filter (exact match on exchange order IDs)
+    if search_query:
+        result = [
+            t
+            for t in result
+            if (t.exchange_order_id and search_query in t.exchange_order_id)
+            or (t.exchange_tp_order_id and search_query in t.exchange_tp_order_id)
+        ]
+
+    return result
+
+
 @router.get("/trades", response_model=TradesListResponse)
 async def get_trades(
     account_id: Annotated[UUID, Depends(get_account_id)],
@@ -79,12 +157,45 @@ async def get_trades(
     end_date: Annotated[
         datetime | None, Query(description="Filter trades before this date")
     ] = None,
+    profit_filter: Annotated[
+        ProfitFilter, Query(description="Filter by profit/loss (all, profitable, losses)")
+    ] = ProfitFilter.ALL,
+    min_entry_price: Annotated[
+        Decimal | None, Query(description="Minimum entry price filter")
+    ] = None,
+    max_entry_price: Annotated[
+        Decimal | None, Query(description="Maximum entry price filter")
+    ] = None,
+    min_duration: Annotated[
+        int | None, Query(ge=0, description="Minimum trade duration in seconds")
+    ] = None,
+    max_duration: Annotated[
+        int | None, Query(ge=0, description="Maximum trade duration in seconds")
+    ] = None,
+    min_quantity: Annotated[
+        Decimal | None, Query(description="Minimum trade quantity filter")
+    ] = None,
+    max_quantity: Annotated[
+        Decimal | None, Query(description="Maximum trade quantity filter")
+    ] = None,
+    search_query: Annotated[
+        str | None, Query(description="Search by exchange_order_id or exchange_tp_order_id")
+    ] = None,
     limit: Annotated[
         int, Query(ge=1, le=1000, description="Maximum number of trades to return")
     ] = 100,
     offset: Annotated[int, Query(ge=0, description="Number of trades to skip")] = 0,
 ):
-    """Get trades for the current account with optional filtering and pagination.
+    """Get trades for the current account with advanced filtering and pagination.
+
+    Supports 5 filter types:
+    - profit_filter: Filter by profit/loss status (all, profitable, losses)
+    - price range: Filter by min/max entry price
+    - duration range: Filter by min/max trade duration in seconds
+    - quantity range: Filter by min/max quantity
+    - search: Search by exchange_order_id or exchange_tp_order_id
+
+    All filters combine with AND logic.
 
     Args:
         account_id: Account UUID (injected via dependency)
@@ -92,6 +203,14 @@ async def get_trades(
         status: Optional status filter (OPEN, CLOSED, CANCELLED)
         start_date: Optional start date filter
         end_date: Optional end date filter
+        profit_filter: Filter by profit/loss status
+        min_entry_price: Minimum entry price
+        max_entry_price: Maximum entry price
+        min_duration: Minimum duration in seconds
+        max_duration: Maximum duration in seconds
+        min_quantity: Minimum quantity
+        max_quantity: Maximum quantity
+        search_query: Search string for order IDs
         limit: Maximum number of trades to return (1-1000)
         offset: Number of trades to skip for pagination
 
@@ -108,26 +227,68 @@ async def get_trades(
                 status_code=400, detail="Invalid status. Must be one of: OPEN, CLOSED, CANCELLED"
             )
 
-        # Fetch trades based on filters
-        if start_date and end_date:
-            trades = await trade_repo.get_trades_by_period(account_id, start_date, end_date)
-        elif status:
-            if status == "OPEN":
-                trades = await trade_repo.get_open_trades(account_id)
-            else:
-                # Get all trades and filter by status
-                all_trades = await trade_repo.get_trades_by_account(
-                    account_id, limit=limit + offset, offset=0
+        # Validate price range
+        if min_entry_price is not None and max_entry_price is not None:
+            if min_entry_price > max_entry_price:
+                raise HTTPException(
+                    status_code=400,
+                    detail="min_entry_price cannot be greater than max_entry_price",
                 )
-                trades = [t for t in all_trades if t.status == status]
-        else:
-            trades = await trade_repo.get_trades_by_account(
-                account_id, limit=limit + offset, offset=0
-            )
 
-        # Apply pagination
-        total = len(trades)
-        trades = trades[offset : offset + limit]
+        # Validate quantity range
+        if min_quantity is not None and max_quantity is not None:
+            if min_quantity > max_quantity:
+                raise HTTPException(
+                    status_code=400, detail="min_quantity cannot be greater than max_quantity"
+                )
+
+        # Validate duration range
+        if min_duration is not None and max_duration is not None:
+            if min_duration > max_duration:
+                raise HTTPException(
+                    status_code=400, detail="min_duration cannot be greater than max_duration"
+                )
+
+        # Check if any in-memory filters are applied
+        has_in_memory_filters = (
+            profit_filter != ProfitFilter.ALL
+            or min_duration is not None
+            or max_duration is not None
+            or search_query is not None
+        )
+
+        # When in-memory filters are needed, fetch more records to filter
+        # This is a trade-off: we fetch more from DB to apply filters in memory
+        fetch_limit = limit * 10 if has_in_memory_filters else limit
+        fetch_offset = 0 if has_in_memory_filters else offset
+
+        # Fetch trades with SQL filters
+        trades, sql_total = await trade_repo.get_trades_with_filters(
+            account_id,
+            start_date=start_date,
+            end_date=end_date,
+            status=status,
+            min_entry_price=min_entry_price,
+            max_entry_price=max_entry_price,
+            min_quantity=min_quantity,
+            max_quantity=max_quantity,
+            limit=fetch_limit,
+            offset=fetch_offset,
+        )
+
+        # Apply in-memory filters
+        if has_in_memory_filters:
+            trades = _apply_in_memory_filters(
+                trades,
+                profit_filter=profit_filter,
+                min_duration=min_duration,
+                max_duration=max_duration,
+                search_query=search_query,
+            )
+            total = len(trades)
+            trades = trades[offset : offset + limit]
+        else:
+            total = sql_total
 
         # Convert to schemas
         trade_schemas = [TradeSchema.model_validate(trade) for trade in trades]
