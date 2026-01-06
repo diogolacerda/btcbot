@@ -415,9 +415,7 @@ async def get_trades(
             total = sql_total
 
         # Enrich trades with TP adjustments, duration, and fees
-        trade_schemas = [
-            await _enrich_trade(trade, tp_adjustment_repo) for trade in trades
-        ]
+        trade_schemas = [await _enrich_trade(trade, tp_adjustment_repo) for trade in trades]
 
         return TradesListResponse(
             trades=trade_schemas,
