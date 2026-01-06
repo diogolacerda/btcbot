@@ -46,7 +46,7 @@ echo "Injecting runtime environment variables into JS files..."
 
 # Default values if not provided
 export VITE_API_URL=${VITE_API_URL:-}
-export VITE_API_BASE_PATH=${VITE_API_BASE_PATH:-/api}
+export VITE_API_BASE_PATH=${VITE_API_BASE_PATH:-/api/v1}
 
 echo "VITE_API_URL: ${VITE_API_URL:-'(empty - using nginx proxy)'}"
 echo "VITE_API_BASE_PATH: $VITE_API_BASE_PATH"
