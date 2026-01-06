@@ -21,16 +21,19 @@ interface MarketOverviewCardProps {
   isError: boolean
 }
 
-function formatNumber(num: number, decimals = 2): string {
+function formatNumber(num: number | null | undefined, decimals = 2): string {
+  if (num == null) return '--'
   return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
-function formatPercent(num: number): string {
+function formatPercent(num: number | null | undefined): string {
+  if (num == null) return '--'
   const sign = num >= 0 ? '+' : ''
   return `${sign}${num.toFixed(2)}%`
 }
 
-function formatCurrency(num: number): string {
+function formatCurrency(num: number | null | undefined): string {
+  if (num == null) return '--'
   return `$${formatNumber(num)}`
 }
 

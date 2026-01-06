@@ -192,16 +192,17 @@ class BingXClient:
         params = {"symbol": symbol}
         data = await self._request("GET", endpoint, params, signed=False)
 
+        # Use `or 0` to handle both missing keys AND explicit null values from API
         result = {
             "symbol": symbol,
-            "lastPrice": float(data.get("lastPrice", 0)),
-            "priceChange": float(data.get("priceChange", 0)),
-            "priceChangePercent": float(data.get("priceChangePercent", 0)),
-            "highPrice": float(data.get("highPrice", 0)),
-            "lowPrice": float(data.get("lowPrice", 0)),
-            "volume": float(data.get("volume", 0)),
-            "quoteVolume": float(data.get("quoteVolume", 0)),
-            "openPrice": float(data.get("openPrice", 0)),
+            "lastPrice": float(data.get("lastPrice") or 0),
+            "priceChange": float(data.get("priceChange") or 0),
+            "priceChangePercent": float(data.get("priceChangePercent") or 0),
+            "highPrice": float(data.get("highPrice") or 0),
+            "lowPrice": float(data.get("lowPrice") or 0),
+            "volume": float(data.get("volume") or 0),
+            "quoteVolume": float(data.get("quoteVolume") or 0),
+            "openPrice": float(data.get("openPrice") or 0),
         }
 
         # Add custom cache TTL for ticker (30s)
