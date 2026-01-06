@@ -17,7 +17,7 @@ from src.api.schemas.metrics import (
 from src.database.models.trade import Trade
 from src.database.repositories.trade_repository import TradeRepository
 
-router = APIRouter(prefix="/api/v1/metrics")
+router = APIRouter(prefix="/api/v1/metrics", tags=["Metrics"])
 
 
 def _calculate_period_dates(
@@ -145,7 +145,7 @@ def _calculate_total_metrics(trades: list[Trade]) -> TotalMetrics:
 
 
 @router.get("/performance", response_model=PerformanceMetricsResponse)
-async def get_performance_metrics(
+async def get_performance_metrics_current(
     account_id: Annotated[UUID, Depends(get_account_id)],
     trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
     period: Annotated[
@@ -161,13 +161,79 @@ async def get_performance_metrics(
         Query(description="End date for custom period (required if period=custom)"),
     ] = None,
 ):
-    """Get performance metrics for the current account.
+    """Get performance metrics for the current bot account.
+
+    Uses the global account ID configured at bot startup via get_account_id dependency.
+    This is a convenience endpoint for single-account mode.
 
     Returns both period-specific metrics and all-time total metrics.
-    Account ID is obtained automatically from the global configuration.
 
     Args:
-        account_id: Account UUID (injected via dependency).
+        account_id: Account UUID (injected via get_account_id dependency).
+        trade_repo: Injected trade repository.
+        period: Time period filter (today, 7days, 30days, custom).
+        start_date: Start date for custom period.
+        end_date: End date for custom period.
+
+    Returns:
+        PerformanceMetricsResponse with period and total metrics.
+
+    Raises:
+        HTTPException: If account not configured or database operation fails.
+    """
+
+    try:
+        # Calculate period boundaries
+        period_start, period_end = _calculate_period_dates(period, start_date, end_date)
+
+        # Fetch period trades and all trades in parallel
+        period_trades = await trade_repo.get_trades_by_period(account_id, period_start, period_end)
+        all_trades = await trade_repo.get_trades_by_account(account_id, limit=100000, offset=0)
+
+        # Calculate metrics
+        period_metrics = _calculate_metrics_from_trades(
+            period_trades,
+            period.value,
+            period_start,
+            period_end,
+        )
+        total_metrics = _calculate_total_metrics(all_trades)
+
+        return PerformanceMetricsResponse(
+            period_metrics=period_metrics,
+            total_metrics=total_metrics,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch performance metrics: {str(e)}"
+        ) from e
+
+
+@router.get("/performance/{account_id}", response_model=PerformanceMetricsResponse)
+async def get_performance_metrics(
+    account_id: UUID,
+    trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
+    period: Annotated[
+        TimePeriod,
+        Query(description="Time period for filtering (today, 7days, 30days, custom)"),
+    ] = TimePeriod.TODAY,
+    start_date: Annotated[
+        datetime | None,
+        Query(description="Start date for custom period (required if period=custom)"),
+    ] = None,
+    end_date: Annotated[
+        datetime | None,
+        Query(description="End date for custom period (required if period=custom)"),
+    ] = None,
+):
+    """Get performance metrics for a specific account.
+
+    Returns both period-specific metrics and all-time total metrics.
+
+    Args:
+        account_id: Account UUID to get metrics for.
         trade_repo: Injected trade repository.
         period: Time period filter (today, 7days, 30days, custom).
         start_date: Start date for custom period.
