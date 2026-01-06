@@ -53,14 +53,24 @@ services:
       retries: 3
       start_period: 5s
 
-    # Environment variables - API URL aponta para bot-prod
+    # Environment variables
+    # Note: API/WebSocket calls go through nginx proxy to backend
     environment:
-      - VITE_API_URL=http://192.168.68.99:3100
+      # VITE_API_URL empty - uses nginx proxy for API and WebSocket
+      - VITE_API_URL=
       - VITE_API_BASE_PATH=/api
+      # Backend connection for nginx proxy (uses Docker service name)
+      - BACKEND_HOST=bot-prod
+      - BACKEND_PORT=8081
 
     # Network isolada para Production
     networks:
       - btcbot-prod-network
+
+    # Aguardar backend estar healthy antes de iniciar
+    depends_on:
+      bot-prod:
+        condition: service_healthy
 
   # ---------------------------------------------------------------------------
   # Bot Service - BTC Grid Trading Bot (Production)
