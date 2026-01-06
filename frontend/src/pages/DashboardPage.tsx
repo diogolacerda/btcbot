@@ -61,7 +61,12 @@ export function DashboardPage() {
   })
   const orders = useOrders({ limit: 50 })
   const positions = usePositions({ limit: 20 })
-  const activityEvents = useActivityEvents({ period, limit: 50 })
+  const activityEvents = useActivityEvents({
+    period,
+    startDate: customDates.start,
+    endDate: customDates.end,
+    limit: 50,
+  })
 
   // WebSocket for real-time updates
   const { connectionState } = useDashboardWebSocket({
