@@ -24,7 +24,7 @@ export async function login(credentials: LoginRequest): Promise<User> {
   formData.append('password', credentials.password)
 
   const response = await axiosInstance.post<TokenResponse>(
-    '/v1/auth/login',
+    '/auth/login',
     formData,
     {
       headers: {
@@ -57,7 +57,7 @@ export async function register(userData: RegisterRequest): Promise<User> {
   const snakeCaseData = transformKeysToSnake(userData)
 
   const response = await axiosInstance.post<TokenResponse>(
-    '/v1/auth/register',
+    '/auth/register',
     snakeCaseData
   )
 
@@ -81,7 +81,7 @@ export async function register(userData: RegisterRequest): Promise<User> {
  * Token is automatically injected by axios interceptor
  */
 export async function getCurrentUser(): Promise<User> {
-  const response = await axiosInstance.get<UserResponse>('/v1/auth/me')
+  const response = await axiosInstance.get<UserResponse>('/auth/me')
 
   // Transform response from snake_case to camelCase
   const user = transformKeysToCamel<User>(response.data)
