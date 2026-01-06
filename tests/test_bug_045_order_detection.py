@@ -75,6 +75,8 @@ class TestOrderDetection:
             gm._current_price = 100000.0
             gm._on_order_filled = None
             gm._on_tp_hit = None
+            gm._activity_event_repository = None
+            gm._account_id = None
 
             # Run sync
             await gm._sync_with_exchange()
@@ -112,6 +114,8 @@ class TestOrderDetection:
             gm._current_price = 100000.0
             gm._on_order_filled = None
             gm._on_tp_hit = None
+            gm._activity_event_repository = None
+            gm._account_id = None
 
             await gm._sync_with_exchange()
 
@@ -147,6 +151,8 @@ class TestOrderDetection:
             gm._current_price = 100000.0
             gm._on_order_filled = None
             gm._on_tp_hit = None
+            gm._activity_event_repository = None
+            gm._account_id = None
 
             await gm._sync_with_exchange()
 
@@ -175,6 +181,8 @@ class TestOrderDetection:
             gm._current_price = 100000.0
             gm._on_order_filled = None
             gm._on_tp_hit = None
+            gm._activity_event_repository = None
+            gm._account_id = None
 
             await gm._sync_with_exchange()
 
@@ -211,6 +219,8 @@ class TestOrderDetection:
             gm._current_price = 100000.0
             gm._on_order_filled = None
             gm._on_tp_hit = None
+            gm._activity_event_repository = None
+            gm._account_id = None
 
             await gm._sync_with_exchange()
 
