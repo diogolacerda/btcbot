@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import time
 from collections.abc import Callable
@@ -9,6 +11,7 @@ from uuid import UUID
 from config import Config
 from src.client.bingx_client import BingXClient
 from src.client.websocket_client import BingXAccountWebSocket
+from src.database.models.activity_event import EventType
 from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 from src.grid.dynamic_tp_manager import DynamicTPManager
@@ -18,9 +21,7 @@ from src.strategy.macd_strategy import GridState, MACDStrategy
 from src.utils.logger import main_logger, orders_logger
 
 if TYPE_CHECKING:
-    from src.database.repositories.activity_event_repository import (
-        ActivityEventRepository,
-    )
+    from src.database.repositories.activity_event_repository import ActivityEventRepository
     from src.database.repositories.bot_state_repository import BotStateRepository
     from src.database.repositories.grid_config_repository import GridConfigRepository
     from src.database.repositories.trade_repository import TradeRepository
@@ -64,11 +65,11 @@ class GridManager:
         on_tp_hit: Callable | None = None,
         on_state_change: Callable | None = None,
         account_id: UUID | None = None,
-        bot_state_repository: "BotStateRepository | None" = None,
-        trade_repository: "TradeRepository | None" = None,
-        grid_config_repository: "GridConfigRepository | None" = None,
-        trading_config_repository: "TradingConfigRepository | None" = None,
-        activity_event_repository: "ActivityEventRepository | None" = None,
+        bot_state_repository: BotStateRepository | None = None,
+        trade_repository: TradeRepository | None = None,
+        grid_config_repository: GridConfigRepository | None = None,
+        trading_config_repository: TradingConfigRepository | None = None,
+        activity_event_repository: ActivityEventRepository | None = None,
     ):
         self.config = config
         self.client = client
@@ -130,6 +131,9 @@ class GridManager:
         self._on_tp_hit = on_tp_hit
         self._on_state_change = on_state_change
 
+        # Activity event logging repository (set by main.py)
+        self._activity_event_repository: ActivityEventRepository | None = None
+
         # Dynamic TP Manager
         self.dynamic_tp: DynamicTPManager | None = None
 
@@ -143,19 +147,19 @@ class GridManager:
 
     def _log_activity_event(
         self,
-        event_type: str,
+        event_type: EventType,
         description: str,
         event_data: dict | None = None,
     ) -> None:
-        """Log an activity event to the database (non-blocking).
+        """Log an activity event to the database (fire-and-forget).
 
-        Creates an activity event record for the dashboard timeline.
-        Runs asynchronously to avoid blocking the main bot loop.
+        This method is non-blocking and failures will not crash the bot.
+        Uses asyncio.create_task for fire-and-forget behavior.
 
         Args:
-            event_type: Type of event (from EventType enum).
-            description: Human-readable description of the event.
-            event_data: Optional additional event data as dictionary.
+            event_type: EventType enum value (e.g., EventType.BOT_STARTED)
+            description: Human-readable description of the event
+            event_data: Optional JSON-serializable dict with additional context
         """
         if not self._activity_event_repository or not self._account_id:
             return
@@ -164,7 +168,7 @@ class GridManager:
         repo = self._activity_event_repository
         account_id = self._account_id
 
-        async def _persist_event() -> None:
+        async def _do_log():
             try:
                 await repo.create_event(
                     account_id=account_id,
@@ -172,15 +176,16 @@ class GridManager:
                     description=description,
                     event_data=event_data,
                 )
+                main_logger.debug(f"Activity event logged: {event_type}")
             except Exception as e:
                 main_logger.warning(f"Failed to log activity event: {e}")
 
-        # Schedule task in background (fire and forget)
+        # Fire and forget - don't await, just schedule
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_event())
+            asyncio.create_task(_do_log())
         except RuntimeError:
-            main_logger.debug("No event loop, skipping activity event logging")
+            # No event loop running (e.g., during tests without async context)
+            main_logger.debug("No event loop running, skipping activity event logging")
 
     def _get_anchor_mode_value(self) -> str:
         """
@@ -261,6 +266,18 @@ class GridManager:
         """Start the grid manager."""
         self._running = True
         main_logger.info("Grid Manager iniciando...")
+
+        # Log BOT_STARTED event
+        self._log_activity_event(
+            EventType.BOT_STARTED,
+            "Bot started",
+            {
+                "symbol": self.symbol,
+                "leverage": self.config.trading.leverage,
+                "order_size_usdt": self.order_size,
+                "trading_mode": self.config.trading.mode.value,
+            },
+        )
 
         # Set leverage
         try:
@@ -469,16 +486,16 @@ class GridManager:
                     self._on_order_filled(order)
                 orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
 
-                # Log ORDER_FILLED activity event
+                # Log ORDER_FILLED event
                 self._log_activity_event(
-                    event_type="ORDER_FILLED",
-                    description=f"Grid order filled at ${order.entry_price:,.2f}",
-                    event_data={
+                    EventType.ORDER_FILLED,
+                    f"Order filled at ${order.entry_price:,.2f}",
+                    {
                         "order_id": order_id,
                         "entry_price": order.entry_price,
-                        "quantity": order.quantity,
                         "tp_price": order.tp_price,
-                        "side": "LONG",  # Grid bot only does LONG positions
+                        "quantity": order.quantity,
+                        "source": "websocket",
                     },
                 )
 
@@ -497,22 +514,24 @@ class GridManager:
         # If position closed (amt = 0), mark as TP hit
         if position_amt == 0 and self.tracker.filled_orders:
             for order in list(self.tracker.filled_orders):
-                self.tracker.order_tp_hit(order.order_id, self._current_price)
+                exit_price = self._current_price
+                pnl = (exit_price - order.entry_price) * order.quantity
+                self.tracker.order_tp_hit(order.order_id, exit_price)
                 if self._on_tp_hit:
                     self._on_tp_hit(order)
                 orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
 
-                # Log TRADE_CLOSED activity event
-                profit = (self._current_price - order.entry_price) * order.quantity
+                # Log TRADE_CLOSED event
                 self._log_activity_event(
-                    event_type="TRADE_CLOSED",
-                    description=f"Take profit hit at ${self._current_price:,.2f} (+${profit:,.2f})",
-                    event_data={
+                    EventType.TRADE_CLOSED,
+                    f"Trade closed at ${exit_price:,.2f} (+${pnl:,.2f})",
+                    {
                         "order_id": order.order_id,
                         "entry_price": order.entry_price,
-                        "exit_price": self._current_price,
+                        "exit_price": exit_price,
                         "quantity": order.quantity,
-                        "profit_usdt": profit,
+                        "pnl": pnl,
+                        "source": "websocket",
                     },
                 )
 
@@ -575,6 +594,18 @@ class GridManager:
         """Stop the grid manager and cancel pending LIMIT orders (preserves TPs)."""
         self._running = False
         main_logger.info("Grid Manager encerrando...")
+
+        # Log BOT_STOPPED event (capture state before clearing)
+        self._log_activity_event(
+            EventType.BOT_STOPPED,
+            "Bot stopped",
+            {
+                "pending_orders": len(self.tracker.pending_orders),
+                "open_positions": len(self.tracker.filled_orders),
+                "total_trades": self.tracker.total_trades,
+                "total_pnl": self.tracker.total_pnl,
+            },
+        )
 
         # Parar DynamicTPManager
         if self.dynamic_tp:
@@ -661,6 +692,16 @@ class GridManager:
 
         except Exception as e:
             main_logger.error(f"Erro no update: {e}", exc_info=True)
+            # Log ERROR_OCCURRED event for main loop errors
+            self._log_activity_event(
+                EventType.ERROR_OCCURRED,
+                f"Error in update cycle: {str(e)[:100]}",
+                {
+                    "error_type": "UPDATE_CYCLE_ERROR",
+                    "error_message": str(e)[:500],
+                    "current_state": self._current_state.value,
+                },
+            )
 
     async def _handle_state_change(self, new_state: GridState) -> None:
         """Handle transition to new state."""
@@ -894,11 +935,32 @@ class GridManager:
                     main_logger.warning(
                         "Margem insuficiente - pausando criação de ordens por 5 min"
                     )
+                    # Log ERROR_OCCURRED event for margin error
+                    self._log_activity_event(
+                        EventType.ERROR_OCCURRED,
+                        "Insufficient margin - pausing order creation",
+                        {
+                            "error_type": "MARGIN_ERROR",
+                            "pause_duration_seconds": 300,
+                            "current_price": self._current_price,
+                            "error_message": error_msg[:200],
+                        },
+                    )
                     break
                 elif "over 20 error" in error_msg or "rate limit" in error_msg.lower():
                     # Rate limited - backoff for 8 minutes
                     self._rate_limited_until = time.time() + 480
                     main_logger.warning("Rate limit atingido - pausando por 8 min")
+                    # Log ERROR_OCCURRED event for rate limit
+                    self._log_activity_event(
+                        EventType.ERROR_OCCURRED,
+                        "Rate limit reached - pausing for 8 minutes",
+                        {
+                            "error_type": "RATE_LIMIT",
+                            "pause_duration_seconds": 480,
+                            "error_message": error_msg[:200],
+                        },
+                    )
                     break
                 elif self._consecutive_errors >= 3:
                     # Too many consecutive errors - pause briefly
@@ -1028,6 +1090,19 @@ class GridManager:
                         if self._on_order_filled:
                             self._on_order_filled(order)
                         orders_logger.info(f"Ordem detectada como EXECUTADA: {order.order_id}")
+
+                        # Log ORDER_FILLED event (polling detection)
+                        self._log_activity_event(
+                            EventType.ORDER_FILLED,
+                            f"Order filled at ${order.entry_price:,.2f}",
+                            {
+                                "order_id": order.order_id,
+                                "entry_price": order.entry_price,
+                                "tp_price": order.tp_price,
+                                "quantity": order.quantity,
+                                "source": "polling",
+                            },
+                        )
                     else:
                         # Order was CANCELLED - no position increase
                         self.tracker.cancel_order(order.order_id)
@@ -1038,10 +1113,26 @@ class GridManager:
             if current_position_amt == 0 and self.tracker.filled_orders:
                 for order in list(self.tracker.filled_orders):
                     # Position was closed (TP hit or manual close)
-                    self.tracker.order_tp_hit(order.order_id, self._current_price)
+                    exit_price = self._current_price
+                    pnl = (exit_price - order.entry_price) * order.quantity
+                    self.tracker.order_tp_hit(order.order_id, exit_price)
                     if self._on_tp_hit:
                         self._on_tp_hit(order)
                     orders_logger.info(f"Posição fechada detectada: {order.order_id}")
+
+                    # Log TRADE_CLOSED event (polling detection)
+                    self._log_activity_event(
+                        EventType.TRADE_CLOSED,
+                        f"Trade closed at ${exit_price:,.2f}",
+                        {
+                            "order_id": order.order_id,
+                            "entry_price": order.entry_price,
+                            "exit_price": exit_price,
+                            "quantity": order.quantity,
+                            "pnl": pnl,
+                            "source": "polling",
+                        },
+                    )
 
             # 3. Sync position count - if exchange has fewer positions than tracker
             elif current_position_amt > 0:
@@ -1055,9 +1146,25 @@ class GridManager:
                     for order in list(self.tracker.filled_orders):
                         if excess <= 0:
                             break
-                        self.tracker.order_tp_hit(order.order_id, self._current_price)
+                        exit_price = self._current_price
+                        pnl = (exit_price - order.entry_price) * order.quantity
+                        self.tracker.order_tp_hit(order.order_id, exit_price)
                         excess -= order.quantity
                         orders_logger.info(f"Posição parcial fechada: {order.order_id}")
+
+                        # Log TRADE_CLOSED event (partial close via polling)
+                        self._log_activity_event(
+                            EventType.TRADE_CLOSED,
+                            f"Trade closed (partial) at ${exit_price:,.2f}",
+                            {
+                                "order_id": order.order_id,
+                                "entry_price": order.entry_price,
+                                "exit_price": exit_price,
+                                "quantity": order.quantity,
+                                "pnl": pnl,
+                                "source": "polling_partial",
+                            },
+                        )
 
         except Exception as e:
             main_logger.error(f"Erro no sync: {e}")
@@ -1127,3 +1234,45 @@ class GridManager:
             except RuntimeError:
                 # No event loop running (e.g., during tests without async context)
                 main_logger.debug("No event loop running - skipping async cancellation")
+
+        # Log activity events for state transitions
+        event_data = {
+            "old_state": old_state.value,
+            "new_state": new_state.value,
+            "macd_line": self._last_macd_line,
+            "histogram": self._last_histogram,
+            "pending_orders": self.tracker.pending_count,
+            "open_positions": self.tracker.position_count,
+        }
+
+        # CYCLE_ACTIVATED: when transitioning TO ACTIVATE state (cycle begins)
+        if new_state == GridState.ACTIVATE and old_state != GridState.ACTIVATE:
+            self._log_activity_event(
+                EventType.CYCLE_ACTIVATED,
+                f"Cycle activated ({old_state.value} -> {new_state.value})",
+                event_data,
+            )
+
+        # CYCLE_DEACTIVATED: when transitioning TO INACTIVE state (cycle ends)
+        if new_state == GridState.INACTIVE and old_state != GridState.INACTIVE:
+            self._log_activity_event(
+                EventType.CYCLE_DEACTIVATED,
+                f"Cycle deactivated ({old_state.value} -> {new_state.value})",
+                event_data,
+            )
+
+        # STRATEGY_PAUSED: when transitioning TO PAUSE state
+        if new_state == GridState.PAUSE and old_state != GridState.PAUSE:
+            self._log_activity_event(
+                EventType.STRATEGY_PAUSED,
+                f"Strategy paused ({old_state.value} -> PAUSE)",
+                event_data,
+            )
+
+        # STRATEGY_RESUMED: when transitioning FROM PAUSE to ACTIVE/ACTIVATE
+        if old_state == GridState.PAUSE and new_state in active_states:
+            self._log_activity_event(
+                EventType.STRATEGY_RESUMED,
+                f"Strategy resumed (PAUSE -> {new_state.value})",
+                event_data,
+            )

@@ -431,6 +431,10 @@ class MACDStrategy:
         This method is called during startup to restore the previous state
         if it's still valid (< 24h old).
 
+        NOTE: PAUSE state is NOT restored to prevent the bot from getting
+        stuck. Instead, we restore cycle_activated but let MACD recalculate
+        the current state based on indicators.
+
         Args:
             cycle_activated: Whether cycle was activated
             last_state: Last GridState value
@@ -440,15 +444,26 @@ class MACDStrategy:
 
         # Try to convert last_state to GridState enum
         try:
-            self._prev_state = GridState(last_state.lower())
+            restored_state = GridState(last_state.lower())
         except ValueError:
             macd_logger.warning(f"Invalid last_state '{last_state}', defaulting to WAIT")
-            self._prev_state = GridState.WAIT
+            restored_state = GridState.WAIT
 
-        macd_logger.info(
-            f"Estado restaurado: cycle_activated={cycle_activated}, "
-            f"trigger_activated={self._trigger_activated}, last_state={last_state}"
-        )
+        # BUG FIX: Do NOT restore PAUSE state - let MACD recalculate
+        # This prevents bot from getting stuck in PAUSE after restart
+        if restored_state == GridState.PAUSE:
+            macd_logger.info(
+                f"Previous state was PAUSE - not restoring, will recalculate from MACD. "
+                f"cycle_activated={cycle_activated}"
+            )
+            # Don't set _prev_state - leave as None so get_state() determines fresh state
+            self._prev_state = None
+        else:
+            self._prev_state = restored_state
+            macd_logger.info(
+                f"Estado restaurado: cycle_activated={cycle_activated}, "
+                f"trigger_activated={self._trigger_activated}, last_state={last_state}"
+            )
 
     def should_create_orders(self, state: GridState) -> bool:
         """

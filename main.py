@@ -258,20 +258,26 @@ async def run_bot() -> None:
         )()
 
         # Create a wrapper activity event repository that creates sessions on demand
-        async def _create_activity_event_with_session(
-            account_id, event_type, description, **kwargs
+        async def _log_activity_event_with_session(
+            account_id, event_type, description, event_data=None, timestamp=None
         ):
-            """Helper to create activity event with a new session."""
+            """Helper to log activity event with a new session."""
             async for session in get_session():
                 repo = ActivityEventRepository(session)
-                return await repo.create_event(account_id, event_type, description, **kwargs)
+                return await repo.create_event(
+                    account_id=account_id,
+                    event_type=event_type,
+                    description=description,
+                    event_data=event_data,
+                    timestamp=timestamp,
+                )
 
-        # Monkey-patch the repository into the grid manager
+        # Configure wrapper in GridManager
         grid_manager._activity_event_repository = type(
             "ActivityEventRepositoryWrapper",
             (),
             {
-                "create_event": lambda self, *args, **kwargs: _create_activity_event_with_session(
+                "create_event": lambda self, *args, **kwargs: _log_activity_event_with_session(
                     *args, **kwargs
                 ),
             },
