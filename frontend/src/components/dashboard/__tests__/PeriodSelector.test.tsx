@@ -109,7 +109,8 @@ describe('PeriodSelector', () => {
 
       await user.click(screen.getByRole('button', { name: 'Apply' }))
 
-      expect(onChange).toHaveBeenCalledWith('custom', '2025-01-01', '2025-01-06')
+      // Dates should be converted to ISO 8601 format with timezone
+      expect(onChange).toHaveBeenCalledWith('custom', '2025-01-01T00:00:00Z', '2025-01-06T23:59:59Z')
     })
 
     it('hides date picker after Apply is clicked', async () => {

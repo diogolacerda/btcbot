@@ -151,3 +151,68 @@ class TradesListResponse(BaseModel):
     total: int = Field(..., description="Total number of trades")
     limit: int = Field(..., description="Pagination limit")
     offset: int = Field(..., description="Pagination offset")
+
+
+class BestWorstTradeSchema(BaseModel):
+    """Schema for best or worst trade details."""
+
+    id: UUID | None = Field(None, description="Trade UUID (null if no trades)")
+    pnl: Decimal = Field(..., description="Profit and loss")
+    date: datetime | None = Field(None, description="Trade close date (null if no trades)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "pnl": "15.50",
+                "date": "2026-01-05T14:30:00Z",
+            }
+        },
+    }
+
+
+class PerformanceMetricsSchema(BaseModel):
+    """Schema for performance metrics endpoint response.
+
+    Includes comprehensive trading analytics with ROI based on capital employed.
+    """
+
+    total_pnl: Decimal = Field(..., description="Sum of all P&L (USDT)")
+    roi: Decimal = Field(
+        ..., description="Return on Investment: (totalPnl / capital_employed) * 100"
+    )
+    total_trades: int = Field(..., description="Total number of closed trades")
+    winning_trades: int = Field(..., description="Number of trades with positive P&L")
+    losing_trades: int = Field(..., description="Number of trades with negative P&L")
+    win_rate: Decimal = Field(..., description="Win rate percentage: (winning / total) * 100")
+    avg_profit: Decimal = Field(..., description="Average profit per trade: totalPnl / totalTrades")
+    best_trade: BestWorstTradeSchema = Field(..., description="Trade with highest P&L")
+    worst_trade: BestWorstTradeSchema = Field(..., description="Trade with lowest P&L")
+    period_start: datetime | None = Field(None, description="Period start date (if filtered)")
+    period_end: datetime | None = Field(None, description="Period end date (if filtered)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "total_pnl": "250.75",
+                "roi": "2.51",
+                "total_trades": 100,
+                "winning_trades": 65,
+                "losing_trades": 35,
+                "win_rate": "65.00",
+                "avg_profit": "2.51",
+                "best_trade": {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "pnl": "25.50",
+                    "date": "2026-01-05T14:30:00Z",
+                },
+                "worst_trade": {
+                    "id": "456e7890-e89b-12d3-a456-426614174001",
+                    "pnl": "-12.25",
+                    "date": "2026-01-04T09:15:00Z",
+                },
+                "period_start": "2026-01-01T00:00:00Z",
+                "period_end": "2026-01-05T23:59:59Z",
+            }
+        },
+    }

@@ -1,6 +1,6 @@
 """Trading data API endpoints for positions, trades, and statistics."""
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Annotated
@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from src.api.dependencies import get_account_id, get_trade_repository
 from src.api.schemas.trading_data import (
+    BestWorstTradeSchema,
+    PerformanceMetricsSchema,
     PositionSchema,
     PositionsListResponse,
     TradeSchema,
@@ -28,7 +30,16 @@ class ProfitFilter(str, Enum):
     LOSSES = "losses"
 
 
-router = APIRouter(prefix="/trading")
+class PeriodFilter(str, Enum):
+    """Period options for performance metrics filtering."""
+
+    TODAY = "today"
+    SEVEN_DAYS = "7days"
+    THIRTY_DAYS = "30days"
+    CUSTOM = "custom"
+
+
+router = APIRouter(prefix="/api/v1/trading")
 
 
 @router.get("/positions", response_model=PositionsListResponse)
@@ -405,3 +416,178 @@ async def get_trade_stats(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to calculate stats: {str(e)}") from e
+
+
+def _calculate_period_dates(
+    period: PeriodFilter,
+    start_date: datetime | None,
+    end_date: datetime | None,
+) -> tuple[datetime, datetime]:
+    """Calculate start and end dates based on period type.
+
+    Args:
+        period: The period filter enum value.
+        start_date: Custom start date (required for CUSTOM period).
+        end_date: Custom end date (required for CUSTOM period).
+
+    Returns:
+        Tuple of (start_datetime, end_datetime).
+
+    Raises:
+        HTTPException: If custom period is selected but dates are missing.
+    """
+    now = datetime.now(UTC)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    if period == PeriodFilter.TODAY:
+        return today_start, now
+    elif period == PeriodFilter.SEVEN_DAYS:
+        return today_start - timedelta(days=6), now
+    elif period == PeriodFilter.THIRTY_DAYS:
+        return today_start - timedelta(days=29), now
+    else:  # CUSTOM
+        if not start_date or not end_date:
+            raise HTTPException(
+                status_code=400,
+                detail="start_date and end_date are required for custom period",
+            )
+        return start_date, end_date
+
+
+def _find_best_worst_trades(
+    trades: list[Trade],
+) -> tuple[BestWorstTradeSchema, BestWorstTradeSchema]:
+    """Find the best and worst trades from a list.
+
+    Args:
+        trades: List of closed Trade objects with non-null pnl.
+
+    Returns:
+        Tuple of (best_trade, worst_trade) schemas.
+    """
+    if not trades:
+        return (
+            BestWorstTradeSchema(id=None, pnl=Decimal("0"), date=None),
+            BestWorstTradeSchema(id=None, pnl=Decimal("0"), date=None),
+        )
+
+    # Find best trade (max pnl)
+    best = max(trades, key=lambda t: t.pnl if t.pnl is not None else Decimal("-999999"))
+    # Find worst trade (min pnl)
+    worst = min(trades, key=lambda t: t.pnl if t.pnl is not None else Decimal("999999"))
+
+    return (
+        BestWorstTradeSchema(
+            id=best.id,
+            pnl=Decimal(str(best.pnl)).quantize(Decimal("0.01")) if best.pnl else Decimal("0"),
+            date=best.closed_at,
+        ),
+        BestWorstTradeSchema(
+            id=worst.id,
+            pnl=Decimal(str(worst.pnl)).quantize(Decimal("0.01")) if worst.pnl else Decimal("0"),
+            date=worst.closed_at,
+        ),
+    )
+
+
+@router.get("/performance-metrics", response_model=PerformanceMetricsSchema)
+async def get_performance_metrics(
+    account_id: Annotated[UUID, Depends(get_account_id)],
+    trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
+    period: Annotated[
+        PeriodFilter,
+        Query(description="Time period for filtering (today, 7days, 30days, custom)"),
+    ] = PeriodFilter.TODAY,
+    start_date: Annotated[
+        datetime | None,
+        Query(description="Start date for custom period (required if period=custom)"),
+    ] = None,
+    end_date: Annotated[
+        datetime | None,
+        Query(description="End date for custom period (required if period=custom)"),
+    ] = None,
+):
+    """Get performance metrics for the current account.
+
+    Calculates comprehensive trading analytics including:
+    - Total P&L and ROI based on capital employed
+    - Win rate and trade counts
+    - Best and worst trades with full details (id, pnl, date)
+
+    The ROI is calculated as: (totalPnl / sum(entryPrice * quantity)) * 100
+
+    Args:
+        account_id: Account UUID (injected via get_account_id dependency).
+        trade_repo: Injected trade repository.
+        period: Time period filter (today, 7days, 30days, custom).
+        start_date: Start date for custom period.
+        end_date: End date for custom period.
+
+    Returns:
+        PerformanceMetricsSchema with all calculated metrics.
+
+    Raises:
+        HTTPException: If database operation fails or invalid parameters.
+    """
+    try:
+        # Calculate period boundaries
+        period_start, period_end = _calculate_period_dates(period, start_date, end_date)
+
+        # Fetch trades for the period
+        trades = await trade_repo.get_trades_by_period(account_id, period_start, period_end)
+
+        # Filter to closed trades with P&L
+        closed_trades = [t for t in trades if t.status == "CLOSED" and t.pnl is not None]
+
+        # Calculate basic counts
+        total_trades = len(closed_trades)
+        winning_trades = sum(1 for t in closed_trades if t.pnl is not None and t.pnl > 0)
+        losing_trades = sum(1 for t in closed_trades if t.pnl is not None and t.pnl < 0)
+
+        # Calculate total P&L
+        total_pnl_sum = sum(t.pnl for t in closed_trades if t.pnl is not None)
+        total_pnl = Decimal(str(total_pnl_sum)) if total_pnl_sum else Decimal("0")
+
+        # Calculate capital employed (sum of entry_price * quantity)
+        capital_employed = sum(t.entry_price * t.quantity for t in closed_trades)
+        capital_employed_decimal = (
+            Decimal(str(capital_employed)) if capital_employed else Decimal("0")
+        )
+
+        # Calculate ROI: (totalPnl / capital_employed) * 100
+        roi = Decimal("0")
+        if capital_employed_decimal > 0:
+            roi = (total_pnl / capital_employed_decimal) * Decimal("100")
+
+        # Calculate win rate
+        win_rate = Decimal("0")
+        if total_trades > 0:
+            win_rate = (Decimal(winning_trades) / Decimal(total_trades)) * Decimal("100")
+
+        # Calculate average profit per trade
+        avg_profit = Decimal("0")
+        if total_trades > 0:
+            avg_profit = total_pnl / Decimal(total_trades)
+
+        # Find best and worst trades
+        best_trade, worst_trade = _find_best_worst_trades(closed_trades)
+
+        return PerformanceMetricsSchema(
+            total_pnl=total_pnl.quantize(Decimal("0.01")),
+            roi=roi.quantize(Decimal("0.01")),
+            total_trades=total_trades,
+            winning_trades=winning_trades,
+            losing_trades=losing_trades,
+            win_rate=win_rate.quantize(Decimal("0.01")),
+            avg_profit=avg_profit.quantize(Decimal("0.01")),
+            best_trade=best_trade,
+            worst_trade=worst_trade,
+            period_start=period_start,
+            period_end=period_end,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to calculate performance metrics: {str(e)}"
+        ) from e

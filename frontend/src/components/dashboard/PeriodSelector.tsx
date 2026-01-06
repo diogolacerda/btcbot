@@ -37,7 +37,12 @@ export function PeriodSelector({ value, onChange, className = '' }: PeriodSelect
 
   const handleCustomApply = () => {
     if (startDate && endDate) {
-      onChange('custom', startDate, endDate)
+      // Convert dates to ISO 8601 format with timezone for backend compatibility
+      // startDate: beginning of day (00:00:00Z)
+      // endDate: end of day (23:59:59Z)
+      const isoStartDate = `${startDate}T00:00:00Z`
+      const isoEndDate = `${endDate}T23:59:59Z`
+      onChange('custom', isoStartDate, isoEndDate)
       setShowDatePicker(false)
     }
   }
