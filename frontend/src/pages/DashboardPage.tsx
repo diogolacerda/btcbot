@@ -7,9 +7,8 @@
  */
 
 import { useState, useCallback } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
-import { axiosInstance } from '@/lib/axios'
 import type { TimePeriod, OrderSchema } from '@/types/api'
 
 // Data hooks
@@ -23,6 +22,7 @@ import {
   dashboardKeys,
 } from '@/hooks/useDashboardData'
 import { useDashboardWebSocket } from '@/hooks/useDashboardWebSocket'
+import { useBotControl } from '@/hooks/useBotControl'
 
 // Dashboard components
 import {
@@ -37,7 +37,7 @@ import {
   PositionDetailsModal,
 } from '@/components/dashboard'
 
-type BotAction = 'start' | 'stop' | 'pause' | null
+type BotAction = 'start' | 'stop' | 'pause' | 'resume' | null
 
 export function DashboardPage() {
   const { user } = useAuth()
@@ -83,27 +83,14 @@ export function DashboardPage() {
     },
   })
 
-  // Bot control mutations
-  const startBot = useMutation({
-    mutationFn: () => axiosInstance.post('/bot/start'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.botStatus() })
-    },
-  })
-
-  const stopBot = useMutation({
-    mutationFn: () => axiosInstance.post('/bot/stop'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.botStatus() })
-    },
-  })
-
-  const pauseBot = useMutation({
-    mutationFn: () => axiosInstance.post('/bot/pause'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.botStatus() })
-    },
-  })
+  // Bot control mutations with notifications (FE-DASH-004)
+  const {
+    startBot,
+    stopBot,
+    pauseBot,
+    resumeBot,
+    isPending: isControlLoading,
+  } = useBotControl()
 
   // Handlers
   const handlePeriodChange = useCallback((newPeriod: TimePeriod, startDate?: string, endDate?: string) => {
@@ -130,9 +117,12 @@ export function DashboardPage() {
       case 'pause':
         pauseBot.mutate()
         break
+      case 'resume':
+        resumeBot.mutate()
+        break
     }
     setConfirmAction(null)
-  }, [confirmAction, startBot, stopBot, pauseBot])
+  }, [confirmAction, startBot, stopBot, pauseBot, resumeBot])
 
   const handleCancelAction = useCallback(() => {
     setConfirmAction(null)
@@ -170,13 +160,19 @@ export function DashboardPage() {
           confirmLabel: 'Pause',
           variant: 'default' as const,
         }
+      case 'resume':
+        return {
+          title: 'Resume Bot',
+          message: 'Are you sure you want to resume the trading bot? It will continue placing orders according to the configured strategy.',
+          confirmLabel: 'Resume',
+          variant: 'default' as const,
+        }
       default:
         return { title: '', message: '', confirmLabel: '', variant: 'default' as const }
     }
   }
 
   const dialogContent = getConfirmDialogContent()
-  const isControlLoading = startBot.isPending || stopBot.isPending || pauseBot.isPending
   const currentPrice = marketData.price.data?.price
 
   return (
@@ -219,6 +215,7 @@ export function DashboardPage() {
               onStart={() => handleBotAction('start')}
               onStop={() => handleBotAction('stop')}
               onPause={() => handleBotAction('pause')}
+              onResume={() => handleBotAction('resume')}
               isControlLoading={isControlLoading}
             />
             <MarketOverviewCard

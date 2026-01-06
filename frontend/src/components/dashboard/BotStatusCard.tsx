@@ -14,6 +14,7 @@ interface BotStatusCardProps {
   onStart?: () => void
   onStop?: () => void
   onPause?: () => void
+  onResume?: () => void
   isControlLoading?: boolean
 }
 
@@ -35,6 +36,7 @@ export function BotStatusCard({
   onStart,
   onStop,
   onPause,
+  onResume,
   isControlLoading = false,
 }: BotStatusCardProps) {
   if (isLoading) {
@@ -60,6 +62,7 @@ export function BotStatusCard({
 
   const stateConfig = STATE_CONFIG[data.state] || STATE_CONFIG.INACTIVE
   const isRunning = data.status === 'running'
+  const isPaused = data.state === 'PAUSE'
 
   return (
     <div className="bg-card border border-border rounded-lg p-6">
@@ -123,13 +126,23 @@ export function BotStatusCard({
       <div className="flex gap-2">
         {isRunning ? (
           <>
-            <button
-              onClick={onPause}
-              disabled={isControlLoading || data.state === 'PAUSE'}
-              className="flex-1 px-4 py-2 text-sm font-medium bg-yellow-500/10 text-yellow-600 rounded-md hover:bg-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {data.state === 'PAUSE' ? 'Paused' : 'Pause'}
-            </button>
+            {isPaused ? (
+              <button
+                onClick={onResume}
+                disabled={isControlLoading}
+                className="flex-1 px-4 py-2 text-sm font-medium bg-green-500/10 text-green-600 rounded-md hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Resume
+              </button>
+            ) : (
+              <button
+                onClick={onPause}
+                disabled={isControlLoading}
+                className="flex-1 px-4 py-2 text-sm font-medium bg-yellow-500/10 text-yellow-600 rounded-md hover:bg-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Pause
+              </button>
+            )}
             <button
               onClick={onStop}
               disabled={isControlLoading}
