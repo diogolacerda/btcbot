@@ -45,9 +45,18 @@ services:
       start_period: 5s
 
     # Environment variables
+    # Note: API/WebSocket calls go through nginx proxy to backend
     environment:
-      - VITE_API_URL=http://localhost:8081
+      # VITE_API_URL can be empty (uses nginx proxy) or set to backend URL for direct access
+      - VITE_API_URL=
       - VITE_API_BASE_PATH=/api
+      # Backend connection for nginx proxy
+      - BACKEND_HOST=host.docker.internal
+      - BACKEND_PORT=8081
+
+    # Extra hosts to allow container to reach host machine
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
     # Network para desenvolvimento
     networks:

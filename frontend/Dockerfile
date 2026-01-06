@@ -23,11 +23,11 @@ RUN npm run build
 # ============================================
 FROM nginx:alpine
 
-# Install bash for runtime env injection script
-RUN apk add --no-cache bash
+# Install bash and gettext (for envsubst) for runtime configuration
+RUN apk add --no-cache bash gettext
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx configuration template
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
@@ -37,15 +37,18 @@ RUN cat > /docker-entrypoint.sh << 'EOF'
 #!/bin/bash
 set -e
 
-# Replace env vars in JS files at runtime
-# This allows changing API_URL without rebuilding the image
-echo "Injecting runtime environment variables..."
+echo "=== BTC Grid Bot Frontend Startup ==="
+
+# ---------------------------------------------------------------------------
+# 1. Inject environment variables into JavaScript files
+# ---------------------------------------------------------------------------
+echo "Injecting runtime environment variables into JS files..."
 
 # Default values if not provided
-export VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
+export VITE_API_URL=${VITE_API_URL:-}
 export VITE_API_BASE_PATH=${VITE_API_BASE_PATH:-/api}
 
-echo "VITE_API_URL: $VITE_API_URL"
+echo "VITE_API_URL: ${VITE_API_URL:-'(empty - using nginx proxy)'}"
 echo "VITE_API_BASE_PATH: $VITE_API_BASE_PATH"
 
 # Find all JS files and replace placeholders
@@ -54,7 +57,35 @@ find /usr/share/nginx/html -type f -name '*.js' -exec sed -i \
   -e "s|__VITE_API_BASE_PATH__|$VITE_API_BASE_PATH|g" \
   {} \;
 
-echo "Environment variables injected successfully"
+echo "Environment variables injected into JS files"
+
+# ---------------------------------------------------------------------------
+# 2. Process nginx configuration template
+# ---------------------------------------------------------------------------
+echo "Processing nginx configuration template..."
+
+# Default backend configuration for nginx proxy
+export BACKEND_HOST=${BACKEND_HOST:-localhost}
+export BACKEND_PORT=${BACKEND_PORT:-8081}
+
+echo "BACKEND_HOST: $BACKEND_HOST"
+echo "BACKEND_PORT: $BACKEND_PORT"
+
+# Use envsubst to replace environment variables in nginx config template
+# Only substitute the specific variables we want (prevents replacing other $variables)
+envsubst '${BACKEND_HOST} ${BACKEND_PORT}' \
+  < /etc/nginx/templates/default.conf.template \
+  > /etc/nginx/conf.d/default.conf
+
+echo "Nginx configuration processed"
+
+# ---------------------------------------------------------------------------
+# 3. Test nginx configuration
+# ---------------------------------------------------------------------------
+echo "Testing nginx configuration..."
+nginx -t
+
+echo "=== Frontend startup complete ==="
 
 # Start nginx
 exec nginx -g 'daemon off;'
