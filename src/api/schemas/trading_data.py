@@ -7,6 +7,53 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class TpAdjustmentSchema(BaseModel):
+    """Schema for a Take Profit adjustment record.
+
+    Represents a single TP adjustment made by the Dynamic TP Manager,
+    showing when and why the take profit target was changed.
+    """
+
+    timestamp: datetime = Field(..., description="When the adjustment was made")
+    old_tp: Decimal = Field(..., description="Previous TP percentage")
+    new_tp: Decimal = Field(..., description="New TP percentage")
+    reason: str = Field(..., description="Reason for adjustment (funding rate impact)")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "timestamp": "2026-01-03T18:30:00Z",
+                "old_tp": "0.5",
+                "new_tp": "0.6",
+                "reason": "Funding rate: 0.01%, accumulated: 0.5%, 8.5h open",
+            }
+        },
+    }
+
+
+class TradeFeesSchema(BaseModel):
+    """Schema for trade fee breakdown and net P&L.
+
+    Provides a detailed view of fees and the true profit after all costs.
+    """
+
+    trading_fee: Decimal = Field(..., description="Trading fees paid")
+    funding_fee: Decimal = Field(..., description="Funding fees paid/received")
+    net_pnl: Decimal = Field(
+        ..., description="Net P&L after all fees (pnl - trading_fee - funding_fee)"
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "trading_fee": "0.05",
+                "funding_fee": "0.01",
+                "net_pnl": "0.44",
+            }
+        },
+    }
+
+
 class PositionSchema(BaseModel):
     """Schema for an open position."""
 
@@ -41,7 +88,7 @@ class PositionSchema(BaseModel):
 
 
 class TradeSchema(BaseModel):
-    """Schema for a completed trade."""
+    """Schema for a completed trade with TP adjustment history and fees breakdown."""
 
     id: UUID = Field(..., description="Trade UUID")
     account_id: UUID = Field(..., description="Account UUID")
@@ -66,6 +113,20 @@ class TradeSchema(BaseModel):
     closed_at: datetime | None = Field(None, description="Closing timestamp")
     created_at: datetime = Field(..., description="Record creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+
+    # New fields for BE-TRADE-003
+    duration: int | None = Field(
+        None,
+        description="Trade duration in seconds (null for open trades)",
+    )
+    fees: TradeFeesSchema | None = Field(
+        None,
+        description="Fee breakdown with net P&L calculation",
+    )
+    tp_adjustments: list[TpAdjustmentSchema] = Field(
+        default_factory=list,
+        description="History of TP adjustments made by Dynamic TP Manager",
+    )
 
     model_config = {
         "from_attributes": True,
@@ -92,6 +153,20 @@ class TradeSchema(BaseModel):
                 "closed_at": "2026-01-03T18:05:00Z",
                 "created_at": "2026-01-03T18:00:00Z",
                 "updated_at": "2026-01-03T18:05:00Z",
+                "duration": 300,
+                "fees": {
+                    "trading_fee": "0.05",
+                    "funding_fee": "0.01",
+                    "net_pnl": "0.44",
+                },
+                "tp_adjustments": [
+                    {
+                        "timestamp": "2026-01-03T18:02:00Z",
+                        "old_tp": "0.5",
+                        "new_tp": "0.55",
+                        "reason": "Funding rate: 0.01%, accumulated: 0.2%, 2h open",
+                    }
+                ],
             }
         },
     }
