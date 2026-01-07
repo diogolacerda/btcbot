@@ -360,11 +360,7 @@ class TradeRepository(BaseRepository[Trade]):
 
             # Get paginated results with sorting
             stmt = (
-                select(Trade)
-                .where(*conditions)
-                .order_by(order_clause)
-                .limit(limit)
-                .offset(offset)
+                select(Trade).where(*conditions).order_by(order_clause).limit(limit).offset(offset)
             )
             result = await self.session.execute(stmt)
             trades = list(result.scalars().all())
