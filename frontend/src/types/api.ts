@@ -460,3 +460,91 @@ export interface CumulativePnlResponse {
   periodStart: string | null
   periodEnd: string | null
 }
+
+// ============================================================================
+// Strategy API Types (FE-STRAT-001)
+// ============================================================================
+
+export type MarginMode = 'crossed' | 'isolated'
+export type SpacingType = 'fixed' | 'percentage'
+export type AnchorMode = 'none' | 'hundred' | 'thousand'
+
+export interface StrategyResponse {
+  id: string
+  accountId: string
+  name: string
+  isActive: boolean
+  symbol: string
+  leverage: number
+  orderSizeUsdt: number
+  marginMode: MarginMode
+  takeProfitPercent: number
+  tpDynamicEnabled: boolean
+  tpDynamicBase: number
+  tpDynamicMin: number
+  tpDynamicMax: number
+  tpDynamicSafetyMargin: number
+  tpDynamicCheckInterval: number
+  spacingType: SpacingType
+  spacingValue: number
+  rangePercent: number
+  maxTotalOrders: number
+  anchorMode: AnchorMode
+  anchorThreshold: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface StrategyCreateRequest {
+  name: string
+  isActive?: boolean
+  symbol?: string
+  leverage?: number
+  orderSizeUsdt?: number
+  marginMode?: MarginMode
+  takeProfitPercent?: number
+  tpDynamicEnabled?: boolean
+  tpDynamicBase?: number
+  tpDynamicMin?: number
+  tpDynamicMax?: number
+  tpDynamicSafetyMargin?: number
+  tpDynamicCheckInterval?: number
+  spacingType?: SpacingType
+  spacingValue?: number
+  rangePercent?: number
+  maxTotalOrders?: number
+  anchorMode?: AnchorMode
+  anchorThreshold?: number
+}
+
+export interface StrategyUpdateRequest {
+  name?: string
+  isActive?: boolean
+  symbol?: string
+  leverage?: number
+  orderSizeUsdt?: number
+  marginMode?: MarginMode
+  takeProfitPercent?: number
+  tpDynamicEnabled?: boolean
+  tpDynamicBase?: number
+  tpDynamicMin?: number
+  tpDynamicMax?: number
+  tpDynamicSafetyMargin?: number
+  tpDynamicCheckInterval?: number
+  spacingType?: SpacingType
+  spacingValue?: number
+  rangePercent?: number
+  maxTotalOrders?: number
+  anchorMode?: AnchorMode
+  anchorThreshold?: number
+}
+
+export interface StrategyActivateResponse {
+  message: string
+  strategy: StrategyResponse
+}
+
+export interface StrategiesListResponse {
+  strategies: StrategyResponse[]
+  total: number
+}
