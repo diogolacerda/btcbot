@@ -17,6 +17,7 @@ from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
 from src.database.repositories.activity_event_repository import ActivityEventRepository
 from src.database.repositories.bot_state_repository import BotStateRepository
+from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
 from src.database.repositories.strategy_repository import StrategyRepository
 from src.database.repositories.trade_repository import TradeRepository
 from src.grid.grid_manager import GridManager
@@ -196,13 +197,33 @@ async def run_bot() -> None:
                 repo = StrategyRepository(session)
                 return await repo.get_active_by_account(account_id)
 
-        # Monkey-patch the strategy repository into the grid manager
-        grid_manager._strategy_repository = type(
+        # Monkey-patch the strategy repository into the grid manager and strategy
+        strategy_repo_wrapper = type(
             "StrategyRepositoryWrapper",
             (),
             {
                 "get_active_by_account": lambda self, *args, **kwargs: (
                     _get_active_strategy_with_session(*args, **kwargs)
+                ),
+            },
+        )()
+        grid_manager._strategy_repository = strategy_repo_wrapper
+        grid_manager.strategy._strategy_repository = strategy_repo_wrapper
+
+        # Create a wrapper MACD filter config repository for MACDStrategy
+        async def _get_macd_config_by_strategy_with_session(strategy_id):
+            """Helper to get MACD filter config with a new session."""
+            async for session in get_session():
+                repo = MACDFilterConfigRepository(session)
+                return await repo.get_by_strategy(strategy_id)
+
+        # Monkey-patch the MACD filter config repository into the strategy
+        grid_manager.strategy._macd_filter_config_repository = type(
+            "MACDFilterConfigRepositoryWrapper",
+            (),
+            {
+                "get_by_strategy": lambda self, *args, **kwargs: (
+                    _get_macd_config_by_strategy_with_session(*args, **kwargs)
                 ),
             },
         )()

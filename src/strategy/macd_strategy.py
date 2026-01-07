@@ -15,6 +15,8 @@ from src.utils.logger import macd_logger
 
 if TYPE_CHECKING:
     from src.database.repositories.bot_state_repository import BotStateRepository
+    from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
+    from src.database.repositories.strategy_repository import StrategyRepository
 
 # Suppress numpy overflow warnings - we'll handle them explicitly
 warnings.filterwarnings("ignore", category=RuntimeWarning, message="overflow encountered")
@@ -90,16 +92,95 @@ class MACDStrategy:
         config: MACDConfig,
         account_id: UUID | None = None,
         bot_state_repository: "BotStateRepository | None" = None,
+        strategy_repository: "StrategyRepository | None" = None,
+        macd_filter_config_repository: "MACDFilterConfigRepository | None" = None,
     ):
+        # Default values from config (env vars)
         self.fast = config.fast
         self.slow = config.slow
         self.signal = config.signal
         self.timeframe = config.timeframe
+        self._macd_enabled = True  # Default: MACD filter enabled
+
         self._prev_state: GridState | None = None
         self._cycle_activated: bool = False  # Só True após passar por ACTIVATE
         self._trigger_activated: bool = False  # Can be manually overridden via API
         self._account_id = account_id
         self._bot_state_repository = bot_state_repository
+
+        # DB repositories for dynamic config loading
+        self._strategy_repository = strategy_repository
+        self._macd_filter_config_repository = macd_filter_config_repository
+        self._db_config_loaded = False
+
+    async def load_config_from_db(self) -> bool:
+        """Load MACD filter configuration from database.
+
+        Fetches the active strategy for the account and its associated
+        MACDFilterConfig. Updates instance attributes with DB values.
+
+        Returns:
+            True if config was loaded from DB, False if using defaults.
+
+        Note:
+            If no active strategy or no MACDFilterConfig exists, keeps
+            the default values from MACDConfig (env vars).
+        """
+        if self._db_config_loaded:
+            return True
+
+        if not self._account_id:
+            macd_logger.debug("No account_id, using default MACD config")
+            return False
+
+        if not self._strategy_repository or not self._macd_filter_config_repository:
+            macd_logger.debug("No repositories available, using default MACD config")
+            return False
+
+        try:
+            # Get active strategy for account
+            strategy = await self._strategy_repository.get_active_by_account(self._account_id)
+            if not strategy:
+                macd_logger.info(
+                    f"No active strategy for account {self._account_id}, using default MACD config"
+                )
+                self._db_config_loaded = True
+                return False
+
+            # Get MACD filter config for strategy
+            macd_config = await self._macd_filter_config_repository.get_by_strategy(strategy.id)
+            if not macd_config:
+                macd_logger.info(
+                    f"No MACDFilterConfig for strategy {strategy.id}, using default MACD config"
+                )
+                self._db_config_loaded = True
+                return False
+
+            # Update instance with DB values
+            self.fast = macd_config.fast_period
+            self.slow = macd_config.slow_period
+            self.signal = macd_config.signal_period
+            self.timeframe = macd_config.timeframe
+            self._macd_enabled = macd_config.enabled
+
+            self._db_config_loaded = True
+            macd_logger.info(
+                f"Loaded MACD config from DB: fast={self.fast}, slow={self.slow}, "
+                f"signal={self.signal}, timeframe={self.timeframe}, enabled={self._macd_enabled}"
+            )
+            return True
+
+        except Exception as e:
+            macd_logger.warning(f"Failed to load MACD config from DB: {e}, using defaults")
+            return False
+
+    @property
+    def is_macd_enabled(self) -> bool:
+        """Check if MACD filter is enabled.
+
+        When disabled, the filter always returns True (allows trading).
+        """
+        return self._macd_enabled
 
     def _schedule_persist_state(
         self, cycle_activated: bool, last_state: str, *, is_manual: bool = False

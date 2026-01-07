@@ -22,6 +22,7 @@ from src.utils.logger import main_logger, orders_logger
 if TYPE_CHECKING:
     from src.database.repositories.activity_event_repository import ActivityEventRepository
     from src.database.repositories.bot_state_repository import BotStateRepository
+    from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
     from src.database.repositories.strategy_repository import StrategyRepository
     from src.database.repositories.trade_repository import TradeRepository
 
@@ -66,6 +67,7 @@ class GridManager:
         bot_state_repository: BotStateRepository | None = None,
         trade_repository: TradeRepository | None = None,
         strategy_repository: StrategyRepository | None = None,
+        macd_filter_config_repository: MACDFilterConfigRepository | None = None,
         activity_event_repository: ActivityEventRepository | None = None,
     ):
         self.config = config
@@ -76,12 +78,15 @@ class GridManager:
         # Database repository for unified strategy config
         self._account_id = account_id
         self._strategy_repository = strategy_repository
+        self._macd_filter_config_repository = macd_filter_config_repository
         self._activity_event_repository = activity_event_repository
 
         self.strategy = MACDStrategy(
             config.macd,
             account_id=account_id,
             bot_state_repository=bot_state_repository,
+            strategy_repository=strategy_repository,
+            macd_filter_config_repository=macd_filter_config_repository,
         )
         self.calculator = GridCalculator(config.grid)
         self.tracker = OrderTracker(
@@ -262,6 +267,9 @@ class GridManager:
                 "trading_mode": self.config.trading.mode.value,
             },
         )
+
+        # Load MACD config from database (if available)
+        await self.strategy.load_config_from_db()
 
         # Set leverage
         try:
