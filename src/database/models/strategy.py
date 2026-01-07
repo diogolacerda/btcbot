@@ -21,6 +21,7 @@ from src.database.base import Base
 
 if TYPE_CHECKING:
     from .account import Account
+    from .macd_filter_config import MACDFilterConfig
 
 
 class Strategy(Base):
@@ -133,6 +134,9 @@ class Strategy(Base):
 
     # Relationships
     account: Mapped["Account"] = relationship("Account", back_populates="strategies")
+    macd_filter_config: Mapped["MACDFilterConfig | None"] = relationship(
+        "MACDFilterConfig", back_populates="strategy", uselist=False, cascade="all, delete-orphan"
+    )
 
     # Constraints: Only one active strategy per account
     __table_args__ = (
