@@ -3,6 +3,8 @@ Global registry for managing trading filters.
 
 Provides centralized control over all filters with enable/disable capabilities.
 Implements singleton pattern to ensure single source of truth.
+
+Integrates with Strategy-based configuration for loading filter states from DB.
 """
 
 from typing import Any
@@ -244,3 +246,38 @@ class FilterRegistry:
         """Clear all registered filters (mainly for testing)."""
         self._filters.clear()
         main_logger.info("FilterRegistry cleared")
+
+    def sync_macd_filter_with_strategy(self) -> bool:
+        """
+        Sync MACDFilter enabled state with its MACDStrategy.
+
+        After MACDStrategy loads configuration from database, call this
+        method to synchronize the filter's enabled state with the strategy's
+        is_macd_enabled property.
+
+        Returns:
+            True if sync was successful, False if no MACD filter registered.
+
+        Note:
+            This is a synchronous method. The async DB loading should be done
+            via MACDStrategy.load_config_from_db() before calling this.
+
+        Example:
+            # In GridManager.start():
+            await self.strategy.load_config_from_db()
+            self._filter_registry.sync_macd_filter_with_strategy()
+        """
+        macd_filter = self._filters.get("macd")
+        if not macd_filter:
+            main_logger.debug("No MACD filter registered, skipping sync")
+            return False
+
+        # Type narrowing for MACDFilter
+        from src.filters.macd_filter import MACDFilter
+
+        if not isinstance(macd_filter, MACDFilter):
+            main_logger.warning("Filter 'macd' is not a MACDFilter instance")
+            return False
+
+        macd_filter.sync_with_strategy()
+        return True

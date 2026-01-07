@@ -271,6 +271,9 @@ class GridManager:
         # Load MACD config from database (if available)
         await self.strategy.load_config_from_db()
 
+        # Sync filter enabled state with strategy config from DB
+        self._filter_registry.sync_macd_filter_with_strategy()
+
         # Set leverage
         try:
             await self.client.set_leverage(

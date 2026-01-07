@@ -23,12 +23,13 @@ class MACDFilter(Filter):
     - Always allows trades (bypasses MACD logic)
     """
 
-    def __init__(self, strategy: MACDStrategy):
+    def __init__(self, strategy: MACDStrategy, *, enabled: bool | None = None):
         """
         Initialize MACD filter.
 
         Args:
             strategy: Existing MACDStrategy instance
+            enabled: Initial enabled state. If None, defaults to True.
         """
         super().__init__(
             name="macd",
@@ -37,6 +38,10 @@ class MACDFilter(Filter):
         self._strategy = strategy
         self._current_state = GridState.WAIT
         self._on_state_change_callback = None
+
+        # Set initial enabled state if provided
+        if enabled is not None:
+            self._enabled = enabled
 
     def set_on_state_change_callback(self, callback) -> None:
         """
@@ -131,3 +136,20 @@ class MACDFilter(Filter):
             action = "activated" if activated else "deactivated"
             main_logger.info(f"MACD filter trigger manually {action}")
         return success
+
+    def sync_with_strategy(self) -> None:
+        """
+        Sync filter enabled state with MACDStrategy.
+
+        After MACDStrategy loads config from DB (via load_config_from_db()),
+        this method syncs the filter's enabled state with the strategy's
+        is_macd_enabled property.
+
+        Should be called after strategy.load_config_from_db() completes.
+        """
+        strategy_enabled = self._strategy.is_macd_enabled
+        if self._enabled != strategy_enabled:
+            old_state = "enabled" if self._enabled else "disabled"
+            new_state = "enabled" if strategy_enabled else "disabled"
+            self._enabled = strategy_enabled
+            main_logger.info(f"MACD filter synced with strategy: {old_state} -> {new_state}")
