@@ -6,6 +6,8 @@
 
 export { PeriodSelector } from './PeriodSelector'
 export { BotStatusCard } from './BotStatusCard'
+export { StrategyStatusCard } from './StrategyStatusCard'
+export type { StrategyStatusCardProps } from './StrategyStatusCard'
 export { MarketOverviewCard } from './MarketOverviewCard'
 export { PerformanceMetricsCard } from './PerformanceMetricsCard'
 export { PositionsTable } from './PositionsTable'

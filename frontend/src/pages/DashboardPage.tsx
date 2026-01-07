@@ -23,11 +23,12 @@ import {
 } from '@/hooks/useDashboardData'
 import { useDashboardWebSocket } from '@/hooks/useDashboardWebSocket'
 import { useBotControl } from '@/hooks/useBotControl'
+import { useStrategies, useMACDFilterConfig } from '@/hooks/useStrategies'
 
 // Dashboard components
 import {
   PeriodSelector,
-  BotStatusCard,
+  StrategyStatusCard,
   MarketOverviewCard,
   PerformanceMetricsCard,
   PositionsTable,
@@ -54,6 +55,14 @@ export function DashboardPage() {
   // Data queries
   const botStatus = useBotStatus()
   const marketData = useMarketData()
+
+  // Fetch active strategy for StrategyStatusCard (FE-DASH-006)
+  const { data: strategies } = useStrategies()
+  const activeStrategy = strategies?.find(s => s.isActive)
+  const { data: macdFilterConfig } = useMACDFilterConfig(
+    activeStrategy?.id ?? '',
+    { enabled: !!activeStrategy?.id }
+  )
   const performanceMetrics = usePerformanceMetrics({
     period,
     startDate: customDates.start,
@@ -141,34 +150,34 @@ export function DashboardPage() {
     setSelectedPosition(null)
   }, [])
 
-  // Confirm dialog content
+  // Confirm dialog content (FE-DASH-006: Updated to strategy-centric terminology)
   const getConfirmDialogContent = () => {
     switch (confirmAction) {
       case 'start':
         return {
-          title: 'Start Bot',
-          message: 'Are you sure you want to start the trading bot? It will begin executing trades according to the configured strategy.',
-          confirmLabel: 'Start',
+          title: 'Activate Strategy',
+          message: 'Are you sure you want to activate this strategy? It will begin executing trades according to the configured parameters.',
+          confirmLabel: 'Activate',
           variant: 'default' as const,
         }
       case 'stop':
         return {
-          title: 'Stop Bot',
-          message: 'Are you sure you want to stop the bot? This will cancel all pending orders and stop new order placement. Open positions will remain until TP is hit.',
-          confirmLabel: 'Stop',
+          title: 'Deactivate Strategy',
+          message: 'Are you sure you want to deactivate this strategy? This will cancel all pending orders and stop new order placement. Open positions will remain until TP is hit.',
+          confirmLabel: 'Deactivate',
           variant: 'danger' as const,
         }
       case 'pause':
         return {
-          title: 'Pause Bot',
-          message: 'Are you sure you want to pause the bot? It will stop placing new orders but keep existing positions and TP orders active.',
+          title: 'Pause Strategy',
+          message: 'Are you sure you want to pause this strategy? It will stop placing new orders but keep existing positions and TP orders active.',
           confirmLabel: 'Pause',
           variant: 'default' as const,
         }
       case 'resume':
         return {
-          title: 'Resume Bot',
-          message: 'Are you sure you want to resume the trading bot? It will continue placing orders according to the configured strategy.',
+          title: 'Resume Strategy',
+          message: 'Are you sure you want to resume this strategy? It will continue placing orders according to the configured parameters.',
           confirmLabel: 'Resume',
           variant: 'default' as const,
         }
@@ -211,14 +220,20 @@ export function DashboardPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Bot Status & Market Overview */}
+          {/* Left Column - Strategy Status & Market Overview */}
           <div className="lg:col-span-1 space-y-6">
-            <BotStatusCard
+            <StrategyStatusCard
               data={botStatus.data}
+              strategyName={activeStrategy?.name}
+              strategyTimeframe={macdFilterConfig?.timeframe}
+              strategySymbol={activeStrategy?.symbol}
+              strategyLeverage={activeStrategy?.leverage}
+              strategyOrderSize={activeStrategy?.orderSizeUsdt}
+              strategyTakeProfit={activeStrategy?.takeProfitPercent}
               isLoading={botStatus.isLoading}
               isError={botStatus.isError}
-              onStart={() => handleBotAction('start')}
-              onStop={() => handleBotAction('stop')}
+              onActivate={() => handleBotAction('start')}
+              onDeactivate={() => handleBotAction('stop')}
               onPause={() => handleBotAction('pause')}
               onResume={() => handleBotAction('resume')}
               isControlLoading={isControlLoading}
