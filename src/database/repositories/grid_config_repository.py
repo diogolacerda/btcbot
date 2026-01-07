@@ -5,7 +5,7 @@ DEPRECATED: Use StrategyRepository instead. This repository will be removed in a
 
 import warnings
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -14,6 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models.grid_config import GridConfig
 from src.database.repositories.base_repository import BaseRepository
 from src.utils.logger import main_logger
+
+if TYPE_CHECKING:
+    from src.utils.deprecation import deprecated
+else:
+    from src.utils.deprecation import deprecated
 
 
 class GridConfigRepository(BaseRepository[GridConfig]):
@@ -46,6 +51,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
         )
         super().__init__(session, GridConfig)
 
+    @deprecated("Use StrategyRepository.get_active_by_account instead", version="2.0")
     async def get_by_account(self, account_id: UUID) -> GridConfig | None:
         """Get grid config for an account.
 
@@ -66,6 +72,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             main_logger.error(f"Error fetching grid config for account {account_id}: {e}")
             raise
 
+    @deprecated("Use StrategyRepository.get_or_create instead", version="2.0")
     async def get_or_create(self, account_id: UUID) -> GridConfig:
         """Get existing grid config or create with defaults.
 
@@ -107,6 +114,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             )
             raise
 
+    @deprecated("Use StrategyRepository.update instead", version="2.0")
     async def save_config(
         self,
         account_id: UUID,
@@ -161,6 +169,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             main_logger.error(f"Error saving grid config for account {account_id}: {e}")
             raise
 
+    @deprecated("Use Strategy model's dict conversion instead", version="2.0")
     def to_dict(self, grid_config: GridConfig) -> dict[str, Any]:
         """Convert GridConfig to dictionary representation.
 

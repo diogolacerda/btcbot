@@ -5,6 +5,7 @@ DEPRECATED: Use StrategyRepository instead. This repository will be removed in a
 
 import warnings
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
@@ -12,6 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.trading_config import TradingConfig
 from src.database.repositories.base_repository import BaseRepository
+
+if TYPE_CHECKING:
+    from src.utils.deprecation import deprecated
+else:
+    from src.utils.deprecation import deprecated
 
 
 class TradingConfigRepository(BaseRepository[TradingConfig]):
@@ -47,6 +53,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         )
         super().__init__(session, TradingConfig)
 
+    @deprecated("Use StrategyRepository.get_active_by_account instead", version="2.0")
     async def get_by_account(self, account_id: UUID) -> TradingConfig | None:
         """Get trading configuration for a specific account.
 
@@ -74,6 +81,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         except Exception as e:
             raise Exception(f"Error fetching trading config for account {account_id}: {e}") from e
 
+    @deprecated("Use StrategyRepository.create_or_update instead", version="2.0")
     async def create_or_update(
         self,
         account_id: UUID,
@@ -178,6 +186,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                 f"Error creating/updating trading config for account {account_id}: {e}"
             ) from e
 
+    @deprecated("Use StrategyRepository.update instead", version="2.0")
     async def update_config(
         self,
         account_id: UUID,

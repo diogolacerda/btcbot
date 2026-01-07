@@ -2,6 +2,7 @@
 
 import warnings
 from collections.abc import Callable
+from functools import wraps
 from typing import TypeVar
 
 F = TypeVar("F", bound=Callable[..., object])
@@ -24,6 +25,7 @@ def deprecated(message: str, version: str | None = None) -> Callable[[F], F]:
     """
 
     def decorator(func: F) -> F:
+        @wraps(func)
         def wrapper(*args: object, **kwargs: object) -> object:
             version_msg = f" (will be removed in version {version})" if version else ""
             warnings.warn(
