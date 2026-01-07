@@ -145,6 +145,7 @@ class Strategy(Base):
             "account_id",
             unique=True,
             postgresql_where=text("is_active = true"),
+            sqlite_where=text("is_active = 1"),
         ),
     )
 
