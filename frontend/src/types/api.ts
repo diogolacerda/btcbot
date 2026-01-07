@@ -548,3 +548,29 @@ export interface StrategiesListResponse {
   strategies: StrategyResponse[]
   total: number
 }
+
+// ============================================================================
+// MACD Filter Config API Types (FE-STRAT-003)
+// ============================================================================
+
+export type MACDTimeframe = '1m' | '5m' | '15m' | '30m' | '1h' | '4h' | '1d' | '1w'
+
+export interface MACDFilterConfigResponse {
+  id: string
+  strategyId: string
+  enabled: boolean
+  fastPeriod: number
+  slowPeriod: number
+  signalPeriod: number
+  timeframe: MACDTimeframe
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MACDFilterConfigUpdateRequest {
+  enabled?: boolean
+  fastPeriod?: number
+  slowPeriod?: number
+  signalPeriod?: number
+  timeframe?: MACDTimeframe
+}

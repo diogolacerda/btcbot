@@ -1,13 +1,14 @@
 /**
- * Strategy Edit Page (FE-STRAT-002)
+ * Strategy Edit Page (FE-STRAT-002, FE-STRAT-003)
  *
  * Page for editing an existing trading strategy.
  * Uses StrategyForm in edit mode with pre-populated values.
+ * Includes MACDFilterSection for configuring MACD filter parameters.
  */
 
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { StrategyForm } from '@/components/Strategy'
+import { StrategyForm, MACDFilterSection } from '@/components/Strategy'
 import type { StrategyFormValues } from '@/components/Strategy'
 import { useStrategy, useUpdateStrategy } from '@/hooks/useStrategies'
 
@@ -186,6 +187,11 @@ export function StrategyEditPage() {
           onSubmit={handleSubmit}
           isSubmitting={updateMutation.isPending}
         />
+
+        {/* MACD Filter Configuration (FE-STRAT-003) */}
+        <div className="mt-6">
+          <MACDFilterSection strategyId={id!} />
+        </div>
       </div>
     </div>
   )
