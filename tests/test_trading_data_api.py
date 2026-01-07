@@ -110,6 +110,8 @@ def _create_mock_repository(trades: list[Trade]):
             max_quantity=None,
             limit=100,
             offset=0,
+            sort_by=None,
+            sort_direction=None,
         ):
             result = trades
 
@@ -124,6 +126,27 @@ def _create_mock_repository(trades: list[Trade]):
                 result = [t for t in result if t.quantity >= min_quantity]
             if max_quantity is not None:
                 result = [t for t in result if t.quantity <= max_quantity]
+
+            # Apply SQL-level sorting (simulating database behavior)
+            if sort_by is not None:
+                sort_value = sort_by.value if hasattr(sort_by, "value") else str(sort_by)
+                is_desc = (
+                    sort_direction.value == "desc"
+                    if hasattr(sort_direction, "value")
+                    else str(sort_direction) == "desc"
+                ) if sort_direction else True
+
+                sort_key_map = {
+                    "closedAt": lambda t: (t.closed_at is None, t.closed_at or datetime.min),
+                    "entryPrice": lambda t: t.entry_price,
+                    "exitPrice": lambda t: (t.exit_price is None, t.exit_price or Decimal(0)),
+                    "quantity": lambda t: t.quantity,
+                    "pnl": lambda t: (t.pnl is None, t.pnl or Decimal(0)),
+                    "pnlPercent": lambda t: (t.pnl_percent is None, t.pnl_percent or Decimal(0)),
+                }
+
+                if sort_value in sort_key_map:
+                    result = sorted(result, key=sort_key_map[sort_value], reverse=is_desc)
 
             total = len(result)
             result = result[offset : offset + limit]
@@ -1540,5 +1563,393 @@ class TestTradeEnrichment:
 
             # Open trade should have null duration
             assert trade_data["duration"] is None
+        finally:
+            app.dependency_overrides.clear()
+
+
+class TestTradeSorting:
+    """Tests for BE-TRADE-002: Sorting functionality on GET /trading/trades."""
+
+    @pytest.fixture
+    def sorting_trades(self, test_account_id):
+        """Create trades with varied values for sorting tests."""
+        now = datetime.now(UTC)
+        trades = []
+
+        # Trade 1: Highest entry price, lowest PNL, oldest closed
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("98000.00"),
+                exit_price=Decimal("97500.00"),
+                quantity=Decimal("0.003"),
+                pnl=Decimal("-1.50"),
+                pnl_percent=Decimal("-0.51"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=now - timedelta(hours=10),
+                closed_at=now - timedelta(hours=8),  # Duration: 2h
+                created_at=now - timedelta(hours=10),
+                updated_at=now - timedelta(hours=8),
+            )
+        )
+
+        # Trade 2: Middle entry price, middle PNL, middle closed
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95500.00"),
+                quantity=Decimal("0.002"),
+                pnl=Decimal("1.00"),
+                pnl_percent=Decimal("0.53"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=now - timedelta(hours=6),
+                closed_at=now - timedelta(hours=4),  # Duration: 2h
+                created_at=now - timedelta(hours=6),
+                updated_at=now - timedelta(hours=4),
+            )
+        )
+
+        # Trade 3: Lowest entry price, highest PNL, newest closed
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("93000.00"),
+                exit_price=Decimal("94000.00"),
+                quantity=Decimal("0.001"),
+                pnl=Decimal("1.50"),
+                pnl_percent=Decimal("1.08"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=now - timedelta(hours=2),
+                closed_at=now - timedelta(hours=1),  # Duration: 1h (shortest)
+                created_at=now - timedelta(hours=2),
+                updated_at=now - timedelta(hours=1),
+            )
+        )
+
+        return trades
+
+    def test_default_sorting_closed_at_desc(self, sorting_trades, test_account_id):
+        """Test default sorting is by closedAt DESC (newest first)."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/trades")
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # Default: closedAt DESC - newest first (Trade 3)
+            assert len(trades) == 3
+            assert Decimal(trades[0]["entry_price"]) == Decimal("93000.00")  # Newest
+            assert Decimal(trades[2]["entry_price"]) == Decimal("98000.00")  # Oldest
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sort_by_entry_price_asc(self, sorting_trades, test_account_id):
+        """Test sorting by entry price ascending."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "entryPrice", "sort_direction": "asc"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # entryPrice ASC: 93000 -> 95000 -> 98000
+            assert Decimal(trades[0]["entry_price"]) == Decimal("93000.00")
+            assert Decimal(trades[1]["entry_price"]) == Decimal("95000.00")
+            assert Decimal(trades[2]["entry_price"]) == Decimal("98000.00")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sort_by_entry_price_desc(self, sorting_trades, test_account_id):
+        """Test sorting by entry price descending."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "entryPrice", "sort_direction": "desc"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # entryPrice DESC: 98000 -> 95000 -> 93000
+            assert Decimal(trades[0]["entry_price"]) == Decimal("98000.00")
+            assert Decimal(trades[1]["entry_price"]) == Decimal("95000.00")
+            assert Decimal(trades[2]["entry_price"]) == Decimal("93000.00")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sort_by_pnl_asc(self, sorting_trades, test_account_id):
+        """Test sorting by PNL ascending (losses first)."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "pnl", "sort_direction": "asc"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # pnl ASC: -1.50 -> 1.00 -> 1.50
+            assert Decimal(trades[0]["pnl"]) == Decimal("-1.50")
+            assert Decimal(trades[1]["pnl"]) == Decimal("1.00")
+            assert Decimal(trades[2]["pnl"]) == Decimal("1.50")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sort_by_pnl_desc(self, sorting_trades, test_account_id):
+        """Test sorting by PNL descending (profits first)."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "pnl", "sort_direction": "desc"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # pnl DESC: 1.50 -> 1.00 -> -1.50
+            assert Decimal(trades[0]["pnl"]) == Decimal("1.50")
+            assert Decimal(trades[1]["pnl"]) == Decimal("1.00")
+            assert Decimal(trades[2]["pnl"]) == Decimal("-1.50")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sort_by_quantity_asc(self, sorting_trades, test_account_id):
+        """Test sorting by quantity ascending."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "quantity", "sort_direction": "asc"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # quantity ASC: 0.001 -> 0.002 -> 0.003
+            assert Decimal(trades[0]["quantity"]) == Decimal("0.001")
+            assert Decimal(trades[1]["quantity"]) == Decimal("0.002")
+            assert Decimal(trades[2]["quantity"]) == Decimal("0.003")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sort_by_duration_asc(self, sorting_trades, test_account_id):
+        """Test sorting by duration ascending (computed field, in-memory sort)."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "duration", "sort_direction": "asc"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # Duration is computed: Trade 3 (1h) < Trade 1, 2 (2h each)
+            # Trade 3 has entry_price 93000, shortest duration
+            assert Decimal(trades[0]["entry_price"]) == Decimal("93000.00")
+            assert trades[0]["duration"] == 3600  # 1 hour in seconds
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sort_by_closed_at_asc(self, sorting_trades, test_account_id):
+        """Test sorting by closedAt ascending (oldest first)."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "closedAt", "sort_direction": "asc"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # closedAt ASC: oldest first (Trade 1 with entry 98000)
+            assert Decimal(trades[0]["entry_price"]) == Decimal("98000.00")
+            assert Decimal(trades[2]["entry_price"]) == Decimal("93000.00")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sorting_with_filters(self, sorting_trades, test_account_id):
+        """Test that sorting works correctly with filters applied."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            # Filter by profitable trades and sort by pnl desc
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={
+                    "profit_filter": "profitable",
+                    "sort_by": "pnl",
+                    "sort_direction": "desc",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # Only 2 profitable trades: pnl 1.50 and 1.00
+            assert len(trades) == 2
+            assert Decimal(trades[0]["pnl"]) == Decimal("1.50")
+            assert Decimal(trades[1]["pnl"]) == Decimal("1.00")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_sorting_with_pagination(self, sorting_trades, test_account_id):
+        """Test that sorting works correctly with pagination."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository(sorting_trades)
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            # Sort by entry price desc, limit 2
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={
+                    "sort_by": "entryPrice",
+                    "sort_direction": "desc",
+                    "limit": 2,
+                    "offset": 0,
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            trades = data["trades"]
+
+            # Should get top 2 by entry price: 98000, 95000
+            assert len(trades) == 2
+            assert Decimal(trades[0]["entry_price"]) == Decimal("98000.00")
+            assert Decimal(trades[1]["entry_price"]) == Decimal("95000.00")
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_invalid_sort_by_returns_422(self, test_account_id):
+        """Test that invalid sort_by value returns 422 validation error."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository([])
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_by": "invalidField"},
+            )
+
+            # FastAPI returns 422 for enum validation errors
+            assert response.status_code == 422
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_invalid_sort_direction_returns_422(self, test_account_id):
+        """Test that invalid sort_direction value returns 422 validation error."""
+        app.dependency_overrides[get_trade_repository] = _create_mock_repository([])
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+        app.dependency_overrides[get_tp_adjustment_repository] = (
+            _create_mock_tp_adjustment_repository()
+        )
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/trades",
+                params={"sort_direction": "invalid"},
+            )
+
+            # FastAPI returns 422 for enum validation errors
+            assert response.status_code == 422
         finally:
             app.dependency_overrides.clear()

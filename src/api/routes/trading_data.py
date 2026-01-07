@@ -34,6 +34,25 @@ class ProfitFilter(str, Enum):
     LOSSES = "losses"
 
 
+class SortByField(str, Enum):
+    """Sortable fields for trades endpoint."""
+
+    CLOSED_AT = "closedAt"
+    ENTRY_PRICE = "entryPrice"
+    EXIT_PRICE = "exitPrice"
+    QUANTITY = "quantity"
+    PNL = "pnl"
+    PNL_PERCENT = "pnlPercent"
+    DURATION = "duration"
+
+
+class SortDirection(str, Enum):
+    """Sort direction options."""
+
+    ASC = "asc"
+    DESC = "desc"
+
+
 class PeriodFilter(str, Enum):
     """Period options for performance metrics filtering."""
 
@@ -213,6 +232,63 @@ def _calculate_duration_seconds(trade: Trade) -> int | None:
     return None
 
 
+def _get_sort_key(trade: Trade, sort_by: SortByField) -> tuple[bool, Decimal | int | datetime | None]:
+    """Get the sort key for a trade based on the sort field.
+
+    Returns a tuple of (is_none, value) where is_none is True if the value is None.
+    This ensures None values are sorted consistently (at the end for ASC, start for DESC).
+
+    Args:
+        trade: Trade instance.
+        sort_by: Field to sort by.
+
+    Returns:
+        Tuple of (is_none, value) for stable sorting with None handling.
+    """
+    value: Decimal | int | datetime | None = None
+
+    if sort_by == SortByField.CLOSED_AT:
+        value = trade.closed_at
+    elif sort_by == SortByField.ENTRY_PRICE:
+        value = trade.entry_price
+    elif sort_by == SortByField.EXIT_PRICE:
+        value = trade.exit_price
+    elif sort_by == SortByField.QUANTITY:
+        value = trade.quantity
+    elif sort_by == SortByField.PNL:
+        value = trade.pnl
+    elif sort_by == SortByField.PNL_PERCENT:
+        value = trade.pnl_percent
+    elif sort_by == SortByField.DURATION:
+        value = _calculate_duration_seconds(trade)
+
+    # Return tuple for stable sorting: (is_none, value)
+    # This ensures None values are always sorted to the end regardless of direction
+    return (value is None, value if value is not None else Decimal(0))
+
+
+def _apply_in_memory_sorting(
+    trades: list[Trade],
+    sort_by: SortByField,
+    sort_direction: SortDirection,
+) -> list[Trade]:
+    """Sort trades in memory.
+
+    Used when sorting by computed fields (duration) or when in-memory filters
+    are applied and we need to re-sort the results.
+
+    Args:
+        trades: List of trades to sort.
+        sort_by: Field to sort by.
+        sort_direction: Sort direction (asc or desc).
+
+    Returns:
+        Sorted list of trades.
+    """
+    reverse = sort_direction == SortDirection.DESC
+    return sorted(trades, key=lambda t: _get_sort_key(t, sort_by), reverse=reverse)
+
+
 def _apply_in_memory_filters(
     trades: list[Trade],
     *,
@@ -305,12 +381,22 @@ async def get_trades(
     search_query: Annotated[
         str | None, Query(description="Search by exchange_order_id or exchange_tp_order_id")
     ] = None,
+    sort_by: Annotated[
+        SortByField,
+        Query(
+            description="Field to sort by (closedAt, entryPrice, exitPrice, "
+            "quantity, pnl, pnlPercent, duration)"
+        ),
+    ] = SortByField.CLOSED_AT,
+    sort_direction: Annotated[
+        SortDirection, Query(description="Sort direction (asc, desc)")
+    ] = SortDirection.DESC,
     limit: Annotated[
         int, Query(ge=1, le=1000, description="Maximum number of trades to return")
     ] = 100,
     offset: Annotated[int, Query(ge=0, description="Number of trades to skip")] = 0,
 ):
-    """Get trades for the current account with advanced filtering and pagination.
+    """Get trades for the current account with advanced filtering, sorting, and pagination.
 
     Supports 5 filter types:
     - profit_filter: Filter by profit/loss status (all, profitable, losses)
@@ -319,11 +405,21 @@ async def get_trades(
     - quantity range: Filter by min/max quantity
     - search: Search by exchange_order_id or exchange_tp_order_id
 
+    Supports sorting by 7 columns:
+    - closedAt (default): Sort by close timestamp
+    - entryPrice: Sort by entry price
+    - exitPrice: Sort by exit price
+    - quantity: Sort by trade quantity
+    - pnl: Sort by profit/loss amount
+    - pnlPercent: Sort by profit/loss percentage
+    - duration: Sort by trade duration (computed field)
+
     All filters combine with AND logic.
 
     Args:
         account_id: Account UUID (injected via dependency)
         trade_repo: Injected trade repository
+        tp_adjustment_repo: Injected TP adjustment repository
         status: Optional status filter (OPEN, CLOSED, CANCELLED)
         start_date: Optional start date filter
         end_date: Optional end date filter
@@ -335,6 +431,8 @@ async def get_trades(
         min_quantity: Minimum quantity
         max_quantity: Maximum quantity
         search_query: Search string for order IDs
+        sort_by: Field to sort by (default: closedAt)
+        sort_direction: Sort direction (default: desc)
         limit: Maximum number of trades to return (1-1000)
         offset: Number of trades to skip for pagination
 
@@ -381,12 +479,18 @@ async def get_trades(
             or search_query is not None
         )
 
-        # When in-memory filters are needed, fetch more records to filter
-        # This is a trade-off: we fetch more from DB to apply filters in memory
-        fetch_limit = limit * 10 if has_in_memory_filters else limit
-        fetch_offset = 0 if has_in_memory_filters else offset
+        # Check if sorting needs to be done in-memory
+        # Duration is a computed field that cannot be sorted in SQL
+        needs_in_memory_sorting = (
+            sort_by == SortByField.DURATION or has_in_memory_filters
+        )
 
-        # Fetch trades with SQL filters
+        # When in-memory processing is needed, fetch more records
+        # This is a trade-off: we fetch more from DB to process in memory
+        fetch_limit = limit * 10 if needs_in_memory_sorting else limit
+        fetch_offset = 0 if needs_in_memory_sorting else offset
+
+        # Fetch trades with SQL filters and optional SQL sorting
         trades, sql_total = await trade_repo.get_trades_with_filters(
             account_id,
             start_date=start_date,
@@ -398,6 +502,8 @@ async def get_trades(
             max_quantity=max_quantity,
             limit=fetch_limit,
             offset=fetch_offset,
+            sort_by=None if needs_in_memory_sorting else sort_by,
+            sort_direction=sort_direction,
         )
 
         # Apply in-memory filters
@@ -409,6 +515,10 @@ async def get_trades(
                 max_duration=max_duration,
                 search_query=search_query,
             )
+
+        # Apply in-memory sorting when needed
+        if needs_in_memory_sorting:
+            trades = _apply_in_memory_sorting(trades, sort_by, sort_direction)
             total = len(trades)
             trades = trades[offset : offset + limit]
         else:
