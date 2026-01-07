@@ -13,6 +13,8 @@ import type {
   StrategyCreateRequest,
   StrategyUpdateRequest,
   StrategyActivateResponse,
+  MACDFilterConfigResponse,
+  MACDFilterConfigUpdateRequest,
 } from '../types/api'
 
 // ============================================================================
@@ -23,6 +25,8 @@ export const strategyKeys = {
   all: ['strategies'] as const,
   list: () => [...strategyKeys.all, 'list'] as const,
   detail: (id: string) => [...strategyKeys.all, 'detail', id] as const,
+  macdFilter: (strategyId: string) =>
+    [...strategyKeys.all, 'macd-filter', strategyId] as const,
 }
 
 // ============================================================================
@@ -211,6 +215,84 @@ export function useActivateStrategy() {
     onSuccess: () => {
       // Invalidate all strategies since activation changes multiple items
       queryClient.invalidateQueries({ queryKey: strategyKeys.all })
+    },
+  })
+}
+
+// ============================================================================
+// MACD Filter Config Hooks (FE-STRAT-003)
+// ============================================================================
+
+async function fetchMACDFilterConfig(
+  strategyId: string
+): Promise<MACDFilterConfigResponse> {
+  const response = await axiosInstance.get(
+    `/strategies/${strategyId}/macd-filter`
+  )
+  return parseApiResponse<MACDFilterConfigResponse>(response.data)
+}
+
+async function updateMACDFilterConfig(
+  strategyId: string,
+  data: MACDFilterConfigUpdateRequest
+): Promise<MACDFilterConfigResponse> {
+  const response = await axiosInstance.patch(
+    `/strategies/${strategyId}/macd-filter`,
+    serializeApiRequest(data)
+  )
+  return parseApiResponse<MACDFilterConfigResponse>(response.data)
+}
+
+export interface UseMACDFilterConfigOptions {
+  enabled?: boolean
+}
+
+/**
+ * Fetch MACD filter configuration for a strategy.
+ *
+ * @example
+ * const { data: macdConfig, isLoading } = useMACDFilterConfig(strategyId)
+ */
+export function useMACDFilterConfig(
+  strategyId: string,
+  options: UseMACDFilterConfigOptions = {}
+) {
+  const { enabled = true } = options
+
+  return useQuery({
+    queryKey: strategyKeys.macdFilter(strategyId),
+    queryFn: () => fetchMACDFilterConfig(strategyId),
+    enabled: enabled && !!strategyId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Update MACD filter configuration for a strategy.
+ *
+ * @example
+ * const mutation = useUpdateMACDFilterConfig()
+ * mutation.mutate({
+ *   strategyId: 'strategy-id',
+ *   data: { enabled: true, fastPeriod: 12 }
+ * })
+ */
+export function useUpdateMACDFilterConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      strategyId,
+      data,
+    }: {
+      strategyId: string
+      data: MACDFilterConfigUpdateRequest
+    }) => updateMACDFilterConfig(strategyId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: strategyKeys.macdFilter(variables.strategyId),
+      })
     },
   })
 }
