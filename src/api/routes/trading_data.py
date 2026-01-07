@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from src.api.dependencies import get_account_id, get_tp_adjustment_repository, get_trade_repository
 from src.api.schemas.trading_data import (
     BestWorstTradeSchema,
+    CumulativePnlDataPointSchema,
+    CumulativePnlResponse,
     PerformanceMetricsSchema,
     PositionSchema,
     PositionsListResponse,
@@ -232,7 +234,9 @@ def _calculate_duration_seconds(trade: Trade) -> int | None:
     return None
 
 
-def _get_sort_key(trade: Trade, sort_by: SortByField) -> tuple[bool, Decimal | int | datetime | None]:
+def _get_sort_key(
+    trade: Trade, sort_by: SortByField
+) -> tuple[bool, Decimal | int | datetime | None]:
     """Get the sort key for a trade based on the sort field.
 
     Returns a tuple of (is_none, value) where is_none is True if the value is None.
@@ -481,9 +485,7 @@ async def get_trades(
 
         # Check if sorting needs to be done in-memory
         # Duration is a computed field that cannot be sorted in SQL
-        needs_in_memory_sorting = (
-            sort_by == SortByField.DURATION or has_in_memory_filters
-        )
+        needs_in_memory_sorting = sort_by == SortByField.DURATION or has_in_memory_filters
 
         # When in-memory processing is needed, fetch more records
         # This is a trade-off: we fetch more from DB to process in memory
@@ -836,4 +838,132 @@ async def get_performance_metrics(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to calculate performance metrics: {str(e)}"
+        ) from e
+
+
+def _group_trades_by_date(trades: list[Trade]) -> dict[str, Decimal]:
+    """Group trades by closed_at date and sum daily P&L.
+
+    Args:
+        trades: List of closed Trade objects with non-null pnl and closed_at.
+
+    Returns:
+        Dictionary mapping date strings (YYYY-MM-DD) to daily P&L sum.
+    """
+    daily_pnl: dict[str, Decimal] = {}
+
+    for trade in trades:
+        if trade.closed_at is None or trade.pnl is None:
+            continue
+
+        date_str = trade.closed_at.strftime("%Y-%m-%d")
+        current_pnl = daily_pnl.get(date_str, Decimal("0"))
+        daily_pnl[date_str] = current_pnl + trade.pnl
+
+    return daily_pnl
+
+
+def _calculate_cumulative_pnl(
+    daily_pnl: dict[str, Decimal],
+) -> list[CumulativePnlDataPointSchema]:
+    """Calculate cumulative P&L from daily P&L data.
+
+    Args:
+        daily_pnl: Dictionary mapping date strings to daily P&L.
+
+    Returns:
+        List of CumulativePnlDataPointSchema sorted by date ascending.
+    """
+    if not daily_pnl:
+        return []
+
+    # Sort dates chronologically
+    sorted_dates = sorted(daily_pnl.keys())
+
+    # Calculate running cumulative total
+    cumulative = Decimal("0")
+    data_points: list[CumulativePnlDataPointSchema] = []
+
+    for date_str in sorted_dates:
+        cumulative += daily_pnl[date_str]
+        data_points.append(
+            CumulativePnlDataPointSchema(
+                date=date_str,
+                cumulative_pnl=cumulative.quantize(Decimal("0.01")),
+            )
+        )
+
+    return data_points
+
+
+@router.get("/cumulative-pnl", response_model=CumulativePnlResponse)
+async def get_cumulative_pnl(
+    account_id: Annotated[UUID, Depends(get_account_id)],
+    trade_repo: Annotated[TradeRepository, Depends(get_trade_repository)],
+    period: Annotated[
+        PeriodFilter,
+        Query(description="Time period for filtering (today, 7days, 30days, custom)"),
+    ] = PeriodFilter.THIRTY_DAYS,
+    start_date: Annotated[
+        datetime | None,
+        Query(description="Start date for custom period (required if period=custom)"),
+    ] = None,
+    end_date: Annotated[
+        datetime | None,
+        Query(description="End date for custom period (required if period=custom)"),
+    ] = None,
+):
+    """Get cumulative P&L data for charting equity curve.
+
+    Returns daily data points with running cumulative P&L totals.
+    Each point represents the total P&L from the start of the period
+    up to and including that date.
+
+    The data is ideal for plotting an equity curve chart showing
+    the account's performance over time.
+
+    Args:
+        account_id: Account UUID (injected via get_account_id dependency).
+        trade_repo: Injected trade repository.
+        period: Time period filter (today, 7days, 30days, custom).
+        start_date: Start date for custom period.
+        end_date: End date for custom period.
+
+    Returns:
+        CumulativePnlResponse with daily cumulative data points.
+
+    Raises:
+        HTTPException: If database operation fails or invalid parameters.
+    """
+    try:
+        # Calculate period boundaries
+        period_start, period_end = _calculate_period_dates(period, start_date, end_date)
+
+        # Fetch trades for the period
+        trades = await trade_repo.get_trades_by_period(account_id, period_start, period_end)
+
+        # Filter to closed trades with P&L and closed_at date
+        closed_trades = [
+            t
+            for t in trades
+            if t.status == "CLOSED" and t.pnl is not None and t.closed_at is not None
+        ]
+
+        # Group trades by date and sum daily P&L
+        daily_pnl = _group_trades_by_date(closed_trades)
+
+        # Calculate cumulative P&L
+        data_points = _calculate_cumulative_pnl(daily_pnl)
+
+        return CumulativePnlResponse(
+            data=data_points,
+            period=period.value,
+            period_start=period_start,
+            period_end=period_end,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to calculate cumulative P&L: {str(e)}"
         ) from e

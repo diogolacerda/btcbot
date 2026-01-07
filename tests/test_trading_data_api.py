@@ -131,10 +131,14 @@ def _create_mock_repository(trades: list[Trade]):
             if sort_by is not None:
                 sort_value = sort_by.value if hasattr(sort_by, "value") else str(sort_by)
                 is_desc = (
-                    sort_direction.value == "desc"
-                    if hasattr(sort_direction, "value")
-                    else str(sort_direction) == "desc"
-                ) if sort_direction else True
+                    (
+                        sort_direction.value == "desc"
+                        if hasattr(sort_direction, "value")
+                        else str(sort_direction) == "desc"
+                    )
+                    if sort_direction
+                    else True
+                )
 
                 sort_key_map = {
                     "closedAt": lambda t: (t.closed_at is None, t.closed_at or datetime.min),
@@ -1951,5 +1955,566 @@ class TestTradeSorting:
 
             # FastAPI returns 422 for enum validation errors
             assert response.status_code == 422
+        finally:
+            app.dependency_overrides.clear()
+
+
+# ============================================================================
+# Cumulative P&L Endpoint Tests (BE-TRADE-005)
+# ============================================================================
+
+
+class TestCumulativePnl:
+    """Tests for GET /api/v1/trading/cumulative-pnl endpoint."""
+
+    @pytest.fixture
+    def cumulative_pnl_trades(self, test_account_id):
+        """Create trades across multiple dates for cumulative P&L testing."""
+        trades = []
+
+        # Day 1 (3 days ago): 2 trades = $5 + $3 = $8
+        day1 = datetime(2026, 1, 3, 12, 0, 0, tzinfo=UTC)
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95050.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("5.00"),
+                pnl_percent=Decimal("0.53"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day1 - timedelta(hours=2),
+                closed_at=day1,
+                created_at=day1 - timedelta(hours=2),
+                updated_at=day1,
+            )
+        )
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95030.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("3.00"),
+                pnl_percent=Decimal("0.32"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day1 - timedelta(hours=1),
+                closed_at=day1 + timedelta(hours=1),
+                created_at=day1 - timedelta(hours=1),
+                updated_at=day1 + timedelta(hours=1),
+            )
+        )
+
+        # Day 2 (2 days ago): 1 losing trade = -$4
+        day2 = datetime(2026, 1, 4, 14, 0, 0, tzinfo=UTC)
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("94000.00"),
+                exit_price=Decimal("93960.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("-4.00"),
+                pnl_percent=Decimal("-0.43"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day2 - timedelta(hours=2),
+                closed_at=day2,
+                created_at=day2 - timedelta(hours=2),
+                updated_at=day2,
+            )
+        )
+
+        # Day 3 (1 day ago): 2 trades = $7 + $2 = $9
+        day3 = datetime(2026, 1, 5, 10, 0, 0, tzinfo=UTC)
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("96000.00"),
+                exit_price=Decimal("96070.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("7.00"),
+                pnl_percent=Decimal("0.73"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day3 - timedelta(hours=3),
+                closed_at=day3,
+                created_at=day3 - timedelta(hours=3),
+                updated_at=day3,
+            )
+        )
+        trades.append(
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("96000.00"),
+                exit_price=Decimal("96020.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("2.00"),
+                pnl_percent=Decimal("0.21"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day3 - timedelta(hours=1),
+                closed_at=day3 + timedelta(hours=2),
+                created_at=day3 - timedelta(hours=1),
+                updated_at=day3 + timedelta(hours=2),
+            )
+        )
+
+        return trades
+
+    def test_cumulative_pnl_basic(self, cumulative_pnl_trades, test_account_id):
+        """Test basic cumulative P&L calculation across multiple days."""
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = cumulative_pnl_trades
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/cumulative-pnl")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert "data" in data
+            assert "period" in data
+            assert "period_start" in data
+            assert "period_end" in data
+
+            # Should have 3 days of data
+            assert len(data["data"]) == 3
+
+            # Day 1: 8.00 cumulative
+            assert data["data"][0]["date"] == "2026-01-03"
+            assert float(data["data"][0]["cumulative_pnl"]) == 8.00
+
+            # Day 2: 8 + (-4) = 4.00 cumulative
+            assert data["data"][1]["date"] == "2026-01-04"
+            assert float(data["data"][1]["cumulative_pnl"]) == 4.00
+
+            # Day 3: 4 + 9 = 13.00 cumulative
+            assert data["data"][2]["date"] == "2026-01-05"
+            assert float(data["data"][2]["cumulative_pnl"]) == 13.00
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_empty_period(self, test_account_id):
+        """Test cumulative P&L returns empty array when no trades in period."""
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = []
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/cumulative-pnl")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["data"] == []
+            assert data["period"] == "30days"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_with_period_filter(self, cumulative_pnl_trades, test_account_id):
+        """Test cumulative P&L with period filter."""
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = cumulative_pnl_trades
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/cumulative-pnl",
+                params={"period": "7days"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["period"] == "7days"
+            assert data["period_start"] is not None
+            assert data["period_end"] is not None
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_custom_period(self, cumulative_pnl_trades, test_account_id):
+        """Test cumulative P&L with custom date range."""
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = cumulative_pnl_trades
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/cumulative-pnl",
+                params={
+                    "period": "custom",
+                    "start_date": "2026-01-01T00:00:00Z",
+                    "end_date": "2026-01-10T23:59:59Z",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+
+            assert data["period"] == "custom"
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_custom_period_missing_dates(self, test_account_id):
+        """Test cumulative P&L with custom period but missing dates returns 400."""
+
+        async def mock_get_trade_repository():
+            return AsyncMock()
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get(
+                "/api/v1/trading/cumulative-pnl",
+                params={"period": "custom"},
+            )
+
+            assert response.status_code == 400
+            assert "start_date and end_date are required" in response.json()["detail"]
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_skips_open_trades(self, test_account_id):
+        """Test that open trades are excluded from cumulative P&L."""
+        now = datetime.now(UTC)
+        trades = [
+            # Closed trade
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95050.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("5.00"),
+                pnl_percent=Decimal("0.53"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=now - timedelta(hours=2),
+                closed_at=now,
+                created_at=now - timedelta(hours=2),
+                updated_at=now,
+            ),
+            # Open trade (should be excluded)
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=None,
+                quantity=Decimal("0.1"),
+                pnl=None,
+                pnl_percent=None,
+                trading_fee=Decimal("0.00"),
+                funding_fee=Decimal("0.00"),
+                status="OPEN",
+                opened_at=now - timedelta(hours=1),
+                closed_at=None,
+                created_at=now - timedelta(hours=1),
+                updated_at=now,
+            ),
+        ]
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = trades
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/cumulative-pnl")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Only 1 day with the closed trade
+            assert len(data["data"]) == 1
+            assert float(data["data"][0]["cumulative_pnl"]) == 5.00
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_skips_trades_without_closed_at(self, test_account_id):
+        """Test that trades without closed_at date are excluded."""
+        now = datetime.now(UTC)
+        trades = [
+            # Normal closed trade
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95050.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("5.00"),
+                pnl_percent=Decimal("0.53"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=now - timedelta(hours=2),
+                closed_at=now,
+                created_at=now - timedelta(hours=2),
+                updated_at=now,
+            ),
+            # Cancelled trade with no closed_at
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=None,
+                quantity=Decimal("0.1"),
+                pnl=Decimal("0.00"),
+                pnl_percent=Decimal("0.00"),
+                trading_fee=Decimal("0.00"),
+                funding_fee=Decimal("0.00"),
+                status="CANCELLED",
+                opened_at=now - timedelta(hours=1),
+                closed_at=None,  # No closed_at
+                created_at=now - timedelta(hours=1),
+                updated_at=now,
+            ),
+        ]
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = trades
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/cumulative-pnl")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Only 1 valid trade
+            assert len(data["data"]) == 1
+            assert float(data["data"][0]["cumulative_pnl"]) == 5.00
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_data_sorted_by_date(self, test_account_id):
+        """Test that cumulative P&L data is sorted chronologically (oldest to newest)."""
+        trades = [
+            # Trade on day 3 (added first in list)
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95050.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("5.00"),
+                pnl_percent=Decimal("0.53"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=datetime(2026, 1, 5, 10, 0, 0, tzinfo=UTC),
+                closed_at=datetime(2026, 1, 5, 12, 0, 0, tzinfo=UTC),
+                created_at=datetime(2026, 1, 5, 10, 0, 0, tzinfo=UTC),
+                updated_at=datetime(2026, 1, 5, 12, 0, 0, tzinfo=UTC),
+            ),
+            # Trade on day 1 (added second in list)
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("94000.00"),
+                exit_price=Decimal("94030.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("3.00"),
+                pnl_percent=Decimal("0.32"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=datetime(2026, 1, 3, 8, 0, 0, tzinfo=UTC),
+                closed_at=datetime(2026, 1, 3, 10, 0, 0, tzinfo=UTC),
+                created_at=datetime(2026, 1, 3, 8, 0, 0, tzinfo=UTC),
+                updated_at=datetime(2026, 1, 3, 10, 0, 0, tzinfo=UTC),
+            ),
+        ]
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = trades
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/cumulative-pnl")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Data should be sorted chronologically (day 1 before day 3)
+            assert len(data["data"]) == 2
+            assert data["data"][0]["date"] == "2026-01-03"  # Day 1 first
+            assert data["data"][1]["date"] == "2026-01-05"  # Day 3 second
+
+            # Cumulative: day 1 = 3, day 3 = 3 + 5 = 8
+            assert float(data["data"][0]["cumulative_pnl"]) == 3.00
+            assert float(data["data"][1]["cumulative_pnl"]) == 8.00
+        finally:
+            app.dependency_overrides.clear()
+
+    def test_cumulative_pnl_multiple_trades_same_day(self, test_account_id):
+        """Test that multiple trades on same day are summed correctly."""
+        day = datetime(2026, 1, 4, 12, 0, 0, tzinfo=UTC)
+        trades = [
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95050.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("5.00"),
+                pnl_percent=Decimal("0.53"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day - timedelta(hours=4),
+                closed_at=day - timedelta(hours=2),
+                created_at=day - timedelta(hours=4),
+                updated_at=day - timedelta(hours=2),
+            ),
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("94970.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("-3.00"),
+                pnl_percent=Decimal("-0.32"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day - timedelta(hours=2),
+                closed_at=day,
+                created_at=day - timedelta(hours=2),
+                updated_at=day,
+            ),
+            Trade(
+                id=uuid4(),
+                account_id=test_account_id,
+                symbol="BTC-USDT",
+                side="LONG",
+                leverage=10,
+                entry_price=Decimal("95000.00"),
+                exit_price=Decimal("95020.00"),
+                quantity=Decimal("0.1"),
+                pnl=Decimal("2.00"),
+                pnl_percent=Decimal("0.21"),
+                trading_fee=Decimal("0.05"),
+                funding_fee=Decimal("0.01"),
+                status="CLOSED",
+                opened_at=day,
+                closed_at=day + timedelta(hours=1),
+                created_at=day,
+                updated_at=day + timedelta(hours=1),
+            ),
+        ]
+
+        async def mock_get_trade_repository():
+            mock_repo = AsyncMock()
+            mock_repo.get_trades_by_period.return_value = trades
+            return mock_repo
+
+        app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
+        app.dependency_overrides[get_account_id] = lambda: test_account_id
+
+        try:
+            client = TestClient(app)
+            response = client.get("/api/v1/trading/cumulative-pnl")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # All 3 trades on same day
+            assert len(data["data"]) == 1
+            assert data["data"][0]["date"] == "2026-01-04"
+            # Daily sum: 5 + (-3) + 2 = 4
+            assert float(data["data"][0]["cumulative_pnl"]) == 4.00
         finally:
             app.dependency_overrides.clear()
