@@ -330,3 +330,133 @@ export interface PaginatedResponse<T> {
   offset: number
   hasMore: boolean
 }
+
+// ============================================================================
+// Trading Data API Types (FE-TRADE-001)
+// ============================================================================
+
+// Filter types for trades endpoint
+export type ProfitFilter = 'all' | 'profitable' | 'losses'
+
+export type SortByField =
+  | 'closedAt'
+  | 'entryPrice'
+  | 'exitPrice'
+  | 'quantity'
+  | 'pnl'
+  | 'pnlPercent'
+  | 'duration'
+
+export type SortDirection = 'asc' | 'desc'
+
+export interface TradesFilterParams {
+  status?: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  startDate?: string
+  endDate?: string
+  profitFilter?: ProfitFilter
+  minEntryPrice?: number
+  maxEntryPrice?: number
+  minDuration?: number
+  maxDuration?: number
+  minQuantity?: number
+  maxQuantity?: number
+  searchQuery?: string
+}
+
+export interface TradesSortConfig {
+  sortBy?: SortByField
+  sortDirection?: SortDirection
+}
+
+export interface TradesPaginationParams {
+  limit?: number
+  offset?: number
+}
+
+// TP Adjustment schema
+export interface TpAdjustmentSchema {
+  timestamp: string
+  oldTp: number
+  newTp: number
+  reason: string
+}
+
+// Fee breakdown schema
+export interface TradeFeesSchema {
+  tradingFee: number
+  fundingFee: number
+  netPnl: number
+}
+
+// Enhanced Trade schema with TP adjustments and fees
+export interface EnhancedTradeSchema {
+  id: string
+  accountId: string
+  exchangeOrderId: string | null
+  exchangeTpOrderId: string | null
+  symbol: string
+  side: 'LONG' | 'SHORT'
+  leverage: number
+  entryPrice: number
+  exitPrice: number | null
+  quantity: number
+  tpPrice: number | null
+  tpPercent: number | null
+  pnl: number | null
+  pnlPercent: number | null
+  tradingFee: number
+  fundingFee: number
+  status: 'OPEN' | 'CLOSED' | 'CANCELLED'
+  gridLevel: number | null
+  openedAt: string
+  filledAt: string | null
+  closedAt: string | null
+  createdAt: string
+  updatedAt: string
+  duration: number | null
+  fees: TradeFeesSchema | null
+  tpAdjustments: TpAdjustmentSchema[]
+}
+
+export interface EnhancedTradesListResponse {
+  trades: EnhancedTradeSchema[]
+  total: number
+  limit: number
+  offset: number
+}
+
+// Best/Worst trade schema
+export interface BestWorstTradeSchema {
+  id: string | null
+  pnl: number
+  date: string | null
+}
+
+// Performance metrics response (BE-TRADE-004)
+export interface TradePerformanceMetricsResponse {
+  totalPnl: number
+  roi: number
+  totalTrades: number
+  winningTrades: number
+  losingTrades: number
+  winRate: number
+  avgProfit: number
+  bestTrade: BestWorstTradeSchema
+  worstTrade: BestWorstTradeSchema
+  periodStart: string | null
+  periodEnd: string | null
+}
+
+// Cumulative P&L data point
+export interface CumulativePnlDataPoint {
+  date: string
+  cumulativePnl: number
+}
+
+// Cumulative P&L response (BE-TRADE-005)
+export interface CumulativePnlResponse {
+  data: CumulativePnlDataPoint[]
+  period: string
+  periodStart: string | null
+  periodEnd: string | null
+}
