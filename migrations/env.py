@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 # Import all models here so Alembic can detect them for autogenerate
 # Add new model imports as they are created
 from src.database.base import Base
-from src.database.models import User  # noqa: F401
+from src.database.models import Strategy, User  # noqa: F401
 
 # Load environment variables from .env file
 load_dotenv()
