@@ -246,6 +246,57 @@ class BestWorstTradeSchema(BaseModel):
     }
 
 
+class CumulativePnlDataPointSchema(BaseModel):
+    """Schema for a single data point in the cumulative P&L chart.
+
+    Represents one day's cumulative P&L value, used to plot the equity curve.
+    """
+
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    cumulative_pnl: Decimal = Field(..., description="Running total P&L up to this date")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "date": "2026-01-05",
+                "cumulative_pnl": "250.75",
+            }
+        },
+    }
+
+
+class CumulativePnlResponse(BaseModel):
+    """Response schema for cumulative P&L chart endpoint.
+
+    Returns daily data points for plotting an equity curve chart.
+    Each point contains the running total P&L up to that date.
+    """
+
+    data: list[CumulativePnlDataPointSchema] = Field(
+        ..., description="List of daily cumulative P&L data points"
+    )
+    period: str = Field(..., description="Period filter applied (today, 7days, 30days, custom)")
+    period_start: datetime | None = Field(None, description="Period start date")
+    period_end: datetime | None = Field(None, description="Period end date")
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "data": [
+                    {"date": "2026-01-01", "cumulative_pnl": "50.25"},
+                    {"date": "2026-01-02", "cumulative_pnl": "125.50"},
+                    {"date": "2026-01-03", "cumulative_pnl": "100.75"},
+                    {"date": "2026-01-04", "cumulative_pnl": "175.00"},
+                    {"date": "2026-01-05", "cumulative_pnl": "250.75"},
+                ],
+                "period": "7days",
+                "period_start": "2025-12-30T00:00:00Z",
+                "period_end": "2026-01-05T23:59:59Z",
+            }
+        },
+    }
+
+
 class PerformanceMetricsSchema(BaseModel):
     """Schema for performance metrics endpoint response.
 
