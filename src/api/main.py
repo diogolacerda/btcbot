@@ -15,6 +15,7 @@ from src.api.routes import (
     market_data,
     metrics,
     orders,
+    strategy,
     trading_data,
 )
 from src.api.websocket import dashboard_ws
@@ -48,6 +49,7 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(bot_control.router, tags=["Bot Control"])
 app.include_router(configs.router)
 app.include_router(filters.router, tags=["Filters"])
+app.include_router(strategy.router)
 app.include_router(orders.router)
 app.include_router(trading_data.router, tags=["Trading Data"])
 app.include_router(market_data.router)
