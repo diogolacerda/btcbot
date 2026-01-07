@@ -1,5 +1,14 @@
-"""GridConfig model for persisting grid configuration."""
+"""GridConfig model for persisting grid configuration.
 
+DEPRECATED: Use Strategy model instead. This model will be removed in a future release.
+
+Migration Guide:
+- Migrate to Strategy model using the unified configuration approach
+- All grid parameters are now managed through the Strategy entity
+- See src/database/models/strategy.py for the new configuration model
+"""
+
+import warnings
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -18,8 +27,15 @@ if TYPE_CHECKING:
 class GridConfig(Base):
     """GridConfig model for managing grid trading configuration.
 
+    DEPRECATED: Use Strategy model instead. Will be removed in v2.0.
+
     Stores grid configuration parameters that control grid spacing, range,
     and order limits. Each account has a single grid configuration record.
+
+    Migration Instructions:
+    - Use Strategy model which unifies trading, grid, and filter configs
+    - All grid fields map directly to Strategy model fields (spacing_type, spacing_value, etc.)
+    - See src/database/models/strategy.py for replacement model
 
     Attributes:
         id: Unique grid config identifier (UUID).
@@ -33,6 +49,16 @@ class GridConfig(Base):
         created_at: Timestamp of record creation.
         updated_at: Timestamp of last update.
     """
+
+    def __init__(self, *args: object, **kwargs: object):
+        """Initialize GridConfig with deprecation warning."""
+        warnings.warn(
+            "GridConfig is deprecated. Use Strategy model instead. "
+            "See src/database/models/strategy.py for migration guide.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
 
     __tablename__ = "grid_configs"
 

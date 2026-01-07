@@ -180,8 +180,28 @@ main.py (Entry Point)
 ## Configuration
 
 All config via environment variables (see `.env.example`):
-- `config.py` loads into dataclasses: `BingXConfig`, `TradingConfig`, `GridConfig`, `MACDConfig`, `DynamicTPConfig`, `ReactivationConfig`
-- Three env templates: `.env.example`, `.env.stage.example`, `.env.prod.example`
+- `config.py` loads into dataclasses: `BingXConfig`, `MACDConfig`, `DynamicTPConfig`, `ReactivationConfig`
+
+**DEPRECATED: TradingConfig and GridConfig models**
+- Old configuration models are deprecated and will be removed in v2.0
+- Migrate to the new `Strategy` model for unified configuration
+- Use `StrategyRepository` instead of `TradingConfigRepository` and `GridConfigRepository`
+- See `src/database/models/strategy.py` for the new unified configuration model
+
+**Database Configuration Models:**
+- **Strategy** (NEW): Unified trading configuration model combining trading, grid, and filter configs
+  - All configuration in one place per account
+  - Supports multiple strategies per account with one active at a time
+- **TradingConfig** (DEPRECATED): Trading parameters - leverage, order size, margin mode, take profit
+- **GridConfig** (DEPRECATED): Grid parameters - spacing, range, anchor mode, order limits
+
+**Migration Path:**
+1. TradingConfig fields map directly to Strategy model fields
+2. GridConfig fields map directly to Strategy model fields
+3. Use StrategyRepository for all configuration CRUD operations
+4. Database migration scripts available for data migration
+
+Three env templates: `.env.example`, `.env.stage.example`, `.env.prod.example`
 
 ## Environments
 
