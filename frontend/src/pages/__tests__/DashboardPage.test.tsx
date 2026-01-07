@@ -113,6 +113,58 @@ vi.mock('@/hooks/useBotControl', () => ({
   }),
 }))
 
+// Mock strategies hook (FE-DASH-006)
+const mockActiveStrategy = {
+  id: 'strategy-1',
+  accountId: 'account-1',
+  name: 'MACD Grid Strategy',
+  isActive: true,
+  symbol: 'BTC-USDT',
+  leverage: 10,
+  orderSizeUsdt: 100,
+  marginMode: 'crossed' as const,
+  takeProfitPercent: 0.5,
+  tpDynamicEnabled: false,
+  tpDynamicBase: 0.5,
+  tpDynamicMin: 0.3,
+  tpDynamicMax: 1.0,
+  tpDynamicSafetyMargin: 0.1,
+  tpDynamicCheckInterval: 300,
+  spacingType: 'percentage' as const,
+  spacingValue: 0.1,
+  rangePercent: 2.0,
+  maxTotalOrders: 10,
+  anchorMode: 'hundred' as const,
+  anchorThreshold: 50,
+  createdAt: '2024-01-01T00:00:00Z',
+  updatedAt: '2024-01-01T00:00:00Z',
+}
+
+const mockMacdFilterConfig = {
+  id: 'macd-config-1',
+  strategyId: 'strategy-1',
+  enabled: true,
+  fastPeriod: 12,
+  slowPeriod: 26,
+  signalPeriod: 9,
+  timeframe: '5m' as const,
+  createdAt: '2024-01-01T00:00:00Z',
+  updatedAt: '2024-01-01T00:00:00Z',
+}
+
+vi.mock('@/hooks/useStrategies', () => ({
+  useStrategies: () => ({
+    data: [mockActiveStrategy],
+    isLoading: false,
+    isError: false,
+  }),
+  useMACDFilterConfig: () => ({
+    data: mockMacdFilterConfig,
+    isLoading: false,
+    isError: false,
+  }),
+}))
+
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -146,10 +198,10 @@ describe('DashboardPage', () => {
   })
 
   describe('dashboard sections', () => {
-    it('renders Bot Status card', () => {
+    it('renders Strategy Status card', () => {
       render(<DashboardPage />)
 
-      expect(screen.getByText('Bot Status')).toBeInTheDocument()
+      expect(screen.getByText('Strategy Status')).toBeInTheDocument()
       expect(screen.getByText('Active')).toBeInTheDocument()
     })
 
@@ -168,7 +220,7 @@ describe('DashboardPage', () => {
     it('renders Positions table', () => {
       render(<DashboardPage />)
 
-      // "Open Positions" appears twice (in BotStatusCard and as table title)
+      // "Open Positions" appears twice (in StrategyStatusCard and as table title)
       const elements = screen.getAllByText('Open Positions')
       expect(elements.length).toBeGreaterThanOrEqual(1)
     })
@@ -186,24 +238,25 @@ describe('DashboardPage', () => {
     })
   })
 
-  describe('bot control confirmations', () => {
-    it('shows confirm dialog when pause is clicked', async () => {
+  describe('strategy control confirmations', () => {
+    it('shows confirm dialog when pause strategy is clicked', async () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Pause' }))
+      await user.click(screen.getByRole('button', { name: 'Pause Strategy' }))
 
-      expect(screen.getByText('Pause Bot')).toBeInTheDocument()
+      // Dialog title and button both have "Pause Strategy" text
+      expect(screen.getAllByText('Pause Strategy').length).toBeGreaterThanOrEqual(2)
       expect(screen.getByText(/stop placing new orders/)).toBeInTheDocument()
     })
 
-    it('shows confirm dialog when stop is clicked', async () => {
+    it('shows confirm dialog when deactivate is clicked', async () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Stop' }))
+      await user.click(screen.getByRole('button', { name: 'Deactivate' }))
 
-      expect(screen.getByText('Stop Bot')).toBeInTheDocument()
+      expect(screen.getByText('Deactivate Strategy')).toBeInTheDocument()
       expect(screen.getByText(/cancel all pending orders/)).toBeInTheDocument()
     })
 
@@ -211,22 +264,22 @@ describe('DashboardPage', () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Pause' }))
-      // Find the confirm button in the dialog (has bg-primary class)
-      const confirmButton = screen.getAllByRole('button', { name: 'Pause' })[1]
+      await user.click(screen.getByRole('button', { name: 'Pause Strategy' }))
+      // Find the confirm button in the dialog
+      const confirmButton = screen.getByRole('button', { name: 'Pause' })
       await user.click(confirmButton)
 
       expect(mockPauseBot.mutate).toHaveBeenCalled()
     })
 
-    it('calls stopBot when confirmed', async () => {
+    it('calls stopBot when deactivate confirmed', async () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Stop' }))
-      // Find the confirm button in the dialog (second Stop button)
-      const confirmButton = screen.getAllByRole('button', { name: 'Stop' })[1]
-      await user.click(confirmButton)
+      await user.click(screen.getByRole('button', { name: 'Deactivate' }))
+      // Find the confirm button in the dialog (second Deactivate button)
+      const confirmButtons = screen.getAllByRole('button', { name: 'Deactivate' })
+      await user.click(confirmButtons[1])
 
       expect(mockStopBot.mutate).toHaveBeenCalled()
     })
@@ -235,10 +288,11 @@ describe('DashboardPage', () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Pause' }))
+      await user.click(screen.getByRole('button', { name: 'Pause Strategy' }))
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
-      expect(screen.queryByText('Pause Bot')).not.toBeInTheDocument()
+      // Dialog message should be gone (button remains)
+      expect(screen.queryByText(/stop placing new orders/)).not.toBeInTheDocument()
     })
   })
 
