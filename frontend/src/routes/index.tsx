@@ -5,6 +5,8 @@ import { LoginPage } from '@/pages/LoginPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { TradeHistoryPage } from '@/pages/TradeHistoryPage';
 import { StrategyListPage } from '@/pages/StrategyListPage';
+import { StrategyCreatePage } from '@/pages/StrategyCreatePage';
+import { StrategyEditPage } from '@/pages/StrategyEditPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 
 /**
@@ -16,6 +18,8 @@ import { SettingsPage } from '@/pages/SettingsPage';
  * - /dashboard - Protected dashboard page (with AppLayout)
  * - /trade-history - Protected trade history page (with AppLayout)
  * - /strategies - Protected strategy list page (with AppLayout)
+ * - /strategies/new - Protected strategy create page (with AppLayout)
+ * - /strategies/:id/edit - Protected strategy edit page (with AppLayout)
  * - /strategy - Redirects to /strategies (legacy route)
  * - /settings - Protected settings page (with AppLayout)
  */
@@ -54,6 +58,26 @@ export const router = createBrowserRouter([
       <ProtectedRoute>
         <AppLayout>
           <StrategyListPage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/strategies/new',
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <StrategyCreatePage />
+        </AppLayout>
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/strategies/:id/edit',
+    element: (
+      <ProtectedRoute>
+        <AppLayout>
+          <StrategyEditPage />
         </AppLayout>
       </ProtectedRoute>
     ),
