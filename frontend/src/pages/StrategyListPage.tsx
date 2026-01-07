@@ -7,6 +7,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   useStrategies,
   useActivateStrategy,
@@ -279,10 +280,24 @@ export function StrategyListPage() {
   const handleConfirmAction = async () => {
     if (!actionDialog.strategy) return
 
-    if (actionDialog.type === 'activate') {
-      await activateMutation.mutateAsync(actionDialog.strategy.id)
-    } else if (actionDialog.type === 'delete') {
-      await deleteMutation.mutateAsync(actionDialog.strategy.id)
+    const strategyName = actionDialog.strategy.name
+
+    try {
+      if (actionDialog.type === 'activate') {
+        await activateMutation.mutateAsync(actionDialog.strategy.id)
+        toast.success(`Strategy "${strategyName}" activated successfully`)
+      } else if (actionDialog.type === 'delete') {
+        await deleteMutation.mutateAsync(actionDialog.strategy.id)
+        toast.success(`Strategy "${strategyName}" deleted successfully`)
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'An unexpected error occurred'
+      if (actionDialog.type === 'activate') {
+        toast.error(`Failed to activate strategy: ${message}`)
+      } else if (actionDialog.type === 'delete') {
+        toast.error(`Failed to delete strategy: ${message}`)
+      }
     }
 
     setActionDialog({ type: null, strategy: null })
