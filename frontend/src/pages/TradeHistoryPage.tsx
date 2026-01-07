@@ -1,11 +1,12 @@
 /**
- * Trade History Page (FE-TRADE-002)
+ * Trade History Page (FE-TRADE-002, FE-TRADE-003)
  *
  * Integrates trade history components with data fetching hooks.
  * Implements state management for filters, sorting, and pagination.
+ * Syncs filter state with URL params for bookmarkable URLs (FE-TRADE-003).
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { TradeHistory } from '@/components/trade-history'
 import type {
   Trade,
@@ -20,6 +21,7 @@ import {
   usePerformanceMetrics,
   useCumulativePnl,
 } from '@/hooks/useTradeHistory'
+import { useFilterUrlSync } from '@/hooks/useFilterUrlSync'
 import type {
   EnhancedTradeSchema,
   TradesFilterParams,
@@ -231,10 +233,20 @@ const TRADES_PER_PAGE = 50
 // =============================================================================
 
 export function TradeHistoryPage() {
-  // State management
-  const [filters, setFilters] = useState<TradeFilters>(DEFAULT_FILTERS)
-  const [sortConfig, setSortConfig] = useState<SortConfig>(DEFAULT_SORT)
-  const [currentPage, setCurrentPage] = useState(1)
+  // State management with URL sync (FE-TRADE-003)
+  const {
+    filters,
+    sortConfig,
+    currentPage,
+    setFilters,
+    setSortConfig,
+    setCurrentPage,
+    clearFilters,
+    removeFilter,
+  } = useFilterUrlSync({
+    defaultFilters: DEFAULT_FILTERS,
+    defaultSort: DEFAULT_SORT,
+  })
 
   // Calculate API period from filters
   const apiPeriod: ApiTimePeriod = useMemo(() => {
@@ -289,55 +301,61 @@ export function TradeHistoryPage() {
 
   const totalTrades = tradesData?.total || 0
 
-  // Callbacks
+  // Callbacks - now using URL-synced state from useFilterUrlSync
   const handlePeriodChange = useCallback(
     (period: TimePeriod, customRange?: { startDate: string; endDate: string }) => {
-      setFilters((prev) => ({
-        ...prev,
+      setFilters({
+        ...filters,
         period,
         customDateRange: customRange,
-      }))
-      setCurrentPage(1) // Reset to first page on filter change
+      })
     },
-    []
+    [filters, setFilters]
   )
 
-  const handleFiltersChange = useCallback((newFilters: TradeFilters) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }))
-    setCurrentPage(1) // Reset to first page on filter change
-  }, [])
+  const handleFiltersChange = useCallback(
+    (newFilters: TradeFilters) => {
+      setFilters({ ...filters, ...newFilters })
+    },
+    [filters, setFilters]
+  )
 
-  const handleSortChange = useCallback((newSortConfig: SortConfig) => {
-    setSortConfig(newSortConfig)
-  }, [])
+  const handleSortChange = useCallback(
+    (newSortConfig: SortConfig) => {
+      setSortConfig(newSortConfig)
+    },
+    [setSortConfig]
+  )
 
   const handleViewTradeDetails = useCallback((tradeId: string) => {
     // The TradeHistory component handles showing the modal internally
     console.log('Viewing trade details:', tradeId)
   }, [])
 
-  const handleSearch = useCallback((query: string) => {
-    setFilters((prev) => ({ ...prev, searchQuery: query || undefined }))
-    setCurrentPage(1)
-  }, [])
+  const handleSearch = useCallback(
+    (query: string) => {
+      setFilters({ ...filters, searchQuery: query || undefined })
+    },
+    [filters, setFilters]
+  )
 
   const handleClearFilters = useCallback(() => {
-    setFilters(DEFAULT_FILTERS)
-    setCurrentPage(1)
-  }, [])
+    clearFilters()
+  }, [clearFilters])
 
-  const handleRemoveFilter = useCallback((filterKey: keyof TradeFilters) => {
-    setFilters((prev) => {
-      const newFilters = { ...prev }
-      delete newFilters[filterKey]
-      return newFilters
-    })
-    setCurrentPage(1)
-  }, [])
+  const handleRemoveFilter = useCallback(
+    (filterKey: keyof TradeFilters) => {
+      removeFilter(filterKey)
+    },
+    [removeFilter]
+  )
 
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page)
-  }, [])
+  const handlePageChange = useCallback(
+    (page: number) => {
+      setCurrentPage(page)
+    },
+    [setCurrentPage]
+  )
 
   // Loading state
   const isLoading = isLoadingTrades || isLoadingMetrics || isLoadingPnl
