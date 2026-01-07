@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,9 +9,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.macd_filter_config import MACDFilterConfig
 from src.database.repositories.base_repository import BaseRepository
-
-if TYPE_CHECKING:
-    pass
 
 
 class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
@@ -155,18 +151,16 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
                 timeframe="4h"
             )
         """
-        try:
-            existing = await self.get_by_strategy(strategy_id)
-            if not existing:
-                raise ValueError(f"No MACD filter config found for strategy {strategy_id}")
+        existing = await self.get_by_strategy(strategy_id)
+        if not existing:
+            raise ValueError(f"No MACD filter config found for strategy {strategy_id}")
 
+        try:
             for field, value in kwargs.items():
                 if hasattr(existing, field):
                     setattr(existing, field, value)
 
             return await super().update(existing)
-        except Exception as e:
+        except Exception:
             await self.session.rollback()
-            raise Exception(
-                f"Error updating MACD filter config for strategy {strategy_id}: {e}"
-            ) from e
+            raise
