@@ -1,7 +1,11 @@
-"""Repository for GridConfig model operations."""
+"""Repository for GridConfig model operations.
 
+DEPRECATED: Use StrategyRepository instead. This repository will be removed in a future release.
+"""
+
+import warnings
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -11,12 +15,24 @@ from src.database.models.grid_config import GridConfig
 from src.database.repositories.base_repository import BaseRepository
 from src.utils.logger import main_logger
 
+if TYPE_CHECKING:
+    from src.utils.deprecation import deprecated
+else:
+    from src.utils.deprecation import deprecated
+
 
 class GridConfigRepository(BaseRepository[GridConfig]):
     """Repository for managing GridConfig persistence.
 
+    DEPRECATED: Use StrategyRepository instead. Will be removed in v2.0.
+
     Inherits from BaseRepository to leverage common CRUD operations
     while providing grid-config-specific methods.
+
+    Migration Instructions:
+    - Use StrategyRepository for unified configuration management
+    - All grid configuration methods are available in StrategyRepository
+    - See src/database/repositories/strategy_repository.py (create if needed)
 
     Provides methods to save and retrieve grid configuration for accounts.
     """
@@ -27,10 +43,19 @@ class GridConfigRepository(BaseRepository[GridConfig]):
         Args:
             session: Async SQLAlchemy session
         """
+        warnings.warn(
+            "GridConfigRepository is deprecated. Use StrategyRepository instead. "
+            "See src/database/repositories/strategy_repository.py for migration guide.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(session, GridConfig)
 
+    @deprecated("Use StrategyRepository.get_active_by_account instead", version="2.0")
     async def get_by_account(self, account_id: UUID) -> GridConfig | None:
         """Get grid config for an account.
+
+        DEPRECATED: Use StrategyRepository.get_active_by_account instead.
 
         Args:
             account_id: Account UUID
@@ -47,8 +72,11 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             main_logger.error(f"Error fetching grid config for account {account_id}: {e}")
             raise
 
+    @deprecated("Use StrategyRepository.get_or_create instead", version="2.0")
     async def get_or_create(self, account_id: UUID) -> GridConfig:
         """Get existing grid config or create with defaults.
+
+        DEPRECATED: Use StrategyRepository.get_or_create instead.
 
         This ensures every account has a grid configuration. If none exists,
         creates one with default values.
@@ -86,6 +114,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             )
             raise
 
+    @deprecated("Use StrategyRepository.update instead", version="2.0")
     async def save_config(
         self,
         account_id: UUID,
@@ -98,6 +127,8 @@ class GridConfigRepository(BaseRepository[GridConfig]):
         anchor_value: Decimal | None = None,
     ) -> GridConfig:
         """Save or update grid config for an account.
+
+        DEPRECATED: Use StrategyRepository.update instead.
 
         Uses BaseRepository methods internally for database operations.
 
@@ -138,8 +169,11 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             main_logger.error(f"Error saving grid config for account {account_id}: {e}")
             raise
 
+    @deprecated("Use Strategy model's dict conversion instead", version="2.0")
     def to_dict(self, grid_config: GridConfig) -> dict[str, Any]:
         """Convert GridConfig to dictionary representation.
+
+        DEPRECATED: Use Strategy model's dict conversion instead.
 
         Args:
             grid_config: GridConfig instance

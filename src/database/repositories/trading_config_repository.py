@@ -1,6 +1,11 @@
-"""Repository for TradingConfig persistence."""
+"""Repository for TradingConfig persistence.
 
+DEPRECATED: Use StrategyRepository instead. This repository will be removed in a future release.
+"""
+
+import warnings
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
@@ -9,12 +14,24 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models.trading_config import TradingConfig
 from src.database.repositories.base_repository import BaseRepository
 
+if TYPE_CHECKING:
+    from src.utils.deprecation import deprecated
+else:
+    from src.utils.deprecation import deprecated
+
 
 class TradingConfigRepository(BaseRepository[TradingConfig]):
     """Repository for managing trading configuration persistence.
 
+    DEPRECATED: Use StrategyRepository instead. Will be removed in v2.0.
+
     Provides CRUD operations for trading configurations, with special
     focus on account-based configuration retrieval and upsert operations.
+
+    Migration Instructions:
+    - Use StrategyRepository for unified configuration management
+    - All trading configuration methods are available in StrategyRepository
+    - See src/database/repositories/strategy_repository.py (create if needed)
 
     Methods:
         get_by_account: Get configuration for a specific account.
@@ -28,10 +45,19 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         Args:
             session: Async database session.
         """
+        warnings.warn(
+            "TradingConfigRepository is deprecated. Use StrategyRepository instead. "
+            "See src/database/repositories/strategy_repository.py for migration guide.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__init__(session, TradingConfig)
 
+    @deprecated("Use StrategyRepository.get_active_by_account instead", version="2.0")
     async def get_by_account(self, account_id: UUID) -> TradingConfig | None:
         """Get trading configuration for a specific account.
+
+        DEPRECATED: Use StrategyRepository.get_active_by_account instead.
 
         Args:
             account_id: UUID of the account.
@@ -55,6 +81,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         except Exception as e:
             raise Exception(f"Error fetching trading config for account {account_id}: {e}") from e
 
+    @deprecated("Use StrategyRepository.create_or_update instead", version="2.0")
     async def create_or_update(
         self,
         account_id: UUID,
@@ -71,6 +98,8 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         tp_check_interval_min: int | None = None,
     ) -> TradingConfig:
         """Create new trading config or update existing one.
+
+        DEPRECATED: Use StrategyRepository.create_or_update instead.
 
         If config exists for the account, updates only provided fields.
         If config doesn't exist, creates with defaults for unprovided fields.
@@ -157,12 +186,15 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                 f"Error creating/updating trading config for account {account_id}: {e}"
             ) from e
 
+    @deprecated("Use StrategyRepository.update instead", version="2.0")
     async def update_config(
         self,
         account_id: UUID,
         **kwargs: str | int | Decimal | bool,
     ) -> TradingConfig:
         """Update specific configuration fields for an account.
+
+        DEPRECATED: Use StrategyRepository.update instead.
 
         Args:
             account_id: UUID of the account.

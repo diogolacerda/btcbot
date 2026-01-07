@@ -1,5 +1,14 @@
-"""Trading configuration model for dynamic bot configuration."""
+"""Trading configuration model for dynamic bot configuration.
 
+DEPRECATED: Use Strategy model instead. This model will be removed in a future release.
+
+Migration Guide:
+- Migrate to Strategy model using the unified configuration approach
+- All trading parameters are now managed through the Strategy entity
+- See src/database/models/strategy.py for the new configuration model
+"""
+
+import warnings
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -17,8 +26,15 @@ if TYPE_CHECKING:
 class TradingConfig(Base):
     """Trading configuration model for managing bot trading parameters.
 
+    DEPRECATED: Use Strategy model instead. Will be removed in v2.0.
+
     Stores trading configuration per account, allowing dynamic updates
     without restarting the bot.
+
+    Migration Instructions:
+    - Use Strategy model which unifies trading, grid, and filter configs
+    - All fields map directly to Strategy model fields
+    - See src.database/models/strategy.py for replacement model
 
     Attributes:
         id: Unique configuration identifier (UUID).
@@ -37,6 +53,16 @@ class TradingConfig(Base):
         created_at: Timestamp of configuration creation.
         updated_at: Timestamp of last update.
     """
+
+    def __init__(self, *args: object, **kwargs: object):
+        """Initialize TradingConfig with deprecation warning."""
+        warnings.warn(
+            "TradingConfig is deprecated. Use Strategy model instead. "
+            "See src/database/models/strategy.py for migration guide.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)
 
     __tablename__ = "trading_configs"
 
