@@ -40,10 +40,10 @@ export function AppLayout({ children }: AppLayoutProps) {
       isActive: location.pathname === '/trade-history',
     },
     {
-      label: 'Strategy',
-      href: '/strategy',
+      label: 'Strategies',
+      href: '/strategies',
       icon: Target,
-      isActive: location.pathname === '/strategy',
+      isActive: location.pathname.startsWith('/strategies'),
     },
     {
       label: 'Settings',
