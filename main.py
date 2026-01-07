@@ -17,7 +17,7 @@ from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
 from src.database.repositories.activity_event_repository import ActivityEventRepository
 from src.database.repositories.bot_state_repository import BotStateRepository
-from src.database.repositories.grid_config_repository import GridConfigRepository
+from src.database.repositories.strategy_repository import StrategyRepository
 from src.database.repositories.trade_repository import TradeRepository
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
@@ -81,22 +81,20 @@ async def run_bot() -> None:
             set_global_account_id(account_id)
             main_logger.info("Global account ID configured for FastAPI endpoints")
 
-        # Fetch trading config from database for startup display
+        # Fetch active strategy from database for startup display
         if account_id:
             try:
                 async for session in get_session():
-                    from src.database.repositories.trading_config_repository import (
-                        TradingConfigRepository,
-                    )
-
-                    trading_config_repo = TradingConfigRepository(session)
-                    db_trading_config = await trading_config_repo.get_by_account(account_id)
-                    if db_trading_config:
-                        main_logger.info("Loaded trading config from database for startup display")
+                    strategy_repo = StrategyRepository(session)
+                    active_strategy = await strategy_repo.get_active_by_account(account_id)
+                    if active_strategy:
+                        main_logger.info(
+                            f"Loaded active strategy '{active_strategy.name}' from database"
+                        )
                     break
             except Exception as e:
                 main_logger.warning(
-                    f"Failed to load trading config from database: {e}. "
+                    f"Failed to load strategy from database: {e}. "
                     "Using environment variables for display."
                 )
 
@@ -157,7 +155,7 @@ async def run_bot() -> None:
         account_id=account_id,
         bot_state_repository=None,  # Will be set after
         trade_repository=None,  # Will be set after
-        trading_config_repository=None,  # Will be set after
+        strategy_repository=None,  # Will be set after
     )
 
     # Set up bot state repository with a session factory
@@ -191,7 +189,28 @@ async def run_bot() -> None:
             {"save_trade": lambda self, *args, **kwargs: _save_trade_with_session(*args, **kwargs)},
         )()
 
-        # Create a wrapper trading config repository that creates sessions on demand
+        # Create a wrapper strategy repository that creates sessions on demand
+        async def _get_active_strategy_with_session(account_id):
+            """Helper to get active strategy with a new session."""
+            async for session in get_session():
+                repo = StrategyRepository(session)
+                return await repo.get_active_by_account(account_id)
+
+        # Monkey-patch the strategy repository into the grid manager
+        grid_manager._strategy_repository = type(
+            "StrategyRepositoryWrapper",
+            (),
+            {
+                "get_active_by_account": lambda self, *args, **kwargs: (
+                    _get_active_strategy_with_session(*args, **kwargs)
+                ),
+            },
+        )()
+
+        # Create a wrapper trading config repository for HealthServer legacy API
+        # Note: HealthServer still uses TradingConfigRepository for API compatibility
+        from src.database.repositories.trading_config_repository import TradingConfigRepository
+
         async def _get_trading_config_with_session(account_id):
             """Helper to get trading config with a new session."""
             async for session in get_session():
@@ -204,7 +223,6 @@ async def run_bot() -> None:
                 repo = TradingConfigRepository(session)
                 return await repo.create_or_update(account_id, **kwargs)
 
-        # Create wrapper repository for session management
         trading_config_wrapper = type(
             "TradingConfigRepositoryWrapper",
             (),
@@ -212,50 +230,14 @@ async def run_bot() -> None:
                 "get_by_account": lambda self, *args, **kwargs: _get_trading_config_with_session(
                     *args, **kwargs
                 ),
-                "create_or_update": lambda self,
-                *args,
-                **kwargs: _create_or_update_trading_config_with_session(*args, **kwargs),
+                "create_or_update": lambda self, *args, **kwargs: (
+                    _create_or_update_trading_config_with_session(*args, **kwargs)
+                ),
             },
         )()
 
-        # Configure wrapper in both GridManager and HealthServer
-        grid_manager._trading_config_repository = trading_config_wrapper
+        # Configure wrapper in HealthServer for legacy API endpoints
         health_server.set_trading_config_repo(trading_config_wrapper)
-
-        # Create a wrapper grid config repository that creates sessions on demand
-        async def _get_grid_config_with_session(account_id):
-            """Helper to get grid config with a new session."""
-            async for session in get_session():
-                repo = GridConfigRepository(session)
-                return await repo.get_or_create(account_id)
-
-        async def _save_grid_config_with_session(account_id, **kwargs):
-            """Helper to save grid config with a new session."""
-            async for session in get_session():
-                repo = GridConfigRepository(session)
-                return await repo.save_config(account_id, **kwargs)
-
-        # Monkey-patch the repository into the grid manager
-        grid_manager._grid_config_repo = type(
-            "GridConfigRepositoryWrapper",
-            (),
-            {
-                "get_or_create": lambda self, *args, **kwargs: _get_grid_config_with_session(
-                    *args, **kwargs
-                ),
-                "save_config": lambda self, *args, **kwargs: _save_grid_config_with_session(
-                    *args, **kwargs
-                ),
-                "to_dict": lambda self, config: {
-                    "spacing_type": config.spacing_type,
-                    "spacing_value": float(config.spacing_value),
-                    "range_percent": float(config.range_percent),
-                    "max_total_orders": config.max_total_orders,
-                    "anchor_mode": config.anchor_mode,
-                    "anchor_value": float(config.anchor_value),
-                },
-            },
-        )()
 
         # Create a wrapper activity event repository that creates sessions on demand
         async def _log_activity_event_with_session(
