@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
@@ -10,6 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models.trade import Trade
 from src.database.repositories.base_repository import BaseRepository
 from src.utils.logger import main_logger
+
+if TYPE_CHECKING:
+    from src.api.routes.trading_data import SortByField, SortDirection
 
 
 class TradeRepository(BaseRepository[Trade]):
@@ -254,6 +258,28 @@ class TradeRepository(BaseRepository[Trade]):
             main_logger.error(f"Error updating trade exit for {trade_id}: {e}")
             raise
 
+    def _get_sort_column(self, sort_by: "SortByField | None"):
+        """Map sort_by enum to SQLAlchemy column.
+
+        Args:
+            sort_by: Field to sort by, or None for default.
+
+        Returns:
+            SQLAlchemy column for ordering.
+        """
+        # Use string values for comparison to handle enums from different modules
+        sort_map = {
+            "closedAt": Trade.closed_at,
+            "entryPrice": Trade.entry_price,
+            "exitPrice": Trade.exit_price,
+            "quantity": Trade.quantity,
+            "pnl": Trade.pnl,
+            "pnlPercent": Trade.pnl_percent,
+            # "duration" is computed in memory, not sortable in SQL
+        }
+        sort_value = sort_by.value if sort_by else None
+        return sort_map.get(sort_value, Trade.closed_at) if sort_value else Trade.closed_at
+
     async def get_trades_with_filters(
         self,
         account_id: UUID,
@@ -267,10 +293,12 @@ class TradeRepository(BaseRepository[Trade]):
         max_quantity: Decimal | None = None,
         limit: int = 100,
         offset: int = 0,
+        sort_by: "SortByField | None" = None,
+        sort_direction: "SortDirection | None" = None,
     ) -> tuple[list[Trade], int]:
-        """Get trades with SQL-level filtering.
+        """Get trades with SQL-level filtering and sorting.
 
-        Applies filters at database level for efficiency. Returns both
+        Applies filters and sorting at database level for efficiency. Returns both
         filtered trades and total count for pagination.
 
         Args:
@@ -284,6 +312,8 @@ class TradeRepository(BaseRepository[Trade]):
             max_quantity: Maximum quantity filter.
             limit: Maximum number of trades to return.
             offset: Number of trades to skip.
+            sort_by: Field to sort by (None for default closed_at).
+            sort_direction: Sort direction (asc or desc, default desc).
 
         Returns:
             Tuple of (list of Trade instances, total count before pagination).
@@ -322,11 +352,17 @@ class TradeRepository(BaseRepository[Trade]):
             count_result = await self.session.execute(count_stmt)
             total_count = len(list(count_result.scalars().all()))
 
-            # Get paginated results
+            # Determine sort column and direction
+            sort_column = self._get_sort_column(sort_by)
+            # Use string comparison to handle enums from different modules
+            is_ascending = sort_direction.value == "asc" if sort_direction else False
+            order_clause = sort_column.asc() if is_ascending else sort_column.desc()
+
+            # Get paginated results with sorting
             stmt = (
                 select(Trade)
                 .where(*conditions)
-                .order_by(Trade.created_at.desc())
+                .order_by(order_clause)
                 .limit(limit)
                 .offset(offset)
             )
