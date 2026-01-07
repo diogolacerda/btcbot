@@ -462,3 +462,110 @@ class TestFilterRegistryIntegration:
         # Disable all
         registry.disable_all()
         assert registry.should_allow_trade() is True  # No filters = allow
+
+
+# Test MACDFilter with enabled parameter and sync
+
+
+class TestMACDFilterSync:
+    """Test MACDFilter sync with MACDStrategy."""
+
+    @pytest.fixture
+    def macd_config(self):
+        """Create MACD config."""
+        return MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
+
+    def test_macd_filter_init_with_enabled_true(self, macd_config):
+        """Test MACDFilter initialized with enabled=True."""
+        strategy = MACDStrategy(macd_config)
+        macd_filter = MACDFilter(strategy, enabled=True)
+
+        assert macd_filter.enabled is True
+
+    def test_macd_filter_init_with_enabled_false(self, macd_config):
+        """Test MACDFilter initialized with enabled=False."""
+        strategy = MACDStrategy(macd_config)
+        macd_filter = MACDFilter(strategy, enabled=False)
+
+        assert macd_filter.enabled is False
+
+    def test_macd_filter_init_default_enabled(self, macd_config):
+        """Test MACDFilter default enabled state is True."""
+        strategy = MACDStrategy(macd_config)
+        macd_filter = MACDFilter(strategy)
+
+        # Default is True (from base Filter class)
+        assert macd_filter.enabled is True
+
+    def test_sync_with_strategy_changes_enabled(self, macd_config):
+        """Test sync_with_strategy updates enabled state."""
+        strategy = MACDStrategy(macd_config)
+        macd_filter = MACDFilter(strategy, enabled=True)
+
+        # Simulate strategy loading config with enabled=False
+        strategy._macd_enabled = False
+
+        # Sync should update filter
+        macd_filter.sync_with_strategy()
+
+        assert macd_filter.enabled is False
+
+    def test_sync_with_strategy_no_change_if_same(self, macd_config):
+        """Test sync_with_strategy does nothing if states match."""
+        strategy = MACDStrategy(macd_config)
+        strategy._macd_enabled = True
+        macd_filter = MACDFilter(strategy, enabled=True)
+
+        # Sync should not log anything since states already match
+        macd_filter.sync_with_strategy()
+
+        assert macd_filter.enabled is True
+
+
+class TestFilterRegistrySync:
+    """Test FilterRegistry sync with MACDStrategy."""
+
+    @pytest.fixture(autouse=True)
+    def reset_registry(self):
+        """Reset registry before each test."""
+        registry = FilterRegistry()
+        registry.clear()
+        yield
+        registry.clear()
+
+    def test_sync_macd_filter_with_strategy_success(self):
+        """Test sync updates MACDFilter enabled state."""
+        config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
+        strategy = MACDStrategy(config)
+        strategy._macd_enabled = False  # Simulate DB config
+
+        macd_filter = MACDFilter(strategy, enabled=True)
+        registry = FilterRegistry()
+        registry.register(macd_filter)
+
+        # Before sync, filter is enabled
+        assert macd_filter.enabled is True
+
+        # Sync with strategy
+        result = registry.sync_macd_filter_with_strategy()
+
+        assert result is True
+        assert macd_filter.enabled is False
+
+    def test_sync_macd_filter_no_macd_filter_registered(self):
+        """Test sync returns False when no MACD filter registered."""
+        registry = FilterRegistry()
+
+        result = registry.sync_macd_filter_with_strategy()
+
+        assert result is False
+
+    def test_sync_macd_filter_wrong_filter_type(self):
+        """Test sync returns False when 'macd' filter is not MACDFilter."""
+        registry = FilterRegistry()
+        fake_filter = DummyFilter("macd", "Fake MACD")
+        registry.register(fake_filter)
+
+        result = registry.sync_macd_filter_with_strategy()
+
+        assert result is False
