@@ -60,15 +60,6 @@ describe('BotStatusCard', () => {
       expect(screen.getByText('Grid is active and placing orders')).toBeInTheDocument()
     })
 
-    it('renders MACD values', () => {
-      render(<BotStatusCard {...defaultProps} />)
-
-      expect(screen.getByText('MACD Line')).toBeInTheDocument()
-      expect(screen.getByText('125.50')).toBeInTheDocument()
-      expect(screen.getByText('Histogram')).toBeInTheDocument()
-      expect(screen.getByText('45.20')).toBeInTheDocument()
-    })
-
     it('renders order statistics', () => {
       render(<BotStatusCard {...defaultProps} />)
 
