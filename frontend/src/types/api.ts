@@ -150,6 +150,7 @@ export interface HealthResponse {
 export interface MACDValues {
   macdLine: number
   histogram: number
+  signalLine?: number
 }
 
 export interface OrderStats {

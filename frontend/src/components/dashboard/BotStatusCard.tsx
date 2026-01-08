@@ -79,18 +79,6 @@ export function BotStatusCard({
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">MACD Line</p>
-          <p className={`text-lg font-mono font-semibold ${data.macd.macdLine >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {data.macd.macdLine.toFixed(2)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Histogram</p>
-          <p className={`text-lg font-mono font-semibold ${data.macd.histogram >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-            {data.macd.histogram.toFixed(2)}
-          </p>
-        </div>
-        <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Pending Orders</p>
           <p className="text-lg font-mono font-semibold text-foreground">{data.orders.pendingOrders}</p>
         </div>
