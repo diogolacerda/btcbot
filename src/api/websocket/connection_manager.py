@@ -8,7 +8,6 @@ This module provides a singleton ConnectionManager that:
 """
 
 import asyncio
-import logging
 from datetime import datetime
 from typing import Any
 
@@ -16,8 +15,7 @@ from fastapi import WebSocket
 from pydantic import BaseModel
 
 from src.api.websocket.events import WebSocketEvent
-
-logger = logging.getLogger(__name__)
+from src.utils.logger import websocket_logger as logger
 
 
 class ConnectionInfo(BaseModel):

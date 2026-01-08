@@ -1,6 +1,5 @@
 """Strategy API endpoints for CRUD operations and MACD filter configuration."""
 
-import logging
 from typing import Annotated
 from uuid import UUID
 
@@ -20,8 +19,7 @@ from src.database.engine import get_session
 from src.database.models.user import User
 from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
 from src.database.repositories.strategy_repository import StrategyRepository
-
-logger = logging.getLogger(__name__)
+from src.utils.logger import api_logger as logger
 
 router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
 
