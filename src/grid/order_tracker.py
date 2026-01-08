@@ -473,73 +473,97 @@ class OrderTracker:
         positions: list[dict],
         open_orders: list[dict],
         tp_percent: float,
+        anchor_value: float = 0,
     ) -> int:
         """
         Load existing positions from exchange into tracker.
 
-        Called at startup to track positions that were opened before the app started.
+        BUG-FIX-006: BingX consolidates multiple filled orders into a single position
+        with an average price, but maintains individual take profit (TP) orders for
+        each original fill. This method now derives individual positions from the
+        TP orders rather than the consolidated position.
+
+        For each TP order, we reverse-calculate the entry price:
+            entry_price = tp_price / (1 + tp_percent / 100)
+
+        This allows us to show N individual positions (one per TP order) instead
+        of 1 consolidated position.
 
         Args:
-            positions: List of positions from exchange
-            open_orders: List of open orders (to find existing TPs)
-            tp_percent: Take profit percentage to calculate TP price (fallback)
+            positions: List of positions from exchange (used only for validation)
+            open_orders: List of open orders (TP orders are derived from here)
+            tp_percent: Take profit percentage to reverse-calculate entry prices
+            anchor_value: Grid anchor value for rounding (0 = no rounding)
 
         Returns:
-            Number of positions loaded
+            Number of positions loaded (count of TP orders)
         """
-        # Find existing TP orders
-        existing_tps: dict[float, float] = {}
-        for open_order in open_orders:
-            order_type = open_order.get("type", "")
-            if order_type in ["TAKE_PROFIT_MARKET", "TAKE_PROFIT"]:
-                stop_price = float(open_order.get("stopPrice", 0))
-                qty = float(open_order.get("origQty", 0))
-                if stop_price > 0:
-                    existing_tps[qty] = stop_price
+        # First, validate we have an actual position (sanity check)
+        has_position = any(float(pos.get("positionAmt", 0)) != 0 for pos in positions)
+
+        if not has_position:
+            orders_logger.info("No open positions to load")
+            return 0
+
+        # Calculate multiplier for reverse entry price calculation
+        tp_multiplier = 1 + (tp_percent / 100)
 
         loaded = 0
-        for pos in positions:
-            # BingX position fields
-            position_amt = float(pos.get("positionAmt", 0))
-            if position_amt == 0:
-                continue  # Skip empty positions
+        for open_order in open_orders:
+            order_type = open_order.get("type", "")
 
-            avg_price = float(pos.get("avgPrice", 0))
-            if avg_price == 0:
+            # Only process TP orders
+            if order_type not in ["TAKE_PROFIT_MARKET", "TAKE_PROFIT"]:
                 continue
 
-            # Generate a unique ID for this position
-            position_id = f"existing_{pos.get('symbol', 'unknown')}_{avg_price}"
+            tp_price = float(open_order.get("stopPrice", 0))
+            quantity = float(open_order.get("origQty", 0))
+            tp_order_id = str(open_order.get("orderId", ""))
+
+            if tp_price <= 0 or quantity <= 0:
+                continue
+
+            # Reverse-calculate entry price from TP price
+            entry_price = tp_price / tp_multiplier
+
+            # Apply anchor rounding if configured
+            if anchor_value > 0:
+                entry_price = round(entry_price / anchor_value) * anchor_value
+            else:
+                entry_price = round(entry_price, 2)
+
+            # Generate unique ID for this position (based on TP order ID)
+            position_id = f"existing_tp_{tp_order_id}"
 
             # Skip if already tracked
             if position_id in self._orders:
                 continue
 
-            # Try to find existing TP for this position quantity
-            tp_price = existing_tps.get(abs(position_amt))
-            if not tp_price:
-                # Fallback: calculate TP based on config
-                tp_price = avg_price * (1 + tp_percent / 100)
-                tp_source = "calculado"
-            else:
-                tp_source = "existente"
+            # Also skip if we already have an order at this entry price
+            # (handles duplicate tracking)
+            if entry_price in self._orders_by_price:
+                continue
 
             # Create tracked order as FILLED
             order = TrackedOrder(
                 order_id=position_id,
-                entry_price=avg_price,
+                entry_price=entry_price,
                 tp_price=tp_price,
-                quantity=abs(position_amt),
+                quantity=quantity,
                 status=OrderStatus.FILLED,
                 filled_at=datetime.now(),
+                exchange_tp_order_id=tp_order_id,
             )
             self._orders[position_id] = order
-            self._orders_by_price[avg_price] = position_id
+            self._orders_by_price[entry_price] = position_id
 
             orders_logger.info(
-                f"Posição existente carregada: {abs(position_amt)} BTC @ ${avg_price:,.2f} → TP ${tp_price:,.2f} ({tp_source})"
+                f"Position loaded from TP: {quantity} BTC @ ${entry_price:,.2f} → TP ${tp_price:,.2f} (TP#{tp_order_id[:8]})"
             )
             loaded += 1
+
+        if loaded > 0:
+            orders_logger.info(f"Loaded {loaded} individual positions from TP orders")
 
         return loaded
 
