@@ -219,25 +219,27 @@ export function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Strategy Status & Market Overview */}
-          <div className="lg:col-span-1 space-y-6">
-            <StrategyStatusCard
-              data={botStatus.data}
-              strategyName={activeStrategy?.name}
-              strategyTimeframe={macdFilterConfig?.timeframe}
-              strategySymbol={activeStrategy?.symbol}
-              strategyLeverage={activeStrategy?.leverage}
-              strategyOrderSize={activeStrategy?.orderSizeUsdt}
-              strategyTakeProfit={activeStrategy?.takeProfitPercent}
-              isLoading={botStatus.isLoading}
-              isError={botStatus.isError}
-              onActivate={() => handleBotAction('start')}
-              onDeactivate={() => handleBotAction('stop')}
-              onPause={() => handleBotAction('pause')}
-              onResume={() => handleBotAction('resume')}
-              isControlLoading={isControlLoading}
-            />
+        <div className="space-y-6">
+          {/* Row 1: Strategy Status (full width) */}
+          <StrategyStatusCard
+            data={botStatus.data}
+            strategyName={activeStrategy?.name}
+            strategyTimeframe={macdFilterConfig?.timeframe}
+            strategySymbol={activeStrategy?.symbol}
+            strategyLeverage={activeStrategy?.leverage}
+            strategyOrderSize={activeStrategy?.orderSizeUsdt}
+            strategyTakeProfit={activeStrategy?.takeProfitPercent}
+            isLoading={botStatus.isLoading}
+            isError={botStatus.isError}
+            onActivate={() => handleBotAction('start')}
+            onDeactivate={() => handleBotAction('stop')}
+            onPause={() => handleBotAction('pause')}
+            onResume={() => handleBotAction('resume')}
+            isControlLoading={isControlLoading}
+          />
+
+          {/* Row 2: Market Overview & Performance (2 columns) */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <MarketOverviewCard
               price={marketData.price.data}
               funding={marketData.funding.data}
@@ -246,39 +248,37 @@ export function DashboardPage() {
               isLoading={marketData.isLoading}
               isError={marketData.isError}
             />
-          </div>
-
-          {/* Center Column - Performance & Positions */}
-          <div className="lg:col-span-1 space-y-6">
             <PerformanceMetricsCard
               data={performanceMetrics.data}
               isLoading={performanceMetrics.isLoading}
               isError={performanceMetrics.isError}
             />
-            <PositionsTable
-              positions={positions.data?.orders}
-              currentPrice={currentPrice}
-              isLoading={positions.isLoading}
-              isError={positions.isError}
-              onPositionClick={handlePositionClick}
-            />
           </div>
 
-          {/* Right Column - Orders & Activity */}
-          <div className="lg:col-span-1 space-y-6">
-            <OrdersTable
-              data={orders.data}
-              isLoading={orders.isLoading}
-              isError={orders.isError}
-              onOrderClick={handlePositionClick}
-            />
-            <ActivityFeed
-              events={activityEvents.data?.events}
-              isLoading={activityEvents.isLoading}
-              isError={activityEvents.isError}
-              maxItems={15}
-            />
-          </div>
+          {/* Row 3: Open Positions (full width) */}
+          <PositionsTable
+            positions={positions.data?.orders}
+            currentPrice={currentPrice}
+            isLoading={positions.isLoading}
+            isError={positions.isError}
+            onPositionClick={handlePositionClick}
+          />
+
+          {/* Row 4: Orders (full width) */}
+          <OrdersTable
+            data={orders.data}
+            isLoading={orders.isLoading}
+            isError={orders.isError}
+            onOrderClick={handlePositionClick}
+          />
+
+          {/* Row 5: Activity Feed (full width) */}
+          <ActivityFeed
+            events={activityEvents.data?.events}
+            isLoading={activityEvents.isLoading}
+            isError={activityEvents.isError}
+            maxItems={15}
+          />
         </div>
       </main>
 
