@@ -76,7 +76,7 @@ export function StrategyStatusCard({
   }
 
   const stateConfig = STATE_CONFIG[data.state] || STATE_CONFIG.INACTIVE
-  const isRunning = data.status === 'running'
+  const isRunning = data.isRunning || ['WAIT', 'ACTIVATE', 'ACTIVE'].includes(data.state)
   const isPaused = data.state === 'PAUSE'
 
   return (
