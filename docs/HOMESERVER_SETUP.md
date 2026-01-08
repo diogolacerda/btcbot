@@ -466,6 +466,73 @@ curl -I https://hub.docker.com
 
 ---
 
+## GitHub Actions Self-Hosted Runners
+
+**Documentação completa:** `docs/SELFHOSTED_RUNNER.md`
+
+### Visão Geral
+
+O homeserver hospeda **9 GitHub Actions self-hosted runners** que executam workflows de CI/CD localmente, eliminando custos e melhorando performance.
+
+| Métrica | Cloud | Self-Hosted | Melhoria |
+|---------|-------|-------------|----------|
+| CI Time | ~240s | **65s** | 73% ⚡ |
+| CD Time | ~324s | **77-120s** | 63-76% ⚡ |
+| Custo/mês | ~$100 | **$0** | 100% 💰 |
+
+### Runners Configurados
+
+- **Total:** 9 runners (homeserver-runner through homeserver-runner-9)
+- **Path:** `/home/github-runner/actions-runner*`
+- **User:** `github-runner` (group: `docker`)
+- **Labels:** `self-hosted`, `linux`, `docker`
+- **Status:** ✅ Produção
+
+### Comandos Rápidos
+
+```bash
+# Verificar status de todos os runners
+ssh diogo@192.168.68.99 "sudo systemctl list-units 'actions.runner*' --no-pager | grep 'active running'"
+
+# Ver logs de runner específico
+ssh diogo@192.168.68.99 "sudo journalctl -u actions.runner.diogolacerda-btcbot.homeserver-runner -f"
+
+# Reiniciar todos os runners
+ssh diogo@192.168.68.99 "sudo systemctl restart 'actions.runner*'"
+
+# Verificar recursos do sistema
+ssh diogo@192.168.68.99 "free -h && df -h && uptime"
+
+# Ver workflows rodando
+gh run list --limit 5
+```
+
+### Dashboard
+
+- **Runners:** https://github.com/diogolacerda/btcbot/settings/actions/runners
+- **Workflows:** https://github.com/diogolacerda/btcbot/actions
+
+### Troubleshooting Comum
+
+**Runner offline:**
+```bash
+ssh diogo@192.168.68.99 "sudo systemctl restart actions.runner.diogolacerda-btcbot.homeserver-runner"
+```
+
+**RAM/Disk check:**
+```bash
+ssh diogo@192.168.68.99 "free -h && df -h"
+```
+
+**Limpar cache Docker:**
+```bash
+ssh diogo@192.168.68.99 "docker system prune -a -f"
+```
+
+Para documentação completa, manutenção, e adicionar/remover runners, veja: **`docs/SELFHOSTED_RUNNER.md`**
+
+---
+
 ## Referencias
 
 - [Documentacao Portainer](https://docs.portainer.io/)
