@@ -166,12 +166,18 @@ class TestWebSocketEvents:
             grid_active=True,
             pending_orders_count=5,
             filled_orders_count=3,
+            macd_line=0.00123,
+            histogram=0.00045,
+            signal_line=0.00098,
         )
 
         event = WebSocketEvent.bot_status(status)
         assert event.type == WebSocketEventType.BOT_STATUS
         assert event.data.state == "ACTIVE"
         assert event.data.is_running is True
+        assert event.data.macd_line == 0.00123
+        assert event.data.histogram == 0.00045
+        assert event.data.signal_line == 0.00098
 
     def test_position_update_event_creation(self):
         """Test creating a position update event."""
