@@ -33,7 +33,7 @@ env:
 jobs:
   build-and-push-stage:
     name: Build and Push Stage Frontend Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
 
     # Permissoes minimas necessarias
     permissions:

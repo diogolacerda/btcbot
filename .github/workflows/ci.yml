@@ -13,7 +13,7 @@ concurrency:
 jobs:
   lint:
     name: Lint & Format
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
 
   typecheck:
     name: Type Check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
 
   test:
     name: Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -87,7 +87,7 @@ jobs:
 
   build:
     name: Docker Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -101,13 +101,13 @@ jobs:
           context: .
           push: false
           tags: btcbot:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
 
   # Frontend jobs
   frontend-lint:
     name: Frontend Lint
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     defaults:
       run:
         working-directory: frontend
@@ -130,7 +130,7 @@ jobs:
 
   frontend-typecheck:
     name: Frontend Type Check
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     defaults:
       run:
         working-directory: frontend
@@ -153,7 +153,7 @@ jobs:
 
   frontend-test:
     name: Frontend Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     defaults:
       run:
         working-directory: frontend
@@ -176,7 +176,7 @@ jobs:
 
   frontend-build:
     name: Frontend Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     defaults:
       run:
         working-directory: frontend
@@ -200,7 +200,7 @@ jobs:
   # Summary job that depends on all others
   ci-success:
     name: CI Success
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     needs: [lint, typecheck, test, build, frontend-lint, frontend-typecheck, frontend-test, frontend-build]
     if: always()
     steps:
