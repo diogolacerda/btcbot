@@ -16,3 +16,5 @@ aiosqlite>=0.22.0  # For SQLite async tests
 # Type stubs
 types-requests>=2.31.0
 pandas-stubs>=2.0.0
+# Adicionar pytest-xdist para testes paralelos
+pytest-xdist>=3.5.0
