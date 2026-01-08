@@ -11,8 +11,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  backend-checks:
-    name: Backend Checks (Lint + Type + Test)
+  lint:
+    name: Lint & Format
+    runs-on: [self-hosted, linux, docker]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff check and format in parallel
+        run: |
+          ruff check . &
+          ruff format --check . &
+          wait
+
+  typecheck:
+    name: Type Check
     runs-on: [self-hosted, linux, docker]
     steps:
       - name: Checkout code
@@ -26,31 +48,44 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python3.12 -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-          pip install ruff mypy types-requests pandas-stubs
+          pip install -r requirements.txt
+          pip install mypy types-requests pandas-stubs
 
-      - name: Run checks in parallel
+      - name: Run mypy
+        run: mypy . --ignore-missing-imports
+
+  test:
+    name: Tests
+    runs-on: [self-hosted, linux, docker]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
         run: |
-          # Ruff check e format em paralelo
-          ruff check . &
-          ruff format --check . &
-          mypy . --ignore-missing-imports &
-          wait
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
-      - name: Run tests with coverage
+      - name: Run tests with coverage (parallel execution)
         run: pytest --cov=src --cov-report=xml --cov-report=term-missing -n auto
 
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         if: github.ref != 'refs/heads/main'
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
+          verbose: true
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
-  docker-build:
+  build:
     name: Docker Build
     runs-on: [self-hosted, linux, docker]
     steps:
@@ -73,8 +108,9 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
 
-  frontend-checks:
-    name: Frontend Checks (Lint + Type + Build)
+  # Frontend jobs
+  frontend-lint:
+    name: Frontend Lint
     runs-on: [self-hosted, linux, docker]
     defaults:
       run:
@@ -93,9 +129,96 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run checks and build in parallel
+      - name: Run ESLint
+        run: npm run lint
+
+  frontend-typecheck:
+    name: Frontend Type Check
+    runs-on: [self-hosted, linux, docker]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript compiler
+        run: npx tsc --noEmit
+
+  frontend-test:
+    name: Frontend Tests
+    runs-on: [self-hosted, linux, docker]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+  frontend-build:
+    name: Frontend Build
+    runs-on: [self-hosted, linux, docker]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+  # Summary job that depends on all others
+  ci-success:
+    name: CI Success
+    runs-on: [self-hosted, linux, docker]
+    needs: [lint, typecheck, test, build, frontend-lint, frontend-typecheck, frontend-test, frontend-build]
+    if: always()
+    steps:
+      - name: Check all jobs passed
         run: |
-          npm run lint &
-          npx tsc --noEmit &
-          wait
-          npm run build
+          if [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.typecheck.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.build.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-lint.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-typecheck.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-test.result }}" != "success" ]] || \
+             [[ "${{ needs.frontend-build.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          echo "All CI jobs passed!"
