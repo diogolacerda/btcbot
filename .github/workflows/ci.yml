@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - '**'
-      - '!main'  # Exclui main - CI já passou no PR, só CD Stage é necessário
+      - '!main'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,16 +22,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
       - name: Install ruff
         run: pip install ruff
 
-      - name: Run ruff check
-        run: ruff check .
-
-      - name: Run ruff format check
-        run: ruff format --check .
+      - name: Run ruff check and format in parallel
+        run: |
+          ruff check . &
+          ruff format --check . &
+          wait
 
   typecheck:
     name: Type Check
@@ -44,7 +43,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -65,15 +63,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
 
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Run tests with coverage
-        run: pytest --cov=src --cov-report=xml --cov-report=term-missing
+      - name: Run tests with coverage (parallel execution)
+        run: pytest --cov=src --cov-report=xml --cov-report=term-missing -n auto
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -95,14 +92,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image (no push)
+      - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
           tags: btcbot:test
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,mode=max
+          cache-from: |
+            type=registry,ref=diogorlm/btcbot:stage
+            type=local,src=/tmp/.buildx-cache
+          cache-to: type=inline
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
 
   # Frontend jobs
   frontend-lint:

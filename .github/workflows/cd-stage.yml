@@ -74,6 +74,8 @@ jobs:
             type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:stage
             type=local,src=/tmp/.buildx-cache-backend
           cache-to: type=inline
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
           # Build para amd64 (compativel com homeserver)
           platforms: linux/amd64
 
