@@ -35,6 +35,8 @@ interface StrategyFormProps {
   initialValues?: Partial<StrategyFormValues>
   onSubmit: (data: StrategyFormValues) => Promise<void>
   isSubmitting?: boolean
+  /** Optional content to render before the form action buttons */
+  children?: React.ReactNode
 }
 
 // ============================================================================
@@ -105,6 +107,7 @@ export function StrategyForm({
   initialValues,
   onSubmit,
   isSubmitting = false,
+  children,
 }: StrategyFormProps) {
   const {
     register,
@@ -547,6 +550,9 @@ export function StrategyForm({
           </div>
         </div>
       </div>
+
+      {/* Additional content slot (e.g., MACD Filter Section) */}
+      {children}
 
       {/* Form Actions */}
       <div className="flex items-center justify-end gap-4 pt-4 border-t border-border">
