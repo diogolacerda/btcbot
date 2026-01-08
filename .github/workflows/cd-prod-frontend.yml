@@ -104,9 +104,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Cache usando GitHub Actions cache
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Cache otimizado: usa imagem existente no registry + cache local
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            type=local,src=/tmp/.buildx-cache-frontend
+          cache-to: type=inline
           # Build para amd64 (compativel com homeserver)
           platforms: linux/amd64
 
