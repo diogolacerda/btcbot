@@ -16,7 +16,6 @@ import {
   useBotStatus,
   useMarketData,
   usePerformanceMetrics,
-  useOrders,
   usePositions,
   useActivityEvents,
   dashboardKeys,
@@ -32,7 +31,6 @@ import {
   MarketOverviewCard,
   PerformanceMetricsCard,
   PositionsTable,
-  OrdersTable,
   ActivityFeed,
   ConfirmDialog,
   PositionDetailsModal,
@@ -68,7 +66,6 @@ export function DashboardPage() {
     startDate: customDates.start,
     endDate: customDates.end,
   })
-  const orders = useOrders({ limit: 50 })
   const positions = usePositions({ limit: 20 })
   const activityEvents = useActivityEvents({
     period,
@@ -264,15 +261,7 @@ export function DashboardPage() {
             onPositionClick={handlePositionClick}
           />
 
-          {/* Row 4: Orders (full width) */}
-          <OrdersTable
-            data={orders.data}
-            isLoading={orders.isLoading}
-            isError={orders.isError}
-            onOrderClick={handlePositionClick}
-          />
-
-          {/* Row 5: Activity Feed (full width) */}
+          {/* Row 4: Activity Feed (full width) */}
           <ActivityFeed
             events={activityEvents.data?.events}
             isLoading={activityEvents.isLoading}
