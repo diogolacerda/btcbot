@@ -192,22 +192,29 @@ class TestWebSocketEvents:
 
     def test_order_update_event_creation(self):
         """Test creating an order update event."""
+        now = datetime.now()
         order = OrderUpdateEvent(
             order_id="12345",
             symbol="BTC-USDT",
-            side="BUY",
+            side="LONG",
             order_type="LIMIT",
             status="FILLED",
             price="50000.00",
+            tp_price="50500.00",
             quantity="0.01",
             filled_quantity="0.01",
-            timestamp=datetime.now(),
+            created_at=now,
+            filled_at=now,
+            closed_at=None,
+            exchange_tp_order_id="TP123",
         )
 
         event = WebSocketEvent.order_update(order)
         assert event.type == WebSocketEventType.ORDER_UPDATE
         assert event.data.order_id == "12345"
         assert event.data.status == "FILLED"
+        assert event.data.side == "LONG"
+        assert event.data.tp_price == "50500.00"
 
     def test_price_update_event_creation(self):
         """Test creating a price update event."""
@@ -787,13 +794,17 @@ class TestEventSerialization:
                 OrderUpdateEvent(
                     order_id="12345",
                     symbol="BTC-USDT",
-                    side="BUY",
+                    side="LONG",
                     order_type="LIMIT",
                     status="FILLED",
                     price="50000.00",
+                    tp_price="50500.00",
                     quantity="0.01",
                     filled_quantity="0.01",
-                    timestamp=datetime.now(),
+                    created_at=datetime.now(),
+                    filled_at=datetime.now(),
+                    closed_at=None,
+                    exchange_tp_order_id="TP123",
                 )
             ),
             WebSocketEvent.price_update(
