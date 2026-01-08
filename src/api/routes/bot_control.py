@@ -16,6 +16,7 @@ from src.api.schemas.bot_control import (
     MACDValues,
     OrderStats,
 )
+from src.database.models.activity_event import EventType
 from src.database.models.user import User
 from src.utils.logger import main_logger
 
@@ -124,6 +125,18 @@ async def pause_bot(
 
         main_logger.info("Bot paused via API")
 
+        # Log STRATEGY_PAUSED event
+        grid_manager._log_activity_event(
+            EventType.STRATEGY_PAUSED,
+            "Bot paused via dashboard",
+            {
+                "previous_state": previous_state,
+                "current_state": grid_manager.current_state.value.upper(),
+                "pending_orders": grid_manager.tracker.pending_count,
+                "open_positions": grid_manager.tracker.position_count,
+            },
+        )
+
         # Broadcast pause status to dashboard
         grid_manager._broadcast_bot_status(
             state=grid_manager.current_state,
@@ -180,6 +193,18 @@ async def resume_bot(
         grid_manager._margin_error_time = 0.0
 
         main_logger.info("Bot resumed via API")
+
+        # Log STRATEGY_RESUMED event
+        grid_manager._log_activity_event(
+            EventType.STRATEGY_RESUMED,
+            "Bot resumed via dashboard",
+            {
+                "previous_state": previous_state,
+                "current_state": grid_manager.current_state.value.upper(),
+                "pending_orders": grid_manager.tracker.pending_count,
+                "open_positions": grid_manager.tracker.position_count,
+            },
+        )
 
         # Broadcast resume status to dashboard
         grid_manager._broadcast_bot_status(
