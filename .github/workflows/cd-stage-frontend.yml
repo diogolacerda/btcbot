@@ -74,9 +74,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Cache usando GitHub Actions cache para builds mais rapidos
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Cache local para builds mais rapidos no self-hosted runner
+          cache-from: type=local,src=/tmp/.buildx-cache-frontend
+          cache-to: type=local,dest=/tmp/.buildx-cache-frontend,mode=max
           # Build para amd64 (compativel com homeserver)
           platforms: linux/amd64
 
