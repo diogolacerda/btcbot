@@ -69,6 +69,7 @@ pytest
 
 - [GitFlow](docs/GITFLOW.md) - Fluxo de trabalho
 - [Homeserver Setup](docs/HOMESERVER_SETUP.md) - Configuracao do servidor
+- [Self-Hosted Runners](docs/SELFHOSTED_RUNNER.md) - GitHub Actions runners configuracao
 - [Secrets](docs/SECRETS.md) - Configuracao de secrets
 
 ## Licenca
