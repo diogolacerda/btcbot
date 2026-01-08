@@ -314,11 +314,16 @@ class GridManager:
                     self.tracker.set_initial_pnl(realised_pnl)
                     break
 
-            # Load positions (pass open_orders to find existing TPs)
+            # Load positions from TP orders (BUG-FIX-006: derive individual positions)
+            # Get anchor value for proper price rounding
+            use_anchor = self._get_anchor_mode_value() != "none"
+            anchor_value = self.calculator.anchor_value if use_anchor else 0
+
             positions_loaded = self.tracker.load_existing_positions(
                 positions,
                 open_orders,
                 self.config.grid.take_profit_percent,
+                anchor_value=anchor_value,
             )
 
             # Load only LIMIT orders (not TPs)
