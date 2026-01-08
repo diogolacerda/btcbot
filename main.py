@@ -146,9 +146,48 @@ async def run_bot() -> None:
     def on_tp_hit(trade):
         alerts.tp_hit()
 
-    # Create bot state repository for GridManager (will create sessions as needed)
-    # Note: We pass None here because repository needs a session, which will be created
-    # when needed via get_session() inside MACDStrategy._schedule_persist_state
+    # Create repository wrappers before GridManager instantiation
+    # This ensures proper dependency injection and avoids timing issues
+    tp_adjustment_repository_wrapper = None
+    if account_id:
+        # Create TP adjustment repository wrapper
+        async def _save_tp_adjustment_with_session(
+            trade_id,
+            old_tp_price,
+            new_tp_price,
+            old_tp_percent,
+            new_tp_percent,
+            funding_rate=None,
+            funding_accumulated=None,
+            hours_open=None,
+        ):
+            """Helper to save TP adjustment with a new session."""
+            async for session in get_session():
+                repo = TPAdjustmentRepository(session)
+                return await repo.save_adjustment(
+                    trade_id=trade_id,
+                    old_tp_price=Decimal(str(old_tp_price)),
+                    new_tp_price=Decimal(str(new_tp_price)),
+                    old_tp_percent=Decimal(str(old_tp_percent)),
+                    new_tp_percent=Decimal(str(new_tp_percent)),
+                    funding_rate=Decimal(str(funding_rate)) if funding_rate else None,
+                    funding_accumulated=(
+                        Decimal(str(funding_accumulated)) if funding_accumulated else None
+                    ),
+                    hours_open=Decimal(str(hours_open)) if hours_open else None,
+                )
+
+        tp_adjustment_repository_wrapper = type(
+            "TPAdjustmentRepositoryWrapper",
+            (),
+            {
+                "save_adjustment": lambda self, *args, **kwargs: (
+                    _save_tp_adjustment_with_session(*args, **kwargs)
+                ),
+            },
+        )()
+
+    # Create GridManager with repository wrapper injected
     grid_manager = GridManager(
         config=config,
         client=client,
@@ -159,6 +198,7 @@ async def run_bot() -> None:
         bot_state_repository=None,  # Will be set after
         trade_repository=None,  # Will be set after
         strategy_repository=None,  # Will be set after
+        tp_adjustment_repository=tp_adjustment_repository_wrapper,
     )
 
     # Set up bot state repository with a session factory
@@ -284,44 +324,6 @@ async def run_bot() -> None:
             {
                 "create_event": lambda self, *args, **kwargs: _log_activity_event_with_session(
                     *args, **kwargs
-                ),
-            },
-        )()
-
-        # Create a wrapper TP adjustment repository that creates sessions on demand
-        async def _save_tp_adjustment_with_session(
-            trade_id,
-            old_tp_price,
-            new_tp_price,
-            old_tp_percent,
-            new_tp_percent,
-            funding_rate=None,
-            funding_accumulated=None,
-            hours_open=None,
-        ):
-            """Helper to save TP adjustment with a new session."""
-            async for session in get_session():
-                repo = TPAdjustmentRepository(session)
-                return await repo.save_adjustment(
-                    trade_id=trade_id,
-                    old_tp_price=Decimal(str(old_tp_price)),
-                    new_tp_price=Decimal(str(new_tp_price)),
-                    old_tp_percent=Decimal(str(old_tp_percent)),
-                    new_tp_percent=Decimal(str(new_tp_percent)),
-                    funding_rate=Decimal(str(funding_rate)) if funding_rate else None,
-                    funding_accumulated=(
-                        Decimal(str(funding_accumulated)) if funding_accumulated else None
-                    ),
-                    hours_open=Decimal(str(hours_open)) if hours_open else None,
-                )
-
-        # Configure wrapper in GridManager
-        grid_manager._tp_adjustment_repository = type(
-            "TPAdjustmentRepositoryWrapper",
-            (),
-            {
-                "save_adjustment": lambda self, *args, **kwargs: (
-                    _save_tp_adjustment_with_session(*args, **kwargs)
                 ),
             },
         )()
