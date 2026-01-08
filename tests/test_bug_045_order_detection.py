@@ -77,6 +77,14 @@ class TestOrderDetection:
             gm._on_tp_hit = None
             gm._activity_event_repository = None
             gm._account_id = None
+            # Add missing attributes for position broadcasting
+            gm._connection_manager = AsyncMock()
+            gm._connection_manager.active_connections_count = 0
+            gm._broadcast_order_update = AsyncMock()
+            from unittest.mock import MagicMock
+
+            gm.config = MagicMock()
+            gm.config.trading.leverage = 10
 
             # Run sync
             await gm._sync_with_exchange()
@@ -104,6 +112,8 @@ class TestOrderDetection:
             {"positionAmt": "0", "symbol": "BTC-USDT"}  # No position
         ]
 
+        from unittest.mock import MagicMock
+
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -116,6 +126,12 @@ class TestOrderDetection:
             gm._on_tp_hit = None
             gm._activity_event_repository = None
             gm._account_id = None
+            # Add missing attributes for position broadcasting
+            gm._connection_manager = AsyncMock()
+            gm._connection_manager.active_connections_count = 0
+            gm._broadcast_order_update = AsyncMock()
+            gm.config = MagicMock()
+            gm.config.trading.leverage = 10
 
             await gm._sync_with_exchange()
 
@@ -141,6 +157,8 @@ class TestOrderDetection:
             {"positionAmt": "0.001", "symbol": "BTC-USDT"}  # Only one order filled
         ]
 
+        from unittest.mock import MagicMock
+
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -153,6 +171,12 @@ class TestOrderDetection:
             gm._on_tp_hit = None
             gm._activity_event_repository = None
             gm._account_id = None
+            # Add missing attributes for position broadcasting
+            gm._connection_manager = AsyncMock()
+            gm._connection_manager.active_connections_count = 0
+            gm._broadcast_order_update = AsyncMock()
+            gm.config = MagicMock()
+            gm.config.trading.leverage = 10
 
             await gm._sync_with_exchange()
 
@@ -171,6 +195,8 @@ class TestOrderDetection:
         mock_client.get_open_orders.return_value = [{"orderId": "789", "type": "LIMIT"}]
         mock_client.get_positions.return_value = []
 
+        from unittest.mock import MagicMock
+
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -183,6 +209,12 @@ class TestOrderDetection:
             gm._on_tp_hit = None
             gm._activity_event_repository = None
             gm._account_id = None
+            # Add missing attributes for position broadcasting
+            gm._connection_manager = AsyncMock()
+            gm._connection_manager.active_connections_count = 0
+            gm._broadcast_order_update = AsyncMock()
+            gm.config = MagicMock()
+            gm.config.trading.leverage = 10
 
             await gm._sync_with_exchange()
 
@@ -209,6 +241,8 @@ class TestOrderDetection:
         mock_client.get_open_orders.return_value = []
         mock_client.get_positions.return_value = [{"positionAmt": "0"}]
 
+        from unittest.mock import MagicMock
+
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -221,6 +255,12 @@ class TestOrderDetection:
             gm._on_tp_hit = None
             gm._activity_event_repository = None
             gm._account_id = None
+            # Add missing attributes for position broadcasting
+            gm._connection_manager = AsyncMock()
+            gm._connection_manager.active_connections_count = 0
+            gm._broadcast_order_update = AsyncMock()
+            gm.config = MagicMock()
+            gm.config.trading.leverage = 10
 
             await gm._sync_with_exchange()
 
