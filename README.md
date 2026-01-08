@@ -4,7 +4,7 @@
 
 Bot de trading automatizado usando estrategia de Grid para BTC-USDT na BingX.
 
-> 🚀 CI/CD powered by 5 self-hosted runners on homeserver (optimized for <1min CI)
+> 🚀 CI/CD powered by 9 self-hosted runners on homeserver (optimized for <1min CI)
 
 ## Requisitos
 
