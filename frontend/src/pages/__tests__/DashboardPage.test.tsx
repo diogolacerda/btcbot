@@ -47,18 +47,6 @@ vi.mock('@/hooks/useDashboardData', () => ({
     isLoading: false,
     isError: false,
   }),
-  useOrders: () => ({
-    data: {
-      orders: mockOrders,
-      total: mockOrders.length,
-      limit: 50,
-      offset: 0,
-      pendingCount: 1,
-      filledCount: 1,
-    },
-    isLoading: false,
-    isError: false,
-  }),
   usePositions: () => ({
     data: {
       orders: mockOrders.filter(o => o.status === 'FILLED'),
@@ -223,12 +211,6 @@ describe('DashboardPage', () => {
       // "Open Positions" appears twice (in StrategyStatusCard and as table title)
       const elements = screen.getAllByText('Open Positions')
       expect(elements.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('renders Orders table', () => {
-      render(<DashboardPage />)
-
-      expect(screen.getByText('Orders')).toBeInTheDocument()
     })
 
     it('renders Activity Feed', () => {
