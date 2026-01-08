@@ -10,6 +10,7 @@ from uuid import UUID
 from config import Config
 from src.api.websocket.connection_manager import get_connection_manager
 from src.api.websocket.events import (
+    ActivityEventData,
     BotStatusEvent,
     OrderUpdateEvent,
     PositionUpdateEvent,
@@ -157,7 +158,7 @@ class GridManager:
         description: str,
         event_data: dict | None = None,
     ) -> None:
-        """Log an activity event to the database (fire-and-forget).
+        """Log an activity event to the database and broadcast via WebSocket (fire-and-forget).
 
         This method is non-blocking and failures will not crash the bot.
         Uses asyncio.create_task for fire-and-forget behavior.
@@ -173,9 +174,11 @@ class GridManager:
         # Capture values for closure (type narrowing)
         repo = self._activity_event_repository
         account_id = self._account_id
+        connection_manager = self._connection_manager
 
         async def _do_log():
             try:
+                # Persist to database
                 await repo.create_event(
                     account_id=account_id,
                     event_type=event_type,
@@ -183,8 +186,35 @@ class GridManager:
                     event_data=event_data,
                 )
                 main_logger.debug(f"Activity event logged: {event_type}")
+
+                # Broadcast via WebSocket if clients are connected
+                if connection_manager and connection_manager.active_connections_count > 0:
+                    from datetime import datetime
+
+                    # Determine severity based on event type
+                    severity = "info"
+                    if event_type == EventType.ERROR_OCCURRED:
+                        severity = "error"
+                    elif event_type in (EventType.TRADE_CLOSED, EventType.ORDER_FILLED):
+                        severity = "success"
+                    elif event_type in (EventType.STRATEGY_PAUSED, EventType.BOT_STOPPED):
+                        severity = "warning"
+
+                    # Create WebSocket event
+                    activity_data = ActivityEventData(
+                        event_type=event_type.value,
+                        message=description,
+                        severity=severity,
+                        metadata=event_data,
+                        timestamp=datetime.now(),
+                    )
+
+                    ws_event = WebSocketEvent.activity_event(activity_data)
+                    await connection_manager.broadcast(ws_event)
+                    main_logger.debug(f"Activity event broadcast: {event_type}")
+
             except Exception as e:
-                main_logger.warning(f"Failed to log activity event: {e}")
+                main_logger.warning(f"Failed to log/broadcast activity event: {e}")
 
         # Fire and forget - don't await, just schedule
         try:
@@ -201,6 +231,9 @@ class GridManager:
         grid_active: bool = False,
         pending_orders_count: int = 0,
         filled_orders_count: int = 0,
+        macd_line: float | None = None,
+        histogram: float | None = None,
+        signal_line: float | None = None,
     ) -> None:
         """Broadcast bot status changes to connected dashboard clients.
 
@@ -211,9 +244,13 @@ class GridManager:
             grid_active: Whether the grid is active
             pending_orders_count: Number of pending orders
             filled_orders_count: Number of filled orders
+            macd_line: MACD line value
+            histogram: MACD histogram value
+            signal_line: MACD signal line value
         """
         # Skip if no clients connected
         if self._connection_manager.active_connections_count == 0:
+            main_logger.debug("Skipping bot status broadcast - no clients connected")
             return
 
         event_data = BotStatusEvent(
@@ -223,9 +260,17 @@ class GridManager:
             grid_active=grid_active,
             pending_orders_count=pending_orders_count,
             filled_orders_count=filled_orders_count,
+            macd_line=macd_line,
+            histogram=histogram,
+            signal_line=signal_line,
         )
 
         event = WebSocketEvent.bot_status(event_data)
+
+        main_logger.info(
+            f"Broadcasting bot status: state={state.value}, is_running={is_running}, "
+            f"macd_line={macd_line}, histogram={histogram}"
+        )
 
         # Fire and forget - don't await, just schedule
         try:
@@ -539,6 +584,19 @@ class GridManager:
         # Start WebSocket for real-time order updates
         await self._start_websocket()
 
+        # Broadcast bot started status to dashboard
+        self._broadcast_bot_status(
+            state=self._current_state,
+            is_running=self._running,
+            macd_trend=None,
+            grid_active=self._current_state in {GridState.ACTIVATE, GridState.ACTIVE},
+            pending_orders_count=self.tracker.pending_count,
+            filled_orders_count=self.tracker.position_count,
+            macd_line=self._last_macd_line,
+            histogram=self._last_histogram,
+            signal_line=None,
+        )
+
     async def _start_websocket(self) -> None:
         """Start WebSocket for real-time order updates."""
         try:
@@ -845,6 +903,19 @@ class GridManager:
         except Exception as e:
             main_logger.warning(f"Aviso ao verificar ordens: {e}")
             self.tracker.clear_all()
+
+        # Broadcast bot stopped status to dashboard
+        self._broadcast_bot_status(
+            state=self._current_state,
+            is_running=self._running,
+            macd_trend=None,
+            grid_active=False,
+            pending_orders_count=0,
+            filled_orders_count=0,
+            macd_line=self._last_macd_line,
+            histogram=self._last_histogram,
+            signal_line=None,
+        )
 
     async def update(self) -> None:
         """
@@ -1514,6 +1585,18 @@ class GridManager:
                 f"Cycle activated ({old_state.value} -> {new_state.value})",
                 event_data,
             )
+            # Broadcast state change to dashboard
+            self._broadcast_bot_status(
+                state=new_state,
+                is_running=self._running,
+                macd_trend=None,  # Will be determined by MACD filter
+                grid_active=True,
+                pending_orders_count=self.tracker.pending_count,
+                filled_orders_count=self.tracker.position_count,
+                macd_line=self._last_macd_line,
+                histogram=self._last_histogram,
+                signal_line=None,  # Not currently tracked
+            )
 
         # CYCLE_DEACTIVATED: when transitioning TO INACTIVE state (cycle ends)
         if new_state == GridState.INACTIVE and old_state != GridState.INACTIVE:
@@ -1521,6 +1604,18 @@ class GridManager:
                 EventType.CYCLE_DEACTIVATED,
                 f"Cycle deactivated ({old_state.value} -> {new_state.value})",
                 event_data,
+            )
+            # Broadcast state change to dashboard
+            self._broadcast_bot_status(
+                state=new_state,
+                is_running=self._running,
+                macd_trend=None,
+                grid_active=False,
+                pending_orders_count=self.tracker.pending_count,
+                filled_orders_count=self.tracker.position_count,
+                macd_line=self._last_macd_line,
+                histogram=self._last_histogram,
+                signal_line=None,
             )
 
         # STRATEGY_PAUSED: when transitioning TO PAUSE state
@@ -1530,6 +1625,18 @@ class GridManager:
                 f"Strategy paused ({old_state.value} -> PAUSE)",
                 event_data,
             )
+            # Broadcast state change to dashboard
+            self._broadcast_bot_status(
+                state=new_state,
+                is_running=self._running,
+                macd_trend=None,
+                grid_active=False,
+                pending_orders_count=self.tracker.pending_count,
+                filled_orders_count=self.tracker.position_count,
+                macd_line=self._last_macd_line,
+                histogram=self._last_histogram,
+                signal_line=None,
+            )
 
         # STRATEGY_RESUMED: when transitioning FROM PAUSE to ACTIVE/ACTIVATE
         if old_state == GridState.PAUSE and new_state in active_states:
@@ -1537,4 +1644,16 @@ class GridManager:
                 EventType.STRATEGY_RESUMED,
                 f"Strategy resumed (PAUSE -> {new_state.value})",
                 event_data,
+            )
+            # Broadcast state change to dashboard
+            self._broadcast_bot_status(
+                state=new_state,
+                is_running=self._running,
+                macd_trend=None,
+                grid_active=True,
+                pending_orders_count=self.tracker.pending_count,
+                filled_orders_count=self.tracker.position_count,
+                macd_line=self._last_macd_line,
+                histogram=self._last_histogram,
+                signal_line=None,
             )

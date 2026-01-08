@@ -45,6 +45,10 @@ class BotStatusEvent(BaseModel):
     grid_active: bool = False
     pending_orders_count: int = 0
     filled_orders_count: int = 0
+    # MACD indicator values
+    macd_line: float | None = None
+    histogram: float | None = None
+    signal_line: float | None = None
 
 
 class PositionUpdateEvent(BaseModel):

@@ -124,6 +124,19 @@ async def pause_bot(
 
         main_logger.info("Bot paused via API")
 
+        # Broadcast pause status to dashboard
+        grid_manager._broadcast_bot_status(
+            state=grid_manager.current_state,
+            is_running=grid_manager.is_running,
+            macd_trend=None,
+            grid_active=False,
+            pending_orders_count=grid_manager.tracker.pending_count,
+            filled_orders_count=grid_manager.tracker.position_count,
+            macd_line=grid_manager._last_macd_line,
+            histogram=grid_manager._last_histogram,
+            signal_line=None,
+        )
+
         return BotPauseResponse(
             success=True,
             message="Bot paused successfully. No new orders will be created.",
@@ -167,6 +180,19 @@ async def resume_bot(
         grid_manager._margin_error_time = 0.0
 
         main_logger.info("Bot resumed via API")
+
+        # Broadcast resume status to dashboard
+        grid_manager._broadcast_bot_status(
+            state=grid_manager.current_state,
+            is_running=grid_manager.is_running,
+            macd_trend=None,
+            grid_active=grid_manager.current_state.value in ("ACTIVATE", "ACTIVE"),
+            pending_orders_count=grid_manager.tracker.pending_count,
+            filled_orders_count=grid_manager.tracker.position_count,
+            macd_line=grid_manager._last_macd_line,
+            histogram=grid_manager._last_histogram,
+            signal_line=None,
+        )
 
         return BotResumeResponse(
             success=True,
