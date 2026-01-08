@@ -1,5 +1,6 @@
 """Market data API endpoints for BTC price, funding rate, MACD, and grid range."""
 
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated
@@ -14,13 +15,81 @@ from src.api.schemas.market_data import (
     MACDSignal,
     PriceResponse,
 )
+from src.api.websocket.connection_manager import get_connection_manager
+from src.api.websocket.events import PriceUpdateEvent, WebSocketEvent
 from src.client.bingx_client import BingXClient
 from src.grid.grid_calculator import GridCalculator
 from src.strategy.macd_strategy import MACDStrategy
 
 router = APIRouter(prefix="/api/v1/market", tags=["Market Data"])
+logger = logging.getLogger(__name__)
 
 DEFAULT_SYMBOL = "BTC-USDT"
+
+
+class PriceBroadcastThrottler:
+    """Throttles price update broadcasts to avoid spam.
+
+    Implements two throttling strategies:
+    - Time-based: Maximum 1 broadcast per second
+    - Change-based: Only broadcast if price changed more than 0.01%
+
+    This prevents overwhelming clients with price updates that can occur
+    hundreds of times per minute.
+    """
+
+    def __init__(self, min_interval_seconds: float = 1.0, min_change_percent: float = 0.01):
+        """Initialize throttler.
+
+        Args:
+            min_interval_seconds: Minimum seconds between broadcasts
+            min_change_percent: Minimum price change % to trigger broadcast
+        """
+        self.min_interval_seconds = min_interval_seconds
+        self.min_change_percent = Decimal(str(min_change_percent))
+        self.last_broadcast_time: datetime | None = None
+        self.last_broadcast_price: Decimal | None = None
+
+    def should_broadcast(self, current_price: Decimal) -> tuple[bool, str | None]:
+        """Check if price update should be broadcast.
+
+        Args:
+            current_price: Current BTC price
+
+        Returns:
+            Tuple of (should_broadcast, reason_if_throttled)
+        """
+        now = datetime.now(UTC)
+
+        # First broadcast - always allow
+        if self.last_broadcast_time is None or self.last_broadcast_price is None:
+            self.last_broadcast_time = now
+            self.last_broadcast_price = current_price
+            return (True, None)
+
+        # Check time throttle
+        time_elapsed = (now - self.last_broadcast_time).total_seconds()
+        if time_elapsed < self.min_interval_seconds:
+            return (False, f"time_throttle:{time_elapsed:.2f}s<{self.min_interval_seconds}s")
+
+        # Check price change throttle
+        price_change_percent = abs(
+            (current_price - self.last_broadcast_price) / self.last_broadcast_price * 100
+        )
+        if price_change_percent < self.min_change_percent:
+            return (
+                False,
+                f"change_throttle:{price_change_percent:.4f}%<{self.min_change_percent}%",
+            )
+
+        # Both conditions met - allow broadcast
+        self.last_broadcast_time = now
+        self.last_broadcast_price = current_price
+        return (True, None)
+
+
+# Global throttler instance
+_price_throttler = PriceBroadcastThrottler()
 
 
 @router.get("/price", response_model=PriceResponse)
@@ -32,6 +101,10 @@ async def get_price(
 
     Returns the current price, 24-hour change, high/low, and volume.
     Data is cached for 30 seconds.
+
+    Also broadcasts price updates via WebSocket with throttling to prevent spam:
+    - Maximum 1 broadcast per second
+    - Only broadcasts if price changed more than 0.01%
 
     Args:
         client: BingX API client
@@ -46,9 +119,11 @@ async def get_price(
     try:
         ticker = await client.get_ticker_24h(symbol)
 
-        return PriceResponse(
+        # Build response
+        current_price = Decimal(str(ticker["lastPrice"]))
+        response = PriceResponse(
             symbol=symbol,
-            price=Decimal(str(ticker["lastPrice"])),
+            price=current_price,
             change_24h=Decimal(str(ticker["priceChange"])),
             change_24h_percent=Decimal(str(ticker["priceChangePercent"])),
             high_24h=Decimal(str(ticker["highPrice"])),
@@ -56,6 +131,31 @@ async def get_price(
             volume_24h=Decimal(str(ticker["volume"])),
             timestamp=datetime.now(UTC),
         )
+
+        # Broadcast price update via WebSocket with throttling
+        connection_manager = get_connection_manager()
+        if connection_manager.active_connections_count > 0:
+            should_broadcast, throttle_reason = _price_throttler.should_broadcast(current_price)
+
+            if should_broadcast:
+                # Create price update event
+                price_event = PriceUpdateEvent(
+                    symbol=symbol,
+                    price=str(current_price),
+                    change_24h=str(response.change_24h),
+                    change_percent_24h=str(response.change_24h_percent),
+                    volume_24h=str(response.volume_24h),
+                    timestamp=response.timestamp,
+                )
+
+                # Broadcast to all connected clients
+                await connection_manager.broadcast(WebSocketEvent.price_update(price_event))
+                logger.debug(f"Price update broadcast: {symbol} @ ${current_price}")
+            else:
+                # Log throttle reason for debugging
+                logger.debug(f"Price update throttled: {throttle_reason}")
+
+        return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch price: {str(e)}") from e
 

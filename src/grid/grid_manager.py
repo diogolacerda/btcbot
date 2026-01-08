@@ -241,7 +241,7 @@ class GridManager:
             tracked_order: TrackedOrder instance with order details
         """
         # Skip if connection manager not initialized or no clients connected
-        if not hasattr(self, '_connection_manager') or self._connection_manager is None:
+        if not hasattr(self, "_connection_manager") or self._connection_manager is None:
             return
         if self._connection_manager.active_connections_count == 0:
             main_logger.debug("Skipping order update broadcast - no clients connected")
@@ -335,6 +335,29 @@ class GridManager:
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping position update broadcast")
+
+    async def _broadcast_pnl_updates(self) -> None:
+        """Broadcast P&L updates for all open positions.
+
+        Called periodically from the main update loop to push real-time P&L
+        updates to the dashboard. Updates are throttled by the loop interval (5s).
+        """
+        # Skip if no clients connected
+        if self._connection_manager.active_connections_count == 0:
+            return
+
+        # Broadcast P&L for each filled order (open position)
+        for order in self.tracker.filled_orders:
+            unrealized_pnl = (self._current_price - order.entry_price) * order.quantity
+            self._broadcast_position_update(
+                symbol=self.symbol,
+                side="LONG",
+                size=str(order.quantity),
+                entry_price=str(order.entry_price),
+                current_price=str(self._current_price),
+                unrealized_pnl=str(unrealized_pnl),
+                leverage=self.config.trading.leverage,
+            )
 
     def _get_anchor_mode_value(self) -> str:
         """
@@ -643,6 +666,20 @@ class GridManager:
                 if filled_order:
                     self._broadcast_order_update(filled_order)
 
+                    # Broadcast position update (new position created)
+                    unrealized_pnl = (
+                        self._current_price - filled_order.entry_price
+                    ) * filled_order.quantity
+                    self._broadcast_position_update(
+                        symbol=self.symbol,
+                        side="LONG",
+                        size=str(filled_order.quantity),
+                        entry_price=str(filled_order.entry_price),
+                        current_price=str(self._current_price),
+                        unrealized_pnl=str(unrealized_pnl),
+                        leverage=self.config.trading.leverage,
+                    )
+
                 if self._on_order_filled:
                     self._on_order_filled(order)
                 orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
@@ -681,6 +718,17 @@ class GridManager:
 
                 # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                 self._broadcast_order_update(order)
+
+                # Broadcast position closure (position closed - TP hit)
+                self._broadcast_position_update(
+                    symbol=self.symbol,
+                    side="LONG",
+                    size="0",  # Position closed
+                    entry_price=str(order.entry_price),
+                    current_price=str(exit_price),
+                    unrealized_pnl=str(pnl),
+                    leverage=self.config.trading.leverage,
+                )
 
                 if self._on_tp_hit:
                     self._on_tp_hit(order)
@@ -841,6 +889,9 @@ class GridManager:
 
             # Sync with exchange
             await self._sync_with_exchange()
+
+            # Broadcast P&L updates for open positions (throttled to 5s by loop interval)
+            await self._broadcast_pnl_updates()
 
         except Exception as e:
             main_logger.error(f"Erro no update: {e}", exc_info=True)
@@ -1248,6 +1299,20 @@ class GridManager:
                         if filled_order:
                             self._broadcast_order_update(filled_order)
 
+                            # Broadcast position update (new position created)
+                            unrealized_pnl = (
+                                self._current_price - filled_order.entry_price
+                            ) * filled_order.quantity
+                            self._broadcast_position_update(
+                                symbol=self.symbol,
+                                side="LONG",
+                                size=str(filled_order.quantity),
+                                entry_price=str(filled_order.entry_price),
+                                current_price=str(self._current_price),
+                                unrealized_pnl=str(unrealized_pnl),
+                                leverage=self.config.trading.leverage,
+                            )
+
                         expected_position += order.quantity  # Update expected for next iteration
                         if self._on_order_filled:
                             self._on_order_filled(order)
@@ -1287,6 +1352,17 @@ class GridManager:
                     # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                     self._broadcast_order_update(order)
 
+                    # Broadcast position closure (position closed - TP hit)
+                    self._broadcast_position_update(
+                        symbol=self.symbol,
+                        side="LONG",
+                        size="0",  # Position closed
+                        entry_price=str(order.entry_price),
+                        current_price=str(exit_price),
+                        unrealized_pnl=str(pnl),
+                        leverage=self.config.trading.leverage,
+                    )
+
                     if self._on_tp_hit:
                         self._on_tp_hit(order)
                     orders_logger.info(f"Posição fechada detectada: {order.order_id}")
@@ -1323,6 +1399,17 @@ class GridManager:
 
                         # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                         self._broadcast_order_update(order)
+
+                        # Broadcast position closure (partial close)
+                        self._broadcast_position_update(
+                            symbol=self.symbol,
+                            side="LONG",
+                            size="0",  # Position closed
+                            entry_price=str(order.entry_price),
+                            current_price=str(exit_price),
+                            unrealized_pnl=str(pnl),
+                            leverage=self.config.trading.leverage,
+                        )
 
                         excess -= order.quantity
                         orders_logger.info(f"Posição parcial fechada: {order.order_id}")
