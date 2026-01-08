@@ -180,18 +180,16 @@ export function StrategyEditPage() {
           </p>
         </header>
 
-        {/* Form */}
+        {/* Form with MACD Filter Section */}
         <StrategyForm
           mode="edit"
           initialValues={initialValues}
           onSubmit={handleSubmit}
           isSubmitting={updateMutation.isPending}
-        />
-
-        {/* MACD Filter Configuration (FE-STRAT-003) */}
-        <div className="mt-6">
+        >
+          {/* MACD Filter Configuration (FE-STRAT-003) */}
           <MACDFilterSection strategyId={id!} />
-        </div>
+        </StrategyForm>
       </div>
     </div>
   )
