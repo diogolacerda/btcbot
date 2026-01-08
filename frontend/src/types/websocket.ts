@@ -32,6 +32,10 @@ export interface BotStatusEventData {
   grid_active: boolean
   pending_orders_count: number
   filled_orders_count: number
+  // MACD indicator values
+  macd_line: number | null
+  histogram: number | null
+  signal_line: number | null
 }
 
 export interface PositionUpdateEventData {
