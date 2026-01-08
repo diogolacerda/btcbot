@@ -91,6 +91,7 @@ class PriceUpdateEvent(BaseModel):
     price: str
     change_24h: str | None = None
     change_percent_24h: str | None = None
+    volume_24h: str | None = None
     timestamp: datetime
 
 
