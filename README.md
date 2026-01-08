@@ -4,6 +4,8 @@
 
 Bot de trading automatizado usando estrategia de Grid para BTC-USDT na BingX.
 
+> 🚀 CI/CD powered by self-hosted runners on homeserver
+
 ## Requisitos
 
 - Python 3.12+
