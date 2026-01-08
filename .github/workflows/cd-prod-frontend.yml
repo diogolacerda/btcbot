@@ -78,7 +78,6 @@ jobs:
         with:
           driver-opts: network=host
           install: true
-          buildkitd-flags: --debug
         # Buildx permite builds mais eficientes com cache
         # Reusa builder existente ao invés de criar novo (-8s)
 
