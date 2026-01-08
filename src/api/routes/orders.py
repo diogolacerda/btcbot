@@ -1,6 +1,5 @@
 """Orders API endpoints for active grid orders."""
 
-import logging
 from decimal import Decimal
 from typing import Annotated
 
@@ -9,8 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from src.api.dependencies import get_order_tracker
 from src.api.schemas.orders import OrderSchema, OrdersListResponse, OrderStatusEnum
 from src.grid.order_tracker import OrderStatus
-
-logger = logging.getLogger(__name__)
+from src.utils.logger import api_logger as logger
 
 router = APIRouter(prefix="/api/v1/orders", tags=["Orders"])
 

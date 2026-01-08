@@ -1,6 +1,5 @@
 """Configuration endpoints for trading and grid settings."""
 
-import logging
 from decimal import Decimal
 from typing import Annotated
 from uuid import UUID
@@ -19,9 +18,7 @@ from src.database.engine import get_session
 from src.database.models.user import User
 from src.database.repositories.grid_config_repository import GridConfigRepository
 from src.database.repositories.trading_config_repository import TradingConfigRepository
-
-# Configure logger
-logger = logging.getLogger(__name__)
+from src.utils.logger import api_logger as logger
 
 router = APIRouter(prefix="/api/v1/configs", tags=["configs"])
 

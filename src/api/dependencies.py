@@ -11,7 +11,6 @@ This module provides dependency injection functions for:
 - Global account ID (single-account mode)
 """
 
-import logging
 import os
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
@@ -33,14 +32,13 @@ from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepos
 from src.database.repositories.trade_repository import TradeRepository
 from src.filters.registry import FilterRegistry
 from src.grid.order_tracker import OrderTracker
+from src.utils.logger import api_logger as logger
 
 if TYPE_CHECKING:
     from src.client.bingx_client import BingXClient
     from src.grid.grid_calculator import GridCalculator
     from src.grid.grid_manager import GridManager
     from src.strategy.macd_strategy import MACDStrategy
-
-logger = logging.getLogger(__name__)
 
 # Global account ID for single-account mode
 # Set during startup in main.py

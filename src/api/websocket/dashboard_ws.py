@@ -10,7 +10,6 @@ real-time updates from the bot. It handles:
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -23,11 +22,10 @@ from src.api.websocket.connection_manager import ConnectionManager, get_connecti
 from src.api.websocket.events import BotStatusEvent, WebSocketEvent, WebSocketEventType
 from src.database.engine import get_session_maker
 from src.database.models.user import User
+from src.utils.logger import websocket_logger as logger
 
 if TYPE_CHECKING:
     from src.grid.grid_manager import GridManager
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

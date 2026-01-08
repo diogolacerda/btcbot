@@ -1,6 +1,5 @@
 """Activity events API endpoints for trading timeline."""
 
-import logging
 from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
@@ -17,8 +16,7 @@ from src.api.schemas.activity import (
     TimePeriodEnum,
 )
 from src.database.repositories.activity_event_repository import ActivityEventRepository
-
-logger = logging.getLogger(__name__)
+from src.utils.logger import api_logger as logger
 
 router = APIRouter(prefix="/api/v1/activity", tags=["Activity"])
 
