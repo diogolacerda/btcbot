@@ -124,26 +124,31 @@ function transformFiltersToApi(filters: TradeFilters): TradesFilterParams {
     apiFilters.status = 'OPEN'
   }
 
-  // Date filters
+  // Date filters - endDate must include full day (23:59:59Z) to avoid excluding
+  // trades that happened after midnight UTC (see BUG-FIX-007)
   if (filters.period === 'custom' && filters.customDateRange) {
     apiFilters.startDate = filters.customDateRange.startDate
-    apiFilters.endDate = filters.customDateRange.endDate
+    // Ensure endDate includes full day if it's date-only
+    const endDate = filters.customDateRange.endDate
+    apiFilters.endDate = endDate.includes('T') ? endDate : `${endDate}T23:59:59Z`
   } else if (filters.period === 'today') {
     const today = new Date().toISOString().split('T')[0]
     apiFilters.startDate = today
-    apiFilters.endDate = today
+    apiFilters.endDate = `${today}T23:59:59Z`
   } else if (filters.period === '7days') {
     const end = new Date()
     const start = new Date()
     start.setDate(end.getDate() - 7)
+    const endDate = end.toISOString().split('T')[0]
     apiFilters.startDate = start.toISOString().split('T')[0]
-    apiFilters.endDate = end.toISOString().split('T')[0]
+    apiFilters.endDate = `${endDate}T23:59:59Z`
   } else if (filters.period === '30days') {
     const end = new Date()
     const start = new Date()
     start.setDate(end.getDate() - 30)
+    const endDate = end.toISOString().split('T')[0]
     apiFilters.startDate = start.toISOString().split('T')[0]
-    apiFilters.endDate = end.toISOString().split('T')[0]
+    apiFilters.endDate = `${endDate}T23:59:59Z`
   }
 
   // Profit filter
