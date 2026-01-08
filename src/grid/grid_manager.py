@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from src.database.repositories.bot_state_repository import BotStateRepository
     from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
     from src.database.repositories.strategy_repository import StrategyRepository
+    from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
     from src.database.repositories.trade_repository import TradeRepository
 
 
@@ -69,6 +70,7 @@ class GridManager:
         strategy_repository: StrategyRepository | None = None,
         macd_filter_config_repository: MACDFilterConfigRepository | None = None,
         activity_event_repository: ActivityEventRepository | None = None,
+        tp_adjustment_repository: TPAdjustmentRepository | None = None,
     ):
         self.config = config
         self.client = client
@@ -80,6 +82,7 @@ class GridManager:
         self._strategy_repository = strategy_repository
         self._macd_filter_config_repository = macd_filter_config_repository
         self._activity_event_repository = activity_event_repository
+        self._tp_adjustment_repository = tp_adjustment_repository
 
         self.strategy = MACDStrategy(
             config.macd,
@@ -347,7 +350,7 @@ class GridManager:
             client=self.client,
             order_tracker=self.tracker,
             symbol=self.symbol,
-            tp_adjustment_repository=None,  # Will be integrated in future task
+            tp_adjustment_repository=self._tp_adjustment_repository,
             account_id=self._account_id,
             activity_event_repository=self._activity_event_repository,
         )

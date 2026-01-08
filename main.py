@@ -7,6 +7,7 @@ Grid trading com estratégia MACD para futuros perpétuos BTC-USDT.
 
 import asyncio
 import sys
+from decimal import Decimal
 
 import uvicorn
 
@@ -19,6 +20,7 @@ from src.database.repositories.activity_event_repository import ActivityEventRep
 from src.database.repositories.bot_state_repository import BotStateRepository
 from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
 from src.database.repositories.strategy_repository import StrategyRepository
+from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
 from src.database.repositories.trade_repository import TradeRepository
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
@@ -282,6 +284,44 @@ async def run_bot() -> None:
             {
                 "create_event": lambda self, *args, **kwargs: _log_activity_event_with_session(
                     *args, **kwargs
+                ),
+            },
+        )()
+
+        # Create a wrapper TP adjustment repository that creates sessions on demand
+        async def _save_tp_adjustment_with_session(
+            trade_id,
+            old_tp_price,
+            new_tp_price,
+            old_tp_percent,
+            new_tp_percent,
+            funding_rate=None,
+            funding_accumulated=None,
+            hours_open=None,
+        ):
+            """Helper to save TP adjustment with a new session."""
+            async for session in get_session():
+                repo = TPAdjustmentRepository(session)
+                return await repo.save_adjustment(
+                    trade_id=trade_id,
+                    old_tp_price=Decimal(str(old_tp_price)),
+                    new_tp_price=Decimal(str(new_tp_price)),
+                    old_tp_percent=Decimal(str(old_tp_percent)),
+                    new_tp_percent=Decimal(str(new_tp_percent)),
+                    funding_rate=Decimal(str(funding_rate)) if funding_rate else None,
+                    funding_accumulated=(
+                        Decimal(str(funding_accumulated)) if funding_accumulated else None
+                    ),
+                    hours_open=Decimal(str(hours_open)) if hours_open else None,
+                )
+
+        # Configure wrapper in GridManager
+        grid_manager._tp_adjustment_repository = type(
+            "TPAdjustmentRepositoryWrapper",
+            (),
+            {
+                "save_adjustment": lambda self, *args, **kwargs: (
+                    _save_tp_adjustment_with_session(*args, **kwargs)
                 ),
             },
         )()
