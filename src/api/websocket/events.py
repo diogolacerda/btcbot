@@ -69,13 +69,17 @@ class OrderUpdateEvent(BaseModel):
 
     order_id: str
     symbol: str
-    side: str  # BUY, SELL
-    order_type: str  # LIMIT, MARKET
-    status: str  # NEW, FILLED, CANCELLED, PARTIALLY_FILLED
-    price: str
+    side: str  # LONG, SHORT
+    order_type: str  # LIMIT, MARKET, TAKE_PROFIT_MARKET
+    status: str  # PENDING, FILLED, CANCELLED, TP_HIT
+    price: str  # Entry price
+    tp_price: str | None = None  # Take profit price
     quantity: str
     filled_quantity: str
-    timestamp: datetime
+    created_at: datetime
+    filled_at: datetime | None = None
+    closed_at: datetime | None = None
+    exchange_tp_order_id: str | None = None  # TP order ID from exchange
 
 
 class PriceUpdateEvent(BaseModel):

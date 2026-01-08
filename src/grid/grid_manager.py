@@ -22,7 +22,7 @@ from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 from src.grid.dynamic_tp_manager import DynamicTPManager
 from src.grid.grid_calculator import GridCalculator, GridLevel
-from src.grid.order_tracker import OrderTracker
+from src.grid.order_tracker import OrderTracker, TrackedOrder
 from src.strategy.macd_strategy import GridState, MACDStrategy
 from src.utils.logger import main_logger, orders_logger
 
@@ -234,48 +234,53 @@ class GridManager:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping bot status broadcast")
 
-    def _broadcast_order_update(
-        self,
-        order_id: str,
-        symbol: str,
-        side: str,
-        order_type: str,
-        status: str,
-        price: str,
-        quantity: str,
-        filled_quantity: str,
-    ) -> None:
+    def _broadcast_order_update(self, tracked_order: TrackedOrder) -> None:
         """Broadcast order update to connected dashboard clients.
 
         Args:
-            order_id: Order ID
-            symbol: Trading symbol
-            side: Order side (BUY, SELL)
-            order_type: Order type (LIMIT, MARKET)
-            status: Order status (NEW, FILLED, CANCELLED, PARTIALLY_FILLED)
-            price: Order price
-            quantity: Order quantity
-            filled_quantity: Filled quantity
+            tracked_order: TrackedOrder instance with order details
         """
-        # Skip if no clients connected
+        # Skip if connection manager not initialized or no clients connected
+        if not hasattr(self, '_connection_manager') or self._connection_manager is None:
+            return
         if self._connection_manager.active_connections_count == 0:
+            main_logger.debug("Skipping order update broadcast - no clients connected")
             return
 
-        from datetime import datetime
+        from src.grid.order_tracker import OrderStatus
+
+        # Map OrderStatus to WebSocket status
+        status_map = {
+            OrderStatus.PENDING: "PENDING",
+            OrderStatus.FILLED: "FILLED",
+            OrderStatus.TP_HIT: "TP_HIT",
+            OrderStatus.CANCELLED: "CANCELLED",
+        }
 
         event_data = OrderUpdateEvent(
-            order_id=order_id,
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            status=status,
-            price=price,
-            quantity=quantity,
-            filled_quantity=filled_quantity,
-            timestamp=datetime.now(),
+            order_id=tracked_order.order_id,
+            symbol=self.symbol,
+            side="LONG",  # Grid bot only trades LONG
+            order_type="LIMIT",  # Entry orders are always LIMIT
+            status=status_map[tracked_order.status],
+            price=str(tracked_order.entry_price),
+            tp_price=str(tracked_order.tp_price) if tracked_order.tp_price else None,
+            quantity=str(tracked_order.quantity),
+            filled_quantity=str(tracked_order.quantity)
+            if tracked_order.status != OrderStatus.PENDING
+            else "0",
+            created_at=tracked_order.created_at,
+            filled_at=tracked_order.filled_at,
+            closed_at=tracked_order.closed_at,
+            exchange_tp_order_id=tracked_order.exchange_tp_order_id,
         )
 
         event = WebSocketEvent.order_update(event_data)
+
+        main_logger.info(
+            f"Broadcasting order update: order_id={tracked_order.order_id}, "
+            f"status={status_map[tracked_order.status]}"
+        )
 
         # Fire and forget - don't await, just schedule
         try:
@@ -632,7 +637,12 @@ class GridManager:
         if status == "FILLED":
             order = self.tracker.get_order(order_id)
             if order:
-                self.tracker.order_filled(order_id)
+                filled_order = self.tracker.order_filled(order_id)
+
+                # Broadcast order filled to dashboard
+                if filled_order:
+                    self._broadcast_order_update(filled_order)
+
                 if self._on_order_filled:
                     self._on_order_filled(order)
                 orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
@@ -668,6 +678,10 @@ class GridManager:
                 exit_price = self._current_price
                 pnl = (exit_price - order.entry_price) * order.quantity
                 self.tracker.order_tp_hit(order.order_id, exit_price)
+
+                # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
+                self._broadcast_order_update(order)
+
                 if self._on_tp_hit:
                     self._on_tp_hit(order)
                 orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
@@ -1142,12 +1156,15 @@ class GridManager:
 
         order_id = str(result.get("orderId", result.get("order", {}).get("orderId", "")))
         if order_id:
-            self.tracker.add_order(
+            tracked_order = self.tracker.add_order(
                 order_id=order_id,
                 entry_price=level.entry_price,
                 tp_price=level.tp_price,
                 quantity=quantity_btc,
             )
+
+            # Broadcast order creation to dashboard
+            self._broadcast_order_update(tracked_order)
 
             if self._on_order_created:
                 self._on_order_created(level)
@@ -1182,9 +1199,11 @@ class GridManager:
                     except Exception:
                         pass
 
-            # Update tracker
-            for pending_order in self.tracker.pending_orders:
-                self.tracker.cancel_order(pending_order.order_id)
+            # Update tracker and broadcast cancellations
+            for pending_order in list(self.tracker.pending_orders):
+                cancelled_order = self.tracker.cancel_order(pending_order.order_id)
+                if cancelled_order:
+                    self._broadcast_order_update(cancelled_order)
 
             if cancelled > 0:
                 main_logger.info(f"{cancelled} ordem(ns) LIMIT cancelada(s) ({reason})")
@@ -1223,7 +1242,12 @@ class GridManager:
 
                     if position_delta >= order.quantity * 0.99:  # 1% tolerance for rounding
                         # Order was FILLED - position increased
-                        self.tracker.order_filled(order.order_id)
+                        filled_order = self.tracker.order_filled(order.order_id)
+
+                        # Broadcast order filled to dashboard
+                        if filled_order:
+                            self._broadcast_order_update(filled_order)
+
                         expected_position += order.quantity  # Update expected for next iteration
                         if self._on_order_filled:
                             self._on_order_filled(order)
@@ -1243,7 +1267,12 @@ class GridManager:
                         )
                     else:
                         # Order was CANCELLED - no position increase
-                        self.tracker.cancel_order(order.order_id)
+                        cancelled_order = self.tracker.cancel_order(order.order_id)
+
+                        # Broadcast order cancellation to dashboard
+                        if cancelled_order:
+                            self._broadcast_order_update(cancelled_order)
+
                         orders_logger.info(f"Ordem detectada como CANCELADA: {order.order_id}")
 
             # 2. Check for closed positions (filled positions that no longer exist)
@@ -1254,6 +1283,10 @@ class GridManager:
                     exit_price = self._current_price
                     pnl = (exit_price - order.entry_price) * order.quantity
                     self.tracker.order_tp_hit(order.order_id, exit_price)
+
+                    # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
+                    self._broadcast_order_update(order)
+
                     if self._on_tp_hit:
                         self._on_tp_hit(order)
                     orders_logger.info(f"Posição fechada detectada: {order.order_id}")
@@ -1287,6 +1320,10 @@ class GridManager:
                         exit_price = self._current_price
                         pnl = (exit_price - order.entry_price) * order.quantity
                         self.tracker.order_tp_hit(order.order_id, exit_price)
+
+                        # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
+                        self._broadcast_order_update(order)
+
                         excess -= order.quantity
                         orders_logger.info(f"Posição parcial fechada: {order.order_id}")
 

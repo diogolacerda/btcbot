@@ -32,6 +32,9 @@ export interface BotStatusEventData {
   grid_active: boolean
   pending_orders_count: number
   filled_orders_count: number
+  macd_line: number | null
+  histogram: number | null
+  signal_line: number | null
 }
 
 export interface PositionUpdateEventData {
@@ -48,13 +51,17 @@ export interface PositionUpdateEventData {
 export interface OrderUpdateEventData {
   order_id: string
   symbol: string
-  side: 'BUY' | 'SELL'
-  order_type: 'LIMIT' | 'MARKET'
-  status: 'NEW' | 'FILLED' | 'CANCELLED' | 'PARTIALLY_FILLED'
+  side: 'LONG' | 'SHORT'
+  order_type: 'LIMIT' | 'MARKET' | 'TAKE_PROFIT_MARKET'
+  status: 'PENDING' | 'FILLED' | 'CANCELLED' | 'TP_HIT'
   price: string
+  tp_price: string | null
   quantity: string
   filled_quantity: string
-  timestamp: string
+  created_at: string
+  filled_at: string | null
+  closed_at: string | null
+  exchange_tp_order_id: string | null
 }
 
 export interface PriceUpdateEventData {
