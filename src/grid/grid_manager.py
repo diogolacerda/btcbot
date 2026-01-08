@@ -10,6 +10,7 @@ from uuid import UUID
 from config import Config
 from src.api.websocket.connection_manager import get_connection_manager
 from src.api.websocket.events import (
+    ActivityEventData,
     BotStatusEvent,
     OrderUpdateEvent,
     PositionUpdateEvent,
@@ -157,7 +158,7 @@ class GridManager:
         description: str,
         event_data: dict | None = None,
     ) -> None:
-        """Log an activity event to the database (fire-and-forget).
+        """Log an activity event to the database and broadcast via WebSocket (fire-and-forget).
 
         This method is non-blocking and failures will not crash the bot.
         Uses asyncio.create_task for fire-and-forget behavior.
@@ -173,9 +174,11 @@ class GridManager:
         # Capture values for closure (type narrowing)
         repo = self._activity_event_repository
         account_id = self._account_id
+        connection_manager = self._connection_manager
 
         async def _do_log():
             try:
+                # Persist to database
                 await repo.create_event(
                     account_id=account_id,
                     event_type=event_type,
@@ -183,8 +186,35 @@ class GridManager:
                     event_data=event_data,
                 )
                 main_logger.debug(f"Activity event logged: {event_type}")
+
+                # Broadcast via WebSocket if clients are connected
+                if connection_manager and connection_manager.active_connections_count > 0:
+                    from datetime import datetime
+
+                    # Determine severity based on event type
+                    severity = "info"
+                    if event_type == EventType.ERROR_OCCURRED:
+                        severity = "error"
+                    elif event_type in (EventType.TRADE_CLOSED, EventType.ORDER_FILLED):
+                        severity = "success"
+                    elif event_type in (EventType.STRATEGY_PAUSED, EventType.BOT_STOPPED):
+                        severity = "warning"
+
+                    # Create WebSocket event
+                    activity_data = ActivityEventData(
+                        event_type=event_type.value,
+                        message=description,
+                        severity=severity,
+                        metadata=event_data,
+                        timestamp=datetime.now(),
+                    )
+
+                    ws_event = WebSocketEvent.activity_event(activity_data)
+                    await connection_manager.broadcast(ws_event)
+                    main_logger.debug(f"Activity event broadcast: {event_type}")
+
             except Exception as e:
-                main_logger.warning(f"Failed to log activity event: {e}")
+                main_logger.warning(f"Failed to log/broadcast activity event: {e}")
 
         # Fire and forget - don't await, just schedule
         try:
