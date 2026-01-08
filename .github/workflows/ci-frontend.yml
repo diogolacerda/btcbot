@@ -20,7 +20,7 @@ concurrency:
 jobs:
   lint:
     name: Lint (ESLint)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     defaults:
       run:
         working-directory: frontend
@@ -43,7 +43,7 @@ jobs:
 
   typecheck:
     name: Type Check (TypeScript)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     defaults:
       run:
         working-directory: frontend
@@ -66,7 +66,7 @@ jobs:
 
   build:
     name: Build (Vite)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     defaults:
       run:
         working-directory: frontend
@@ -96,7 +96,7 @@ jobs:
 
   docker-build:
     name: Docker Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -116,7 +116,7 @@ jobs:
 
   ci-success:
     name: CI Frontend Success
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     needs: [lint, typecheck, build, docker-build]
     if: always()
     steps:

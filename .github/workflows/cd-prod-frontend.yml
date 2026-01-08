@@ -38,7 +38,7 @@ env:
 jobs:
   confirm-deployment:
     name: Confirm Production Deployment
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     steps:
       - name: Deployment confirmation
         run: |
@@ -61,7 +61,7 @@ jobs:
 
   build-and-push-prod:
     name: Build and Push Prod Frontend Image
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, docker]
     needs: confirm-deployment
 
     # Permissoes minimas necessarias
