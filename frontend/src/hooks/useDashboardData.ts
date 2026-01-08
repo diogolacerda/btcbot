@@ -46,17 +46,19 @@ export const dashboardKeys = {
 
 /**
  * Fetch current bot status including state, MACD values, and order stats.
- * Polls every 5 seconds when enabled.
+ *
+ * This hook fetches data only on initial mount. Updates are received via WebSocket
+ * (bot_status events) which automatically invalidate the query cache and trigger refetch.
+ * No polling interval is used to avoid redundant API calls.
  */
-export function useBotStatus(options?: { enabled?: boolean; refetchInterval?: number }) {
+export function useBotStatus(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: dashboardKeys.botStatus(),
     queryFn: async () => {
       const response = await axiosInstance.get('/bot/status')
       return parseApiResponse<BotStatusResponse>(response.data)
     },
-    staleTime: 5 * 1000, // 5 seconds - status changes frequently
-    refetchInterval: options?.refetchInterval ?? 5000, // Poll every 5s
+    staleTime: 5 * 1000, // 5 seconds - controls when data is considered stale
     enabled: options?.enabled ?? true,
   })
 }
