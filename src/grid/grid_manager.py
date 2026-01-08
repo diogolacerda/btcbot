@@ -8,6 +8,13 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from config import Config
+from src.api.websocket.connection_manager import get_connection_manager
+from src.api.websocket.events import (
+    BotStatusEvent,
+    OrderUpdateEvent,
+    PositionUpdateEvent,
+    WebSocketEvent,
+)
 from src.client.bingx_client import BingXClient
 from src.client.websocket_client import BingXAccountWebSocket
 from src.database.models.activity_event import EventType
@@ -130,6 +137,9 @@ class GridManager:
         self._on_tp_hit = on_tp_hit
         self._on_state_change = on_state_change
 
+        # WebSocket Connection Manager for dashboard broadcasting
+        self._connection_manager = get_connection_manager()
+
         # Dynamic TP Manager
         self.dynamic_tp: DynamicTPManager | None = None
 
@@ -182,6 +192,144 @@ class GridManager:
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping activity event logging")
+
+    def _broadcast_bot_status(
+        self,
+        state: GridState,
+        is_running: bool,
+        macd_trend: str | None = None,
+        grid_active: bool = False,
+        pending_orders_count: int = 0,
+        filled_orders_count: int = 0,
+    ) -> None:
+        """Broadcast bot status changes to connected dashboard clients.
+
+        Args:
+            state: Current grid state (WAIT, ACTIVATE, ACTIVE, PAUSE, INACTIVE)
+            is_running: Whether the bot is currently running
+            macd_trend: MACD trend (bullish, bearish, neutral)
+            grid_active: Whether the grid is active
+            pending_orders_count: Number of pending orders
+            filled_orders_count: Number of filled orders
+        """
+        # Skip if no clients connected
+        if self._connection_manager.active_connections_count == 0:
+            return
+
+        event_data = BotStatusEvent(
+            state=state.value,
+            is_running=is_running,
+            macd_trend=macd_trend,
+            grid_active=grid_active,
+            pending_orders_count=pending_orders_count,
+            filled_orders_count=filled_orders_count,
+        )
+
+        event = WebSocketEvent.bot_status(event_data)
+
+        # Fire and forget - don't await, just schedule
+        try:
+            asyncio.create_task(self._connection_manager.broadcast(event))
+        except RuntimeError:
+            # No event loop running (e.g., during tests without async context)
+            main_logger.debug("No event loop running, skipping bot status broadcast")
+
+    def _broadcast_order_update(
+        self,
+        order_id: str,
+        symbol: str,
+        side: str,
+        order_type: str,
+        status: str,
+        price: str,
+        quantity: str,
+        filled_quantity: str,
+    ) -> None:
+        """Broadcast order update to connected dashboard clients.
+
+        Args:
+            order_id: Order ID
+            symbol: Trading symbol
+            side: Order side (BUY, SELL)
+            order_type: Order type (LIMIT, MARKET)
+            status: Order status (NEW, FILLED, CANCELLED, PARTIALLY_FILLED)
+            price: Order price
+            quantity: Order quantity
+            filled_quantity: Filled quantity
+        """
+        # Skip if no clients connected
+        if self._connection_manager.active_connections_count == 0:
+            return
+
+        from datetime import datetime
+
+        event_data = OrderUpdateEvent(
+            order_id=order_id,
+            symbol=symbol,
+            side=side,
+            order_type=order_type,
+            status=status,
+            price=price,
+            quantity=quantity,
+            filled_quantity=filled_quantity,
+            timestamp=datetime.now(),
+        )
+
+        event = WebSocketEvent.order_update(event_data)
+
+        # Fire and forget - don't await, just schedule
+        try:
+            asyncio.create_task(self._connection_manager.broadcast(event))
+        except RuntimeError:
+            # No event loop running (e.g., during tests without async context)
+            main_logger.debug("No event loop running, skipping order update broadcast")
+
+    def _broadcast_position_update(
+        self,
+        symbol: str,
+        side: str,
+        size: str,
+        entry_price: str,
+        current_price: str,
+        unrealized_pnl: str,
+        leverage: int,
+    ) -> None:
+        """Broadcast position update to connected dashboard clients.
+
+        Args:
+            symbol: Trading symbol
+            side: Position side (LONG, SHORT)
+            size: Position size
+            entry_price: Entry price
+            current_price: Current price
+            unrealized_pnl: Unrealized PnL
+            leverage: Leverage
+        """
+        # Skip if no clients connected
+        if self._connection_manager.active_connections_count == 0:
+            return
+
+        from datetime import datetime
+
+        event_data = PositionUpdateEvent(
+            symbol=symbol,
+            side=side,
+            size=size,
+            entry_price=entry_price,
+            current_price=current_price,
+            unrealized_pnl=unrealized_pnl,
+            leverage=leverage,
+            timestamp=datetime.now(),
+        )
+
+        event = WebSocketEvent.position_update(event_data)
+
+        # Fire and forget - don't await, just schedule
+        try:
+            asyncio.create_task(self._connection_manager.broadcast(event))
+        except RuntimeError:
+            # No event loop running (e.g., during tests without async context)
+            main_logger.debug("No event loop running, skipping position update broadcast")
 
     def _get_anchor_mode_value(self) -> str:
         """
