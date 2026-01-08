@@ -240,7 +240,9 @@ class GridManager:
         Args:
             tracked_order: TrackedOrder instance with order details
         """
-        # Skip if no clients connected
+        # Skip if connection manager not initialized or no clients connected
+        if not hasattr(self, '_connection_manager') or self._connection_manager is None:
+            return
         if self._connection_manager.active_connections_count == 0:
             main_logger.debug("Skipping order update broadcast - no clients connected")
             return
