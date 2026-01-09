@@ -1336,13 +1336,21 @@ class GridManager:
             tp_price=level.tp_price,
         )
 
-        order_id = str(result.get("orderId", result.get("order", {}).get("orderId", "")))
+        order_id = str(
+            result.get(
+                "entry_order_id",
+                result.get("orderId", result.get("order", {}).get("orderId", "")),
+            )
+        )
+        raw_tp_order_id = result.get("tp_order_id")
+        tp_order_id = str(raw_tp_order_id) if raw_tp_order_id is not None else None
         if order_id:
             tracked_order = self.tracker.add_order(
                 order_id=order_id,
                 entry_price=level.entry_price,
                 tp_price=level.tp_price,
                 quantity=quantity_btc,
+                exchange_tp_order_id=tp_order_id,
             )
 
             # Broadcast order creation to dashboard

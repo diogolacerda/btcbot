@@ -225,6 +225,7 @@ class OrderTracker:
         entry_price: float,
         tp_price: float,
         quantity: float,
+        exchange_tp_order_id: str | None = None,
     ) -> TrackedOrder:
         """Add a new order to tracking."""
         order = TrackedOrder(
@@ -233,6 +234,7 @@ class OrderTracker:
             tp_price=tp_price,
             quantity=quantity,
             status=OrderStatus.PENDING,
+            exchange_tp_order_id=exchange_tp_order_id,
         )
         self._orders[order_id] = order
         self._orders_by_price[entry_price] = order_id
