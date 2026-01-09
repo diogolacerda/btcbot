@@ -225,6 +225,9 @@ class TestTradePersistenceIntegration:
         # Act - Fill order (should create OPEN trade)
         tracker.order_filled("order_123")
 
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
+
         # Wait for async persistence to complete
         async def trade_persisted():
             trades = await trade_repository.get_open_trades(account.id)
@@ -266,6 +269,9 @@ class TestTradePersistenceIntegration:
         # Act - Fill order
         order = tracker.order_filled("order_123")
         assert order is not None
+
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
 
         # Wait for async persistence to complete with active polling
         await wait_for_condition(
@@ -314,6 +320,9 @@ class TestTradePersistenceIntegration:
         # Act - Hit TP (should update trade to CLOSED)
         tracker.order_tp_hit("order_123", exit_price=50500.0)
 
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
+
         # Wait for trade to be updated to CLOSED
         async def trade_closed():
             open_trades = await trade_repository.get_open_trades(account.id)
@@ -361,6 +370,9 @@ class TestTradePersistenceIntegration:
 
         # Act - Hit TP (should create CLOSED trade directly, no OPEN state)
         tracker.order_tp_hit("order_123", exit_price=50500.0)
+
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
 
         # Wait for CLOSED trade to be persisted
         async def trade_persisted():
