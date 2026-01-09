@@ -412,7 +412,7 @@ class BingXClient:
             tp_price: Take profit price
 
         Returns:
-            Order response (includes both entry order and TP order IDs)
+            Order response with entry and TP order IDs
         """
         take_profit = {
             "type": "TAKE_PROFIT_MARKET",
@@ -431,7 +431,23 @@ class BingXClient:
             take_profit=take_profit,
         )
 
-        # Log full response to identify TP order ID structure
+        entry_order_id = (
+            result.get("orderId")
+            or result.get("order", {}).get("orderId")
+            or result.get("data", {}).get("orderId")
+        )
+        tp_order_id = (
+            result.get("takeProfit", {}).get("orderId")
+            or result.get("takeProfitOrder", {}).get("orderId")
+            or result.get("takeProfitOrderId")
+            or result.get("tpOrderId")
+            or result.get("order", {}).get("takeProfit", {}).get("orderId")
+            or result.get("data", {}).get("takeProfit", {}).get("orderId")
+        )
+
+        result["entry_order_id"] = entry_order_id
+        result["tp_order_id"] = tp_order_id
+
         orders_logger.debug(f"create_limit_order_with_tp response: {result}")
 
         return result
