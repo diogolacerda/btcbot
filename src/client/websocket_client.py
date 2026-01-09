@@ -9,6 +9,7 @@ from typing import Any
 
 import websockets
 from websockets.exceptions import ConnectionClosed
+from websockets.protocol import State
 
 from config import BingXConfig
 from src.utils.logger import main_logger, orders_logger
@@ -74,6 +75,13 @@ class BingXWebSocket:
         assert self._ws is not None
         async for message in self._ws:
             try:
+                # BingX sends GZIP compressed data
+                if isinstance(message, bytes):
+                    try:
+                        message = gzip.decompress(message).decode("utf-8")
+                    except Exception:
+                        pass  # Not compressed
+
                 data = json.loads(message)
                 await self._handle_message(data)
             except json.JSONDecodeError:
@@ -104,7 +112,7 @@ class BingXWebSocket:
 
     async def _send(self, data: dict) -> None:
         """Send message to WebSocket."""
-        if self._ws and self._ws.open:
+        if self._ws and self._ws.state == State.OPEN:
             await self._ws.send(json.dumps(data))
 
     async def _resubscribe(self) -> None:
@@ -139,7 +147,7 @@ class BingXWebSocket:
         data_type = f"{symbol}@kline_{interval}"
         self._subscriptions[data_type] = callback
 
-        if self._ws and self._ws.open:
+        if self._ws and self._ws.state == State.OPEN:
             await self._subscribe_channel(data_type)
 
     async def subscribe_price(
@@ -163,7 +171,7 @@ class BingXWebSocket:
 
         self._subscriptions[data_type] = price_callback
 
-        if self._ws and self._ws.open:
+        if self._ws and self._ws.state == State.OPEN:
             await self._subscribe_channel(data_type)
 
     async def subscribe_depth(
@@ -181,7 +189,7 @@ class BingXWebSocket:
         data_type = f"{symbol}@depth"
         self._subscriptions[data_type] = callback
 
-        if self._ws and self._ws.open:
+        if self._ws and self._ws.state == State.OPEN:
             await self._subscribe_channel(data_type)
 
     async def unsubscribe(self, data_type: str) -> None:
@@ -189,7 +197,7 @@ class BingXWebSocket:
         if data_type in self._subscriptions:
             del self._subscriptions[data_type]
 
-            if self._ws and self._ws.open:
+            if self._ws and self._ws.state == State.OPEN:
                 message = {
                     "id": f"unsub_{int(time.time() * 1000)}",
                     "reqType": "unsub",
@@ -389,7 +397,7 @@ class BingXAccountWebSocket:
 
     async def _send(self, data: dict) -> None:
         """Send message to WebSocket."""
-        if self._ws and self._ws.open:
+        if self._ws and self._ws.state == State.OPEN:
             await self._ws.send(json.dumps(data))
 
     async def disconnect(self) -> None:
