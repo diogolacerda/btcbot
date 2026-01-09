@@ -13,6 +13,7 @@ import uvicorn
 
 from config import load_config
 from src.api.dependencies import set_global_account_id, set_grid_manager, set_order_tracker
+from src.api.services.price_streamer import PriceStreamer
 from src.client.bingx_client import BingXClient
 from src.database.engine import get_session
 from src.database.helpers import get_or_create_account
@@ -57,6 +58,7 @@ async def run_bot() -> None:
     # Initialize components
     client = BingXClient(config.bingx)
     alerts = AudioAlerts(enabled=True)
+    price_streamer = PriceStreamer(config.bingx, symbol=config.trading.symbol)
 
     # Initialize health server (starts early for Docker healthcheck)
     health_server = HealthServer()
@@ -441,6 +443,9 @@ async def run_bot() -> None:
     if grid_manager._account_ws:
         health_server.set_account_websocket(grid_manager._account_ws)
 
+    # Start price streamer for real-time dashboard updates
+    await price_streamer.start()
+
     main_logger.info("Bot iniciado. Pressione Ctrl+C para encerrar.")
 
     try:
@@ -463,6 +468,7 @@ async def run_bot() -> None:
         pass
     finally:
         main_logger.info("Encerrando bot...")
+        await price_streamer.stop()
         await grid_manager.stop()
         await health_server.stop()
         await client.close()
