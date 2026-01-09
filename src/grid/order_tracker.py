@@ -351,7 +351,7 @@ class OrderTracker:
 
         # Schedule task in background (fire and forget)
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             loop.create_task(_persist_open_trade())
         except RuntimeError:
             trades_logger.warning("No event loop running, skipping OPEN trade persistence")
@@ -428,7 +428,7 @@ class OrderTracker:
 
         # Schedule task in background (fire and forget)
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             loop.create_task(_persist_trade())
         except RuntimeError:
             # No event loop running, skip persistence
