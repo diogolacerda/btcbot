@@ -112,8 +112,16 @@ class DynamicTPManager:
 
     async def start(self) -> None:
         """Start the dynamic TP monitoring task."""
+        # Log configuration for debugging
+        orders_logger.debug(
+            f"Dynamic TP config: enabled={self.config.enabled}, "
+            f"base={self.config.base_percent}%, min={self.config.min_percent}%, "
+            f"max={self.config.max_percent}%, safety_margin={self.config.safety_margin}%, "
+            f"check_interval={self.config.check_interval_minutes}min"
+        )
+
         if not self.config.enabled:
-            orders_logger.info("Dynamic TP is disabled")
+            orders_logger.info("Dynamic TP is disabled (set TP_DYNAMIC_ENABLED=true to enable)")
             return
 
         if self._running:

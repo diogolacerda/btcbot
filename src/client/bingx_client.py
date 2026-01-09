@@ -438,13 +438,22 @@ class BingXClient:
             "symbol": symbol,
             "orderId": order_id,
         }
-        data = await self._request("DELETE", endpoint, params)
 
-        # Invalidate cache after cancellation
-        self._invalidate_cache("open_orders", "positions", "balance")
+        try:
+            orders_logger.debug(f"Attempting to cancel order: {order_id[:8]} on {symbol}")
+            data = await self._request("DELETE", endpoint, params)
 
-        orders_logger.info(f"Order cancelled: {order_id}")
-        return data
+            # Invalidate cache after cancellation
+            self._invalidate_cache("open_orders", "positions", "balance")
+
+            orders_logger.info(f"Order cancelled: {order_id[:8]}")
+            return data
+        except Exception as e:
+            error_logger.error(
+                f"Failed to cancel order {order_id[:8]} on {symbol}: {e} | "
+                f"This may indicate the order was already filled, canceled, or doesn't exist"
+            )
+            raise
 
     async def cancel_all_orders(self, symbol: str) -> dict:
         """Cancel all open orders for a symbol."""
@@ -497,6 +506,12 @@ class BingXClient:
             the new order creation fails, you may end up without TP protection.
             The caller should handle this scenario appropriately.
         """
+        # Log initial attempt with all parameters
+        orders_logger.info(
+            f"Modifying TP order {old_tp_order_id[:8]}: "
+            f"{side} {position_side} {quantity} {symbol} @ ${new_tp_price:,.2f}"
+        )
+
         try:
             # Step 1: Cancel the old TP order
             await self.cancel_order(symbol, old_tp_order_id)
@@ -529,7 +544,12 @@ class BingXClient:
             }
 
         except Exception as e:
-            error_logger.error(f"Failed to modify TP order {old_tp_order_id[:8]}: {e}")
+            # Log detailed error with all parameters for debugging
+            error_logger.error(
+                f"Failed to modify TP order {old_tp_order_id[:8]}: {e} | "
+                f"Symbol: {symbol}, Side: {side}, Position Side: {position_side}, "
+                f"Quantity: {quantity}, New TP: ${new_tp_price:,.2f}"
+            )
             raise
 
     async def set_leverage(self, symbol: str, leverage: int, side: str = "BOTH") -> dict:

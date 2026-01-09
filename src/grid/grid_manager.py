@@ -561,6 +561,18 @@ class GridManager:
                 main_logger.info(f"{positions_loaded} posição(ões) existente(s) carregada(s)")
             if orders_loaded > 0:
                 main_logger.info(f"{orders_loaded} ordem(ns) pendente(s) carregada(s)")
+
+            # Link existing positions to trades in database
+            # This enables Dynamic TP Manager to persist adjustments
+            if positions_loaded > 0:
+                try:
+                    linked_count = await self.tracker.link_existing_trades()
+                    if linked_count > 0:
+                        main_logger.info(
+                            f"{linked_count} posição(ões) vinculada(s) ao banco de dados"
+                        )
+                except Exception as e:
+                    main_logger.warning(f"Falha ao vincular trades: {e}")
         except Exception as e:
             main_logger.warning(f"Falha ao carregar dados existentes: {e}")
 
