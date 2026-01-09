@@ -86,6 +86,8 @@ class PriceStreamer:
         The WebSocket client handles auto-reconnection internally.
         """
         try:
+            logger.info(f"Price streamer: Subscribing to {self.symbol} trade stream")
+
             # Subscribe to price updates before connecting
             # The subscription will be activated after connection
             await self._ws_client.subscribe_price(
@@ -93,13 +95,19 @@ class PriceStreamer:
                 callback=self._handle_price_update,
             )
 
+            logger.info(
+                f"Price streamer: Connecting to BingX WebSocket at {self._ws_client.ws_url}"
+            )
+
             # Connect to WebSocket (blocks until disconnection)
             await self._ws_client.connect()
+
+            logger.warning("Price streamer: WebSocket connection ended unexpectedly")
 
         except asyncio.CancelledError:
             logger.info("Price stream cancelled")
         except Exception as e:
-            logger.error(f"Price stream error: {e}")
+            logger.error(f"Price stream error: {e}", exc_info=True)
 
     def _handle_price_update(self, price: float) -> None:
         """Handle incoming price update from WebSocket.
@@ -109,8 +117,11 @@ class PriceStreamer:
         Args:
             price: Current BTC price from trade stream
         """
+        logger.debug(f"Price streamer: Received price update {price}")
+
         # Skip if no clients connected
         if self._connection_manager.active_connections_count == 0:
+            logger.debug("Price streamer: No clients connected, skipping broadcast")
             return
 
         current_price = Decimal(str(price))
@@ -137,4 +148,4 @@ class PriceStreamer:
             self._connection_manager.broadcast(WebSocketEvent.price_update(price_event))
         )
 
-        logger.debug(f"Price update broadcast: {self.symbol} @ ${current_price}")
+        logger.info(f"Price update broadcast: {self.symbol} @ ${current_price}")
