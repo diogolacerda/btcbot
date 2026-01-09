@@ -449,9 +449,18 @@ async def run_bot() -> None:
     main_logger.info("Bot iniciado. Pressione Ctrl+C para encerrar.")
 
     try:
-        # Main loop
+        # Main loop with heartbeat monitoring
+        iteration_count = 0
         while True:
             try:
+                iteration_count += 1
+
+                # Heartbeat log every 60s (12 iterations * 5s)
+                if iteration_count % 12 == 0:
+                    main_logger.info(
+                        f"Loop heartbeat: iteration {iteration_count}, uptime: {iteration_count * 5}s"
+                    )
+
                 # Update grid manager
                 await grid_manager.update()
 
