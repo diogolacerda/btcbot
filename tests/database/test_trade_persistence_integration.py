@@ -1,5 +1,6 @@
 """Integration tests for trade persistence in OrderTracker."""
 
+import asyncio
 from decimal import Decimal
 
 import pytest
@@ -8,6 +9,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import Account, User
 from src.database.repositories.trade_repository import TradeRepository
 from src.grid.order_tracker import OrderTracker
+
+
+async def wait_for_condition(condition_fn, timeout=2.0, poll_interval=0.01):
+    """Wait for a condition to become true with polling.
+
+    Args:
+        condition_fn: Callable (sync or async) that returns True when condition is met
+        timeout: Maximum time to wait in seconds (default: 2.0)
+        poll_interval: Time between checks in seconds (default: 0.01)
+
+    Raises:
+        TimeoutError: If condition is not met within timeout
+    """
+    import inspect
+
+    elapsed = 0.0
+    while elapsed < timeout:
+        # Check if condition_fn is async
+        if inspect.iscoroutinefunction(condition_fn):
+            result = await condition_fn()
+        else:
+            result = condition_fn()
+
+        if result:
+            return
+
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+    raise TimeoutError(f"Condition not met within {timeout}s")
 
 
 @pytest.fixture
@@ -177,8 +208,6 @@ class TestTradePersistenceIntegration:
         async_session: AsyncSession,
     ):
         """Test that OPEN trade is created in database when order is filled."""
-        import asyncio
-
         # Arrange
         tracker = OrderTracker(
             trade_repository=trade_repository,
@@ -196,8 +225,15 @@ class TestTradePersistenceIntegration:
         # Act - Fill order (should create OPEN trade)
         tracker.order_filled("order_123")
 
-        # Wait for async task to complete
-        await asyncio.sleep(0.1)
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
+
+        # Wait for async persistence to complete
+        async def trade_persisted():
+            trades = await trade_repository.get_open_trades(account.id)
+            return len(trades) > 0
+
+        await wait_for_condition(trade_persisted, timeout=2.0)
 
         # Assert - OPEN trade should exist in database
         open_trades = await trade_repository.get_open_trades(account.id)
@@ -217,8 +253,6 @@ class TestTradePersistenceIntegration:
         account: Account,
     ):
         """Test that trade_id is set on TrackedOrder after OPEN trade is persisted."""
-        import asyncio
-
         # Arrange
         tracker = OrderTracker(
             trade_repository=trade_repository,
@@ -236,8 +270,14 @@ class TestTradePersistenceIntegration:
         order = tracker.order_filled("order_123")
         assert order is not None
 
-        # Wait for async persistence
-        await asyncio.sleep(0.1)
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
+
+        # Wait for async persistence to complete with active polling
+        await wait_for_condition(
+            lambda: order.trade_id is not None,
+            timeout=2.0,
+        )
 
         # Assert - trade_id should be set
         assert order.trade_id is not None
@@ -250,8 +290,6 @@ class TestTradePersistenceIntegration:
         account: Account,
     ):
         """Test that OPEN trade is updated to CLOSED when TP hits."""
-        import asyncio
-
         # Arrange
         tracker = OrderTracker(
             trade_repository=trade_repository,
@@ -267,7 +305,12 @@ class TestTradePersistenceIntegration:
 
         # Fill order (creates OPEN trade)
         order = tracker.order_filled("order_123")
-        await asyncio.sleep(0.1)
+
+        # Wait for OPEN trade to be persisted
+        await wait_for_condition(
+            lambda: order.trade_id is not None,
+            timeout=2.0,
+        )
 
         # Verify OPEN trade exists
         open_trades_before = await trade_repository.get_open_trades(account.id)
@@ -276,7 +319,16 @@ class TestTradePersistenceIntegration:
 
         # Act - Hit TP (should update trade to CLOSED)
         tracker.order_tp_hit("order_123", exit_price=50500.0)
-        await asyncio.sleep(0.1)
+
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
+
+        # Wait for trade to be updated to CLOSED
+        async def trade_closed():
+            open_trades = await trade_repository.get_open_trades(account.id)
+            return len(open_trades) == 0
+
+        await wait_for_condition(trade_closed, timeout=2.0)
 
         # Assert - Trade should now be CLOSED, not OPEN
         open_trades_after = await trade_repository.get_open_trades(account.id)
@@ -298,8 +350,6 @@ class TestTradePersistenceIntegration:
         account: Account,
     ):
         """Test backward compatibility: CLOSED trade created if no OPEN trade exists."""
-        import asyncio
-
         # Arrange - Tracker WITHOUT repository initially
         tracker = OrderTracker()
 
@@ -320,7 +370,16 @@ class TestTradePersistenceIntegration:
 
         # Act - Hit TP (should create CLOSED trade directly, no OPEN state)
         tracker.order_tp_hit("order_123", exit_price=50500.0)
-        await asyncio.sleep(0.1)
+
+        # Give background tasks a chance to start
+        await asyncio.sleep(0.05)
+
+        # Wait for CLOSED trade to be persisted
+        async def trade_persisted():
+            trades = await trade_repository.get_trades_by_account(account.id)
+            return len(trades) > 0
+
+        await wait_for_condition(trade_persisted, timeout=2.0)
 
         # Assert - CLOSED trade should exist (created directly)
         all_trades = await trade_repository.get_trades_by_account(account.id)
