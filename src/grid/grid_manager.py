@@ -750,6 +750,9 @@ class GridManager:
                         leverage=self.config.trading.leverage,
                     )
 
+                    # Fetch and update TP order ID (async task)
+                    asyncio.create_task(self._fetch_and_update_tp_order_id(filled_order))
+
                 if self._on_order_filled:
                     self._on_order_filled(order)
                 orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
@@ -771,6 +774,51 @@ class GridManager:
         elif status == "CANCELED":
             self.tracker.cancel_order(order_id)
             orders_logger.info(f"WS: Ordem cancelada: {order_id}")
+
+    async def _fetch_and_update_tp_order_id(self, filled_order: TrackedOrder) -> None:
+        """
+        Fetch and update the TP order ID for a newly filled order.
+
+        When a LIMIT order with embedded TP is filled, the exchange automatically
+        creates a TP order. This method queries the open orders to find that TP
+        order and updates the TrackedOrder.exchange_tp_order_id.
+
+        Args:
+            filled_order: The TrackedOrder that was just filled
+        """
+        try:
+            # Query open orders to find the TP order
+            open_orders = await self.client.get_open_orders(self.symbol)
+
+            # Look for TP orders that match this position
+            for open_order in open_orders:
+                order_type = open_order.get("type", "")
+                if order_type not in ["TAKE_PROFIT_MARKET", "TAKE_PROFIT"]:
+                    continue
+
+                # Check if this TP order matches our filled order
+                tp_price = float(open_order.get("stopPrice", 0))
+                quantity = float(open_order.get("origQty", 0))
+
+                # Match by TP price and quantity
+                if (
+                    abs(tp_price - filled_order.tp_price) < 0.01
+                    and abs(quantity - filled_order.quantity) < 0.00001
+                ):
+                    tp_order_id = str(open_order.get("orderId", ""))
+                    filled_order.exchange_tp_order_id = tp_order_id
+                    orders_logger.info(
+                        f"Captured TP order ID {tp_order_id[:8]} for filled order {filled_order.order_id[:8]}"
+                    )
+                    return
+
+            orders_logger.warning(
+                f"Could not find TP order for filled order {filled_order.order_id[:8]}"
+            )
+        except Exception as e:
+            orders_logger.warning(
+                f"Failed to fetch TP order ID for {filled_order.order_id[:8]}: {e}"
+            )
 
     def _on_ws_position_update(self, pos_data: dict) -> None:
         """Handle position update from WebSocket."""
