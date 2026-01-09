@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from config import Config
@@ -144,6 +144,9 @@ class GridManager:
         # Dynamic TP Manager
         self.dynamic_tp: DynamicTPManager | None = None
 
+        # Cached DB strategy (database config has priority over env vars)
+        self._db_strategy: Any = None
+
     @property
     def is_running(self) -> bool:
         return self._running
@@ -151,6 +154,49 @@ class GridManager:
     @property
     def current_state(self) -> GridState:
         return self._current_state
+
+    @property
+    def leverage(self) -> int:
+        """Get leverage from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return int(self._db_strategy.leverage)
+        return self.config.trading.leverage
+
+    @property
+    def margin_mode(self) -> str:
+        """Get margin mode from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return str(self._db_strategy.margin_mode)
+        return self.config.trading.margin_mode.value
+
+    @property
+    def take_profit_percent(self) -> float:
+        """Get TP percent from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return float(self._db_strategy.take_profit_percent)
+        return self.config.grid.take_profit_percent
+
+    @property
+    def max_total_orders(self) -> int:
+        """Get max total orders from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return int(self._db_strategy.max_total_orders)
+        return self.config.grid.max_total_orders
+
+    def _get_dynamic_tp_config(self) -> Any:
+        """Get Dynamic TP config from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            from config import DynamicTPConfig
+
+            return DynamicTPConfig(
+                enabled=self._db_strategy.tp_dynamic_enabled,
+                base_percent=float(self._db_strategy.tp_dynamic_base),
+                min_percent=float(self._db_strategy.tp_dynamic_min),
+                max_percent=float(self._db_strategy.tp_dynamic_max),
+                safety_margin=float(self._db_strategy.tp_dynamic_safety_margin),
+                check_interval_minutes=self._db_strategy.tp_dynamic_check_interval,
+            )
+        return self.config.dynamic_tp
 
     def _log_activity_event(
         self,
@@ -401,7 +447,7 @@ class GridManager:
                 entry_price=str(order.entry_price),
                 current_price=str(self._current_price),
                 unrealized_pnl=str(unrealized_pnl),
-                leverage=self.config.trading.leverage,
+                leverage=self.leverage,
             )
 
     def _get_anchor_mode_value(self) -> str:
@@ -441,6 +487,9 @@ class GridManager:
             if not strategy:
                 main_logger.debug("No active strategy found, using config.py values")
                 return
+
+            # Cache the strategy (database config has priority over env vars)
+            self._db_strategy = strategy
 
             # Update calculator properties with strategy values
             self.calculator.spacing_type = strategy.spacing_type  # type: ignore[assignment]
@@ -486,7 +535,7 @@ class GridManager:
             "Bot started",
             {
                 "symbol": self.symbol,
-                "leverage": self.config.trading.leverage,
+                "leverage": self.leverage,
                 "order_size_usdt": self.order_size,
                 "trading_mode": self.config.trading.mode.value,
             },
@@ -502,9 +551,9 @@ class GridManager:
         try:
             await self.client.set_leverage(
                 self.symbol,
-                self.config.trading.leverage,
+                self.leverage,
             )
-            main_logger.info(f"Leverage configurado: {self.config.trading.leverage}x")
+            main_logger.info(f"Leverage configurado: {self.leverage}x")
         except Exception as e:
             main_logger.warning(f"Falha ao configurar leverage: {e}")
 
@@ -512,7 +561,7 @@ class GridManager:
         try:
             # Get current margin mode
             current_mode = await self.client.get_margin_mode(self.symbol)
-            desired_mode = self.config.trading.margin_mode.value
+            desired_mode = self.margin_mode
 
             if current_mode != desired_mode:
                 # Only try to change if different
@@ -546,7 +595,7 @@ class GridManager:
             positions_loaded = self.tracker.load_existing_positions(
                 positions,
                 open_orders,
-                self.config.grid.take_profit_percent,
+                self.take_profit_percent,
                 anchor_value=anchor_value,
             )
 
@@ -554,7 +603,7 @@ class GridManager:
             limit_orders = [o for o in open_orders if o.get("type") == "LIMIT"]
             orders_loaded = self.tracker.load_existing_orders(
                 limit_orders,
-                self.config.grid.take_profit_percent,
+                self.take_profit_percent,
             )
 
             if positions_loaded > 0:
@@ -579,7 +628,7 @@ class GridManager:
         # Instanciar DynamicTPManager
         # Note: tp_adjustment_repository is optional (graceful degradation)
         self.dynamic_tp = DynamicTPManager(
-            config=self.config.dynamic_tp,
+            config=self._get_dynamic_tp_config(),
             client=self.client,
             order_tracker=self.tracker,
             symbol=self.symbol,
@@ -589,7 +638,7 @@ class GridManager:
         )
 
         # Iniciar monitoramento
-        if self.config.dynamic_tp.enabled is True:
+        if self._get_dynamic_tp_config().enabled is True:
             await self.dynamic_tp.start()
             orders_logger.info("DynamicTPManager started")
 
@@ -747,7 +796,7 @@ class GridManager:
                         entry_price=str(filled_order.entry_price),
                         current_price=str(self._current_price),
                         unrealized_pnl=str(unrealized_pnl),
-                        leverage=self.config.trading.leverage,
+                        leverage=self.leverage,
                     )
 
                     # Fetch and update TP order ID (async task)
@@ -845,7 +894,7 @@ class GridManager:
                     entry_price=str(order.entry_price),
                     current_price=str(exit_price),
                     unrealized_pnl=str(pnl),
-                    leverage=self.config.trading.leverage,
+                    leverage=self.leverage,
                 )
 
                 if self._on_tp_hit:
@@ -993,9 +1042,10 @@ class GridManager:
             self._current_price = await self.client.get_price(self.symbol)
 
             # Get klines for MACD calculation
+            # Use timeframe from DB config (strategy.timeframe), not env (config.macd.timeframe)
             klines = await self.client.get_klines(
                 self.symbol,
-                interval=self.config.macd.timeframe,
+                interval=self.strategy.timeframe,
                 limit=100,
             )
 
@@ -1126,7 +1176,7 @@ class GridManager:
             Set of entry prices that have fills awaiting TP
         """
         occupied_prices: set[float] = set()
-        tp_multiplier = 1 + (self.config.grid.take_profit_percent / 100)
+        tp_multiplier = 1 + (self.take_profit_percent / 100)
 
         # Check if anchor mode is enabled
         use_anchor = self._get_anchor_mode_value() != "none"
@@ -1237,7 +1287,7 @@ class GridManager:
             return
 
         # BE-008: Log available slots
-        max_total = self.config.grid.max_total_orders
+        max_total = self.max_total_orders
         limit_orders_count = len([o for o in exchange_orders if o.get("type") == "LIMIT"])
         available_slots = max(0, max_total - filled_orders_count - limit_orders_count)
         orders_logger.info(
@@ -1449,7 +1499,7 @@ class GridManager:
                                 entry_price=str(filled_order.entry_price),
                                 current_price=str(self._current_price),
                                 unrealized_pnl=str(unrealized_pnl),
-                                leverage=self.config.trading.leverage,
+                                leverage=self.leverage,
                             )
 
                         expected_position += order.quantity  # Update expected for next iteration
@@ -1499,7 +1549,7 @@ class GridManager:
                         entry_price=str(order.entry_price),
                         current_price=str(exit_price),
                         unrealized_pnl=str(pnl),
-                        leverage=self.config.trading.leverage,
+                        leverage=self.leverage,
                     )
 
                     if self._on_tp_hit:
@@ -1547,7 +1597,7 @@ class GridManager:
                             entry_price=str(order.entry_price),
                             current_price=str(exit_price),
                             unrealized_pnl=str(pnl),
-                            leverage=self.config.trading.leverage,
+                            leverage=self.leverage,
                         )
 
                         excess -= order.quantity
