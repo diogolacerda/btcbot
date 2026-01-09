@@ -567,6 +567,75 @@ class OrderTracker:
 
         return loaded
 
+    async def link_existing_trades(self) -> int:
+        """
+        Link existing positions in memory to trades in database.
+
+        This method enables Dynamic TP Manager to save adjustments for positions
+        that were loaded from exchange during startup.
+
+        For each filled order without a trade_id, searches the database for a
+        matching trade by exchange_tp_order_id and links the trade_id to the
+        order in memory.
+
+        Returns:
+            Number of trades successfully linked
+
+        Note:
+            This method should be called after load_existing_positions() during
+            bot startup to establish the connection between in-memory positions
+            and database records.
+        """
+        if not self._trade_repository or not self._account_id:
+            orders_logger.debug("Skipping trade linking: repository or account_id not configured")
+            return 0
+
+        # Import here to avoid circular dependency
+        from sqlalchemy import select
+
+        from src.database.engine import get_session
+        from src.database.models.trade import Trade
+
+        linked_count = 0
+
+        for order in self.filled_orders:
+            # Skip if already has trade_id
+            if order.trade_id:
+                continue
+
+            # Skip if no exchange_tp_order_id
+            if not order.exchange_tp_order_id:
+                continue
+
+            try:
+                async for session in get_session():
+                    result = await session.execute(
+                        select(Trade).where(
+                            Trade.exchange_tp_order_id == order.exchange_tp_order_id,
+                            Trade.account_id == self._account_id,
+                            Trade.status == "OPEN",
+                        )
+                    )
+                    trade = result.scalar_one_or_none()
+
+                    if trade:
+                        order.trade_id = trade.id
+                        orders_logger.info(
+                            f"Linked trade {str(trade.id)[:8]} to position {order.order_id[:20]}"
+                        )
+                        linked_count += 1
+                    else:
+                        orders_logger.debug(
+                            f"No matching trade found for TP order {order.exchange_tp_order_id[:8]}"
+                        )
+            except Exception as e:
+                orders_logger.warning(f"Failed to link trade for {order.order_id[:20]}: {e}")
+
+        if linked_count > 0:
+            orders_logger.info(f"Successfully linked {linked_count} trades to existing positions")
+
+        return linked_count
+
     def load_existing_orders(
         self,
         orders: list[dict],
