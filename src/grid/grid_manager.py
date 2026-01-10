@@ -116,6 +116,7 @@ class GridManager:
 
         self._current_state = GridState.WAIT
         self._current_price = 0.0
+        self._ws_price_timestamp = 0.0  # Timestamp of last WebSocket price update
         self._last_macd_line = 0.0
         self._last_histogram = 0.0
         self._running = False
@@ -182,6 +183,31 @@ class GridManager:
         if self._db_strategy:
             return int(self._db_strategy.max_total_orders)
         return self.config.grid.max_total_orders
+
+    def update_price_from_websocket(self, price: float) -> None:
+        """Update current price from WebSocket stream.
+
+        This method is called by PriceStreamer when a new price is received
+        via WebSocket, enabling real-time price updates without REST API polling.
+
+        Args:
+            price: Current BTC price from WebSocket trade stream
+        """
+        self._current_price = price
+        self._ws_price_timestamp = time.time()
+
+    def _is_ws_price_fresh(self, max_age_seconds: float = 10.0) -> bool:
+        """Check if WebSocket price is fresh enough to use.
+
+        Args:
+            max_age_seconds: Maximum age in seconds to consider price fresh
+
+        Returns:
+            True if WebSocket price was updated within max_age_seconds
+        """
+        if self._ws_price_timestamp == 0:
+            return False
+        return (time.time() - self._ws_price_timestamp) < max_age_seconds
 
     def _get_dynamic_tp_config(self) -> Any:
         """Get Dynamic TP config from DB strategy (priority) or env config (fallback)."""
@@ -1038,8 +1064,11 @@ class GridManager:
             return
 
         try:
-            # Get current price
-            self._current_price = await self.client.get_price(self.symbol)
+            # Get current price - prefer WebSocket (real-time) over REST API (polling)
+            if not self._is_ws_price_fresh():
+                # WebSocket price is stale or not available, fetch from REST API
+                self._current_price = await self.client.get_price(self.symbol)
+            # else: _current_price is already up-to-date from WebSocket callback
 
             # Get klines for MACD calculation
             # Use timeframe from DB config (strategy.timeframe), not env (config.macd.timeframe)
