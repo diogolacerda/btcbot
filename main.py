@@ -443,6 +443,10 @@ async def run_bot() -> None:
     if grid_manager._account_ws:
         health_server.set_account_websocket(grid_manager._account_ws)
 
+    # Connect price streamer to grid manager for real-time price updates
+    # This enables GridManager to receive prices via WebSocket instead of REST API polling
+    price_streamer.set_price_callback(grid_manager.update_price_from_websocket)
+
     # Start price streamer for real-time dashboard updates
     await price_streamer.start()
 
