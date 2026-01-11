@@ -707,7 +707,10 @@ class BingXClient:
         # API returns list directly or wrapped in data
         if isinstance(data, list):
             return data
-        return data.get("data", []) if isinstance(data, dict) else []
+        if isinstance(data, dict):
+            result = data.get("data", [])
+            return result if isinstance(result, list) else []
+        return []
 
     async def get_funding_fees(
         self,
