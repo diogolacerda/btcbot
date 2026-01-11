@@ -36,7 +36,7 @@ class TestEMAFilterRegistration:
         registry = FilterRegistry()
         registry.clear()
 
-        macd_config = MACDConfig()
+        macd_config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         strategy = MACDStrategy(macd_config)
         macd_filter = MACDFilter(strategy)
         ema_filter = EMAFilter()
@@ -112,7 +112,7 @@ class TestFilterRegistryShouldAllowTrade:
         registry = FilterRegistry()
         registry.clear()
 
-        macd_config = MACDConfig()
+        macd_config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         strategy = MACDStrategy(macd_config)
         macd_filter = MACDFilter(strategy, enabled=True)
         ema_filter = EMAFilter(enabled=True)
@@ -134,7 +134,7 @@ class TestFilterRegistryShouldAllowTrade:
         registry = FilterRegistry()
         registry.clear()
 
-        macd_config = MACDConfig()
+        macd_config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         strategy = MACDStrategy(macd_config)
         macd_filter = MACDFilter(strategy, enabled=True)
         ema_filter = EMAFilter(enabled=True, allow_on_rising=True, allow_on_falling=False)
@@ -157,7 +157,7 @@ class TestFilterRegistryShouldAllowTrade:
         registry = FilterRegistry()
         registry.clear()
 
-        macd_config = MACDConfig()
+        macd_config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         strategy = MACDStrategy(macd_config)
         macd_filter = MACDFilter(strategy, enabled=True)
         ema_filter = EMAFilter(enabled=False)  # Disabled
@@ -292,7 +292,7 @@ class TestDecisionMatrix:
         registry = FilterRegistry()
         registry.clear()
 
-        macd_config = MACDConfig()
+        macd_config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         strategy = MACDStrategy(macd_config)
         macd_filter = MACDFilter(strategy, enabled=True)
         ema_filter = EMAFilter(enabled=True)
