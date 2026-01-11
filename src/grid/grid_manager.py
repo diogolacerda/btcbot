@@ -641,6 +641,14 @@ class GridManager:
                         main_logger.info(
                             f"{linked_count} posição(ões) vinculada(s) ao banco de dados"
                         )
+
+                    # Persist positions that weren't linked (new to DB)
+                    # This ensures Dashboard can display all positions
+                    persisted_count = await self.tracker.persist_loaded_positions()
+                    if persisted_count > 0:
+                        main_logger.info(
+                            f"{persisted_count} posição(ões) persistida(s) no banco de dados"
+                        )
                 except Exception as e:
                     main_logger.warning(f"Falha ao vincular trades: {e}")
         except Exception as e:
