@@ -1,4 +1,4 @@
-"""Strategy API endpoints for CRUD operations and MACD filter configuration."""
+"""Strategy API endpoints for CRUD operations and filter configuration."""
 
 from typing import Annotated
 from uuid import UUID
@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import get_account_id, get_current_active_user
 from src.api.schemas.strategy import (
+    EMAFilterConfigResponse,
+    EMAFilterConfigUpdate,
     MACDFilterConfigResponse,
     MACDFilterConfigUpdate,
     StrategyActivateResponse,
@@ -17,6 +19,7 @@ from src.api.schemas.strategy import (
 )
 from src.database.engine import get_session
 from src.database.models.user import User
+from src.database.repositories.ema_filter_config_repository import EMAFilterConfigRepository
 from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
 from src.database.repositories.strategy_repository import StrategyRepository
 from src.utils.logger import api_logger as logger
@@ -50,6 +53,20 @@ async def get_macd_filter_config_repo(
         MACDFilterConfigRepository instance.
     """
     return MACDFilterConfigRepository(session)
+
+
+async def get_ema_filter_config_repo(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> EMAFilterConfigRepository:
+    """Get EMA filter config repository instance.
+
+    Args:
+        session: Database session.
+
+    Returns:
+        EMAFilterConfigRepository instance.
+    """
+    return EMAFilterConfigRepository(session)
 
 
 def _strategy_to_response(strategy) -> StrategyResponse:
@@ -662,6 +679,171 @@ async def update_macd_filter_config(
         raise
     except Exception as e:
         logger.error(f"Error updating MACD filter config: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        ) from e
+
+
+# EMA Filter Config Endpoints
+
+
+@router.get("/{strategy_id}/ema-filter", response_model=EMAFilterConfigResponse)
+async def get_ema_filter_config(
+    strategy_id: UUID,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    account_id: Annotated[UUID, Depends(get_account_id)],
+    strategy_repo: Annotated[StrategyRepository, Depends(get_strategy_repo)],
+    ema_repo: Annotated[EMAFilterConfigRepository, Depends(get_ema_filter_config_repo)],
+) -> EMAFilterConfigResponse:
+    """Get EMA filter configuration for a specific strategy.
+
+    The EMA filter is part of the Impulse System (Alexander Elder).
+    It uses EMA direction to determine if trading should be allowed.
+
+    Args:
+        strategy_id: UUID of strategy.
+        current_user: Authenticated user.
+        account_id: Current account UUID.
+        strategy_repo: Strategy repository.
+        ema_repo: EMA filter config repository.
+
+    Returns:
+        EMAFilterConfigResponse with current configuration.
+
+    Raises:
+        HTTPException: If strategy not found (404), doesn't belong to account (403),
+            or database error (500).
+    """
+    logger.debug(f"GET /api/v1/strategies/{strategy_id}/ema-filter for account {account_id}")
+
+    try:
+        strategy = await strategy_repo.get_by_id(strategy_id)
+
+        if not strategy:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Strategy not found",
+            )
+
+        if strategy.account_id != account_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Strategy does not belong to this account",
+            )
+
+        config = await ema_repo.get_by_strategy(strategy_id)
+
+        if not config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="EMA filter configuration not found for this strategy",
+            )
+
+        return EMAFilterConfigResponse(
+            id=str(config.id),
+            strategy_id=str(config.strategy_id),
+            enabled=config.enabled,
+            period=config.period,
+            timeframe=config.timeframe,
+            allow_on_rising=config.allow_on_rising,
+            allow_on_falling=config.allow_on_falling,
+            created_at=config.created_at,
+            updated_at=config.updated_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting EMA filter config: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        ) from e
+
+
+@router.patch("/{strategy_id}/ema-filter", response_model=EMAFilterConfigResponse)
+async def update_ema_filter_config(
+    strategy_id: UUID,
+    update_data: EMAFilterConfigUpdate,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    account_id: Annotated[UUID, Depends(get_account_id)],
+    strategy_repo: Annotated[StrategyRepository, Depends(get_strategy_repo)],
+    ema_repo: Annotated[EMAFilterConfigRepository, Depends(get_ema_filter_config_repo)],
+) -> EMAFilterConfigResponse:
+    """Update EMA filter configuration for a specific strategy (partial update).
+
+    Only provided fields will be updated. If no configuration exists, one will be created.
+
+    Args:
+        strategy_id: UUID of strategy.
+        update_data: Fields to update.
+        current_user: Authenticated user.
+        account_id: Current account UUID.
+        strategy_repo: Strategy repository.
+        ema_repo: EMA filter config repository.
+
+    Returns:
+        EMAFilterConfigResponse with updated configuration.
+
+    Raises:
+        HTTPException: If strategy not found (404), doesn't belong to account (403),
+            validation fails (400), or database error (500).
+    """
+    logger.debug(f"PATCH /api/v1/strategies/{strategy_id}/ema-filter for account {account_id}")
+
+    try:
+        strategy = await strategy_repo.get_by_id(strategy_id)
+
+        if not strategy:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Strategy not found",
+            )
+
+        if strategy.account_id != account_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Strategy does not belong to this account",
+            )
+
+        # Check if at least one field is provided
+        has_update = any(
+            getattr(update_data, field) is not None
+            for field in ["enabled", "period", "timeframe", "allow_on_rising", "allow_on_falling"]
+        )
+
+        if not has_update:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No fields provided to update",
+            )
+
+        config = await ema_repo.create_or_update(
+            strategy_id,
+            enabled=update_data.enabled,
+            period=update_data.period,
+            timeframe=update_data.timeframe,
+            allow_on_rising=update_data.allow_on_rising,
+            allow_on_falling=update_data.allow_on_falling,
+        )
+
+        return EMAFilterConfigResponse(
+            id=str(config.id),
+            strategy_id=str(config.strategy_id),
+            enabled=config.enabled,
+            period=config.period,
+            timeframe=config.timeframe,
+            allow_on_rising=config.allow_on_rising,
+            allow_on_falling=config.allow_on_falling,
+            created_at=config.created_at,
+            updated_at=config.updated_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating EMA filter config: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
