@@ -120,6 +120,10 @@ class TestFilterRegistryShouldAllowTrade:
         registry.register(macd_filter)
         registry.register(ema_filter)
 
+        # Activate MACD cycle and trigger (required by strategy)
+        strategy.manual_activate()
+        strategy.set_trigger(True)
+
         # Set MACD to allow trades
         macd_filter.set_current_state(GridState.ACTIVE)
 
@@ -141,6 +145,10 @@ class TestFilterRegistryShouldAllowTrade:
 
         registry.register(macd_filter)
         registry.register(ema_filter)
+
+        # Activate MACD cycle and trigger (required by strategy)
+        strategy.manual_activate()
+        strategy.set_trigger(True)
 
         # Set MACD to allow trades
         macd_filter.set_current_state(GridState.ACTIVE)
@@ -164,6 +172,10 @@ class TestFilterRegistryShouldAllowTrade:
 
         registry.register(macd_filter)
         registry.register(ema_filter)
+
+        # Activate MACD cycle and trigger (required by strategy)
+        strategy.manual_activate()
+        strategy.set_trigger(True)
 
         # Set MACD to allow trades
         macd_filter.set_current_state(GridState.ACTIVE)
@@ -296,6 +308,10 @@ class TestDecisionMatrix:
         strategy = MACDStrategy(macd_config)
         macd_filter = MACDFilter(strategy, enabled=True)
         ema_filter = EMAFilter(enabled=True)
+
+        # Activate MACD cycle and trigger (required by strategy)
+        strategy.manual_activate()
+        strategy.set_trigger(True)
 
         registry.register(macd_filter)
         registry.register(ema_filter)

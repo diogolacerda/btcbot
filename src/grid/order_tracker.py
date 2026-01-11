@@ -396,9 +396,7 @@ class OrderTracker:
                 funding_fee = Decimal(str(funding_cost))
 
                 if funding_cost != 0:
-                    trades_logger.info(
-                        f"Funding fee for {order.order_id[:8]}: ${funding_cost:.4f}"
-                    )
+                    trades_logger.info(f"Funding fee for {order.order_id[:8]}: ${funding_cost:.4f}")
             except Exception as e:
                 trades_logger.warning(f"Failed to fetch funding fees: {e}")
 
@@ -794,9 +792,7 @@ class OrderTracker:
                 )
 
         if created_count > 0:
-            orders_logger.info(
-                f"Persisted {created_count} loaded positions to database"
-            )
+            orders_logger.info(f"Persisted {created_count} loaded positions to database")
 
         return created_count
 
