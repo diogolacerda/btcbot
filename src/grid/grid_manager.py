@@ -1209,9 +1209,14 @@ class GridManager:
                 self._previous_ema_direction is not None
                 and current_direction != self._previous_ema_direction
             ):
+                ema_value = (
+                    f"{self._ema_filter.current_ema:.2f}"
+                    if self._ema_filter.current_ema is not None
+                    else "N/A"
+                )
                 main_logger.info(
                     f"EMA direction changed: {self._previous_ema_direction.value} → "
-                    f"{current_direction.value} (EMA={self._ema_filter.current_ema:.2f if self._ema_filter.current_ema else 'N/A'})"
+                    f"{current_direction.value} (EMA={ema_value})"
                 )
             self._previous_ema_direction = current_direction
 
