@@ -9,13 +9,16 @@ The bug occurs when:
 The fix adds a check for open positions on the exchange before creating new orders.
 """
 
+import pytest
+
 from src.grid.order_tracker import OrderStatus, OrderTracker
 
 
 class TestBug003DuplicateOrders:
     """Test cases for BUG-003 fix."""
 
-    def test_tracker_keeps_filled_order_in_price_map(self):
+    @pytest.mark.asyncio
+    async def test_tracker_keeps_filled_order_in_price_map(self):
         """Filled orders should remain in _orders_by_price to prevent duplicates."""
         tracker = OrderTracker()
 
@@ -32,7 +35,7 @@ class TestBug003DuplicateOrders:
         assert tracker.get_order("order123").status == OrderStatus.PENDING
 
         # Mark as filled (order executed, position opened)
-        tracker.order_filled("order123")
+        await tracker.order_filled("order123")
 
         # CRITICAL: Should still be in price map even after filled
         assert tracker.has_order_at_price(88500.0), (
@@ -41,7 +44,8 @@ class TestBug003DuplicateOrders:
         )
         assert tracker.get_order("order123").status == OrderStatus.FILLED
 
-    def test_tracker_removes_from_price_map_only_on_tp_hit(self):
+    @pytest.mark.asyncio
+    async def test_tracker_removes_from_price_map_only_on_tp_hit(self):
         """Price should only be freed when TP is hit (position closed)."""
         tracker = OrderTracker()
 
@@ -52,13 +56,13 @@ class TestBug003DuplicateOrders:
             tp_price=88700.0,
             quantity=0.001,
         )
-        tracker.order_filled("order123")
+        await tracker.order_filled("order123")
 
         # Still blocked
         assert tracker.has_order_at_price(88500.0)
 
         # TP hit - position closed
-        tracker.order_tp_hit("order123", exit_price=88700.0)
+        await tracker.order_tp_hit("order123", exit_price=88700.0)
 
         # NOW the price should be freed
         assert not tracker.has_order_at_price(88500.0), "Price should be freed only after TP is hit"
@@ -82,7 +86,8 @@ class TestBug003DuplicateOrders:
         # This is the behavior we need to prevent in grid_manager
         # The fix in _create_grid_orders() checks has_order_at_price() before creating
 
-    def test_position_price_blocking_scenario(self):
+    @pytest.mark.asyncio
+    async def test_position_price_blocking_scenario(self):
         """
         Simulate the bug scenario:
         1. Order at $88,500 is filled
@@ -98,7 +103,7 @@ class TestBug003DuplicateOrders:
             tp_price=88700.0,
             quantity=0.001,
         )
-        tracker.order_filled("order123")
+        await tracker.order_filled("order123")
 
         # The grid_manager checks:
         # 1. has_order_at_price() - local tracker
@@ -109,7 +114,8 @@ class TestBug003DuplicateOrders:
             "Tracker should block duplicate order at price with open position"
         )
 
-    def test_multiple_positions_partial_close(self):
+    @pytest.mark.asyncio
+    async def test_multiple_positions_partial_close(self):
         """
         When multiple positions exist and only one is closed,
         only that price should be freed.
@@ -119,15 +125,15 @@ class TestBug003DuplicateOrders:
         # Two positions at different prices
         tracker.add_order("order1", 88500.0, 88700.0, 0.001)
         tracker.add_order("order2", 88400.0, 88600.0, 0.001)
-        tracker.order_filled("order1")
-        tracker.order_filled("order2")
+        await tracker.order_filled("order1")
+        await tracker.order_filled("order2")
 
         # Both should be blocked
         assert tracker.has_order_at_price(88500.0)
         assert tracker.has_order_at_price(88400.0)
 
         # Close only first position
-        tracker.order_tp_hit("order1", 88700.0)
+        await tracker.order_tp_hit("order1", 88700.0)
 
         # First price freed, second still blocked
         assert not tracker.has_order_at_price(88500.0)
