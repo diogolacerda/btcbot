@@ -532,14 +532,13 @@ class OrderTracker:
             # Generate unique ID for this position (based on TP order ID)
             position_id = f"existing_tp_{tp_order_id}"
 
-            # Skip if already tracked
+            # Skip if already tracked (by unique TP order ID)
             if position_id in self._orders:
                 continue
 
-            # Also skip if we already have an order at this entry price
-            # (handles duplicate tracking)
-            if entry_price in self._orders_by_price:
-                continue
+            # NOTE: We do NOT skip based on entry_price because multiple positions
+            # can have the same rounded entry_price when GRID_ANCHOR_MODE is active.
+            # Each position has a unique TP order ID, so we track all of them.
 
             # Create tracked order as FILLED
             order = TrackedOrder(
@@ -552,7 +551,10 @@ class OrderTracker:
                 exchange_tp_order_id=tp_order_id,
             )
             self._orders[position_id] = order
-            self._orders_by_price[entry_price] = position_id
+            # Only add to price mapping if no order exists at this price
+            # Multiple positions can share the same rounded entry_price
+            if entry_price not in self._orders_by_price:
+                self._orders_by_price[entry_price] = position_id
 
             orders_logger.info(
                 f"Position loaded from TP: {quantity} BTC @ ${entry_price:,.2f} → TP ${tp_price:,.2f} (TP#{tp_order_id[:8]})"
