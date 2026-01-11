@@ -294,3 +294,46 @@ class MACDFilterConfigResponse(BaseModel):
         """Pydantic config."""
 
         from_attributes = True
+
+
+# EMA Filter Config Schemas
+
+
+class EMAFilterConfigUpdate(BaseModel):
+    """Schema for partial EMA filter configuration updates (PATCH).
+
+    The EMA filter is part of the Impulse System (Alexander Elder).
+    When EMA is rising, it indicates bullish trend (allow trades).
+    When EMA is falling, it indicates bearish trend (protect orders).
+    """
+
+    enabled: bool | None = Field(default=None, description="Whether the EMA filter is enabled")
+    period: int | None = Field(default=None, gt=0, description="EMA period (default 13)")
+    timeframe: Literal["1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"] | None = Field(
+        default=None, description="Candle timeframe for EMA calculation"
+    )
+    allow_on_rising: bool | None = Field(
+        default=None, description="Allow new orders when EMA is rising (bullish)"
+    )
+    allow_on_falling: bool | None = Field(
+        default=None, description="Allow new orders when EMA is falling (bearish)"
+    )
+
+
+class EMAFilterConfigResponse(BaseModel):
+    """Response schema for EMA filter configuration."""
+
+    id: str
+    strategy_id: str
+    enabled: bool
+    period: int
+    timeframe: str
+    allow_on_rising: bool
+    allow_on_falling: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        """Pydantic config."""
+
+        from_attributes = True

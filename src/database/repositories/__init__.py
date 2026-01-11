@@ -4,6 +4,7 @@ from .account_repository import AccountRepository
 from .activity_event_repository import ActivityEventRepository
 from .base_repository import BaseRepository
 from .bot_state_repository import BotStateRepository
+from .ema_filter_config_repository import EMAFilterConfigRepository
 from .grid_config_repository import GridConfigRepository
 from .macd_filter_config_repository import MACDFilterConfigRepository
 from .strategy_repository import StrategyRepository
@@ -16,6 +17,7 @@ __all__ = [
     "ActivityEventRepository",
     "BaseRepository",
     "BotStateRepository",
+    "EMAFilterConfigRepository",
     "GridConfigRepository",
     "MACDFilterConfigRepository",
     "StrategyRepository",

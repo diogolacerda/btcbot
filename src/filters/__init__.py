@@ -6,7 +6,8 @@ When all filters are disabled, the bot creates orders based solely on price and 
 """
 
 from src.filters.base import Filter
+from src.filters.ema_filter import EMADirection, EMAFilter
 from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 
-__all__ = ["Filter", "FilterRegistry", "MACDFilter"]
+__all__ = ["EMADirection", "EMAFilter", "Filter", "FilterRegistry", "MACDFilter"]

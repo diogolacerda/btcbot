@@ -21,6 +21,7 @@ from src.database.base import Base
 
 if TYPE_CHECKING:
     from .account import Account
+    from .ema_filter_config import EMAFilterConfig
     from .macd_filter_config import MACDFilterConfig
 
 
@@ -134,6 +135,9 @@ class Strategy(Base):
 
     # Relationships
     account: Mapped["Account"] = relationship("Account", back_populates="strategies")
+    ema_filter_config: Mapped["EMAFilterConfig | None"] = relationship(
+        "EMAFilterConfig", back_populates="strategy", uselist=False, cascade="all, delete-orphan"
+    )
     macd_filter_config: Mapped["MACDFilterConfig | None"] = relationship(
         "MACDFilterConfig", back_populates="strategy", uselist=False, cascade="all, delete-orphan"
     )
