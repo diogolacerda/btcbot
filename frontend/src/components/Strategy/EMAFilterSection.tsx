@@ -55,8 +55,12 @@ export function EMAFilterSection({ strategyId }: EMAFilterSectionProps) {
   const [localChanges, setLocalChanges] = useState<Partial<FormState> | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const { data: emaConfig, isLoading, isError } = useEMAFilterConfig(strategyId)
+  const { data: emaConfig, isLoading, isError, error } = useEMAFilterConfig(strategyId)
   const updateMutation = useUpdateEMAFilterConfig()
+
+  // Check if error is a 404 (config doesn't exist yet)
+  const isNotFound = isError && error instanceof Error &&
+    (error.message.includes('404') || error.message.includes('not found'))
 
   // Derive form state from server data + local changes
   const formState: FormState = useMemo(() => {
@@ -154,7 +158,8 @@ export function EMAFilterSection({ strategyId }: EMAFilterSectionProps) {
     )
   }
 
-  if (isError) {
+  // Only show error for non-404 errors (404 means config doesn't exist yet, which is OK)
+  if (isError && !isNotFound) {
     return (
       <div className="bg-card border border-destructive/50 rounded-lg p-6">
         <div className="flex items-center gap-2 text-destructive">
@@ -166,6 +171,9 @@ export function EMAFilterSection({ strategyId }: EMAFilterSectionProps) {
       </div>
     )
   }
+
+  // For 404 (not found), we show the form with defaults so user can create the config
+  const configExists = emaConfig !== undefined && !isNotFound
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
@@ -182,7 +190,9 @@ export function EMAFilterSection({ strategyId }: EMAFilterSectionProps) {
           <div className="text-left">
             <h3 className="text-lg font-semibold text-foreground">EMA Filter</h3>
             <p className="text-sm text-muted-foreground">
-              {formState.enabled ? 'Active' : 'Disabled'} - {formState.period} period, {formState.timeframe} timeframe
+              {configExists
+                ? `${formState.enabled ? 'Active' : 'Disabled'} - ${formState.period} period, ${formState.timeframe} timeframe`
+                : 'Not configured - click to set up'}
             </p>
           </div>
         </div>
@@ -302,8 +312,8 @@ export function EMAFilterSection({ strategyId }: EMAFilterSectionProps) {
               </p>
             </div>
 
-            {/* Action Buttons */}
-            {hasChanges && (
+            {/* Action Buttons - show always if config doesn't exist, or when there are changes */}
+            {(hasChanges || !configExists) && (
               <div className="flex items-center gap-3 pt-2">
                 <button
                   type="button"
@@ -333,16 +343,18 @@ export function EMAFilterSection({ strategyId }: EMAFilterSectionProps) {
                       />
                     </svg>
                   )}
-                  Save EMA Settings
+                  {configExists ? 'Save EMA Settings' : 'Create EMA Settings'}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleReset}
-                  disabled={updateMutation.isPending}
-                  className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Reset
-                </button>
+                {hasChanges && (
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    disabled={updateMutation.isPending}
+                    className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Reset
+                  </button>
+                )}
                 {updateMutation.isSuccess && (
                   <span className="text-sm text-green-500 flex items-center gap-1">
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
