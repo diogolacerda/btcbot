@@ -98,7 +98,11 @@ class GridManager:
             macd_filter_config_repository=macd_filter_config_repository,
         )
         self.calculator = GridCalculator(config.grid)
-        self.tracker = OrderTracker(account_id=account_id)
+        self.tracker = OrderTracker(
+            account_id=account_id,
+            bingx_client=client,
+            symbol=config.trading.symbol,
+        )
 
         # Filter system
         self._filter_registry = FilterRegistry()
@@ -613,7 +617,7 @@ class GridManager:
             use_anchor = self._get_anchor_mode_value() != "none"
             anchor_value = self.calculator.anchor_value if use_anchor else 0
 
-            positions_loaded = self.tracker.load_existing_positions(
+            positions_loaded = await self.tracker.load_existing_positions(
                 positions,
                 open_orders,
                 self.take_profit_percent,

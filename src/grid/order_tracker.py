@@ -2,10 +2,13 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from src.utils.logger import orders_logger, trades_logger
+
+if TYPE_CHECKING:
+    from src.client.bingx_client import BingXClient
 
 
 class OrderStatus(Enum):
@@ -78,12 +81,16 @@ class OrderTracker:
     def __init__(
         self,
         account_id: UUID | None = None,
+        bingx_client: "BingXClient | None" = None,
+        symbol: str = "BTC-USDT",
     ):
         self._orders: dict[str, TrackedOrder] = {}
         self._orders_by_price: dict[float, str] = {}  # price -> order_id mapping
         self._trades: list[TradeRecord] = []
         self._initial_pnl: float = 0.0  # PnL from exchange at startup
         self._account_id = account_id
+        self._bingx_client = bingx_client
+        self._symbol = symbol
 
     @property
     def pending_orders(self) -> list[TrackedOrder]:
@@ -367,9 +374,33 @@ class OrderTracker:
 
         Either updates an existing OPEN trade to CLOSED, or creates a new CLOSED trade
         if no OPEN trade exists (backward compatibility).
+
+        Also fetches and records actual funding fees from BingX if client is available.
         """
         from src.database.engine import get_session
         from src.database.repositories.trade_repository import TradeRepository
+
+        # Calculate funding fee if BingX client is available
+        funding_fee = Decimal("0")
+        if self._bingx_client and order.filled_at:
+            try:
+                # Convert filled_at to milliseconds timestamp
+                position_opened_at = int(order.filled_at.timestamp() * 1000)
+                position_closed_at = int(datetime.now().timestamp() * 1000)
+
+                funding_cost = await self._bingx_client.calculate_position_funding_cost(
+                    symbol=self._symbol,
+                    position_opened_at=position_opened_at,
+                    position_closed_at=position_closed_at,
+                )
+                funding_fee = Decimal(str(funding_cost))
+
+                if funding_cost != 0:
+                    trades_logger.info(
+                        f"Funding fee for {order.order_id[:8]}: ${funding_cost:.4f}"
+                    )
+            except Exception as e:
+                trades_logger.warning(f"Failed to fetch funding fees: {e}")
 
         try:
             # Create fresh session and repository for this operation
@@ -377,15 +408,17 @@ class OrderTracker:
                 trade_repo = TradeRepository(session)
 
                 if order.trade_id:
-                    # Update existing OPEN trade to CLOSED
+                    # Update existing OPEN trade to CLOSED with funding fee
                     await trade_repo.update_trade_exit(
                         trade_id=order.trade_id,
                         exit_price=Decimal(str(exit_price)),
                         pnl=Decimal(str(pnl)),
                         pnl_percent=Decimal(str(pnl_percent)),
+                        funding_fee=funding_fee,
                     )
                     trades_logger.info(
                         f"Trade updated to CLOSED: {order.order_id[:8]} (trade_id: {order.trade_id})"
+                        + (f" | Funding: ${funding_fee:.4f}" if funding_fee != 0 else "")
                     )
                 else:
                     # Fallback: Create CLOSED trade directly (for trades without prior OPEN state)
@@ -399,7 +432,7 @@ class OrderTracker:
                         "account_id": self._account_id,
                         "exchange_order_id": order.order_id,
                         "exchange_tp_order_id": order.exchange_tp_order_id,
-                        "symbol": "BTC-USDT",
+                        "symbol": self._symbol,
                         "side": "LONG",
                         "leverage": 10,
                         "entry_price": Decimal(str(order.entry_price)),
@@ -410,7 +443,7 @@ class OrderTracker:
                         "pnl": Decimal(str(pnl)),
                         "pnl_percent": Decimal(str(pnl_percent)),
                         "trading_fee": Decimal("0"),
-                        "funding_fee": Decimal("0"),
+                        "funding_fee": funding_fee,
                         "status": "CLOSED",
                         "grid_level": None,
                         "opened_at": order.created_at.replace(tzinfo=UTC),
@@ -423,6 +456,7 @@ class OrderTracker:
                     await trade_repo.save_trade(trade_data)
                     trades_logger.info(
                         f"Trade persisted (CLOSED, no prior OPEN): {order.order_id[:8]}"
+                        + (f" | Funding: ${funding_fee:.4f}" if funding_fee != 0 else "")
                     )
                 break  # Only need one iteration
 
@@ -465,7 +499,7 @@ class OrderTracker:
             "recent_trades": self._trades[-10:] if self._trades else [],
         }
 
-    def load_existing_positions(
+    async def load_existing_positions(
         self,
         positions: list[dict],
         open_orders: list[dict],
@@ -505,6 +539,9 @@ class OrderTracker:
         # Calculate multiplier for reverse entry price calculation
         tp_multiplier = 1 + (tp_percent / 100)
 
+        # Pre-fetch existing trades from database for accurate filled_at times
+        trade_opened_at_map = await self._get_trades_opened_at_map()
+
         loaded = 0
         for open_order in open_orders:
             order_type = open_order.get("type", "")
@@ -540,6 +577,37 @@ class OrderTracker:
             # can have the same rounded entry_price when GRID_ANCHOR_MODE is active.
             # Each position has a unique TP order ID, so we track all of them.
 
+            # Get the actual filled_at time - priority:
+            # 1. BingX order 'time' or 'updateTime' field (source of truth)
+            # 2. Database opened_at (fallback for existing records)
+            # 3. datetime.now() (last resort)
+            filled_at = None
+
+            # Try to get timestamp from BingX order response
+            order_time_ms = open_order.get("time") or open_order.get("updateTime")
+            if order_time_ms:
+                try:
+                    filled_at = datetime.fromtimestamp(int(order_time_ms) / 1000)
+                    orders_logger.debug(
+                        f"Using BingX order time for TP#{tp_order_id[:8]}: {filled_at}"
+                    )
+                except (ValueError, TypeError):
+                    pass
+
+            # Fallback to database timestamp
+            if filled_at is None and tp_order_id in trade_opened_at_map:
+                filled_at = trade_opened_at_map[tp_order_id]
+                orders_logger.debug(
+                    f"Using database opened_at for TP#{tp_order_id[:8]}: {filled_at}"
+                )
+
+            # Last resort: current time
+            if filled_at is None:
+                filled_at = datetime.now()
+                orders_logger.warning(
+                    f"No timestamp found for TP#{tp_order_id[:8]}, using current time"
+                )
+
             # Create tracked order as FILLED
             order = TrackedOrder(
                 order_id=position_id,
@@ -547,7 +615,7 @@ class OrderTracker:
                 tp_price=tp_price,
                 quantity=quantity,
                 status=OrderStatus.FILLED,
-                filled_at=datetime.now(),
+                filled_at=filled_at,
                 exchange_tp_order_id=tp_order_id,
             )
             self._orders[position_id] = order
@@ -565,6 +633,59 @@ class OrderTracker:
             orders_logger.info(f"Loaded {loaded} individual positions from TP orders")
 
         return loaded
+
+    async def _get_trades_opened_at_map(self) -> dict[str, datetime]:
+        """
+        Get a map of exchange_tp_order_id -> opened_at from database.
+
+        This allows loaded positions to use their actual opened_at time
+        instead of datetime.now(), which is critical for accurate funding
+        cost calculations in Dynamic TP Manager.
+
+        Returns:
+            Dict mapping exchange_tp_order_id to opened_at datetime
+        """
+        if not self._account_id:
+            return {}
+
+        from sqlalchemy import select
+
+        from src.database.engine import get_session
+        from src.database.models.trade import Trade
+
+        result_map: dict[str, datetime] = {}
+
+        try:
+            async for session in get_session():
+                result = await session.execute(
+                    select(Trade.exchange_tp_order_id, Trade.opened_at, Trade.filled_at).where(
+                        Trade.account_id == self._account_id,
+                        Trade.status == "OPEN",
+                        Trade.exchange_tp_order_id.isnot(None),
+                    )
+                )
+
+                for row in result:
+                    tp_order_id = row.exchange_tp_order_id
+                    # Use filled_at if available, otherwise opened_at
+                    timestamp = row.filled_at or row.opened_at
+                    if tp_order_id and timestamp:
+                        # Remove timezone info if present for consistency
+                        if timestamp.tzinfo is not None:
+                            timestamp = timestamp.replace(tzinfo=None)
+                        result_map[tp_order_id] = timestamp
+
+                break  # Only need one iteration
+
+        except Exception as e:
+            orders_logger.warning(f"Failed to fetch trades opened_at map: {e}")
+
+        if result_map:
+            orders_logger.info(
+                f"Loaded {len(result_map)} trade timestamps from database for position restoration"
+            )
+
+        return result_map
 
     async def link_existing_trades(self) -> int:
         """
