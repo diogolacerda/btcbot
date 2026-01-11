@@ -33,7 +33,6 @@ if TYPE_CHECKING:
     from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
     from src.database.repositories.strategy_repository import StrategyRepository
     from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
-    from src.database.repositories.trade_repository import TradeRepository
 
 
 @dataclass
@@ -74,7 +73,6 @@ class GridManager:
         on_state_change: Callable | None = None,
         account_id: UUID | None = None,
         bot_state_repository: BotStateRepository | None = None,
-        trade_repository: TradeRepository | None = None,
         strategy_repository: StrategyRepository | None = None,
         macd_filter_config_repository: MACDFilterConfigRepository | None = None,
         activity_event_repository: ActivityEventRepository | None = None,
@@ -100,10 +98,7 @@ class GridManager:
             macd_filter_config_repository=macd_filter_config_repository,
         )
         self.calculator = GridCalculator(config.grid)
-        self.tracker = OrderTracker(
-            trade_repository=trade_repository,
-            account_id=account_id,
-        )
+        self.tracker = OrderTracker(account_id=account_id)
 
         # Filter system
         self._filter_registry = FilterRegistry()
@@ -805,50 +800,55 @@ class GridManager:
         if status == "FILLED":
             order = self.tracker.get_order(order_id)
             if order:
-                filled_order = self.tracker.order_filled(order_id)
-
-                # Broadcast order filled to dashboard
-                if filled_order:
-                    self._broadcast_order_update(filled_order)
-
-                    # Broadcast position update (new position created)
-                    unrealized_pnl = (
-                        self._current_price - filled_order.entry_price
-                    ) * filled_order.quantity
-                    self._broadcast_position_update(
-                        symbol=self.symbol,
-                        side="LONG",
-                        size=str(filled_order.quantity),
-                        entry_price=str(filled_order.entry_price),
-                        current_price=str(self._current_price),
-                        unrealized_pnl=str(unrealized_pnl),
-                        leverage=self.leverage,
-                    )
-
-                    # Fetch and update TP order ID (async task)
-                    asyncio.create_task(self._fetch_and_update_tp_order_id(filled_order))
-
-                if self._on_order_filled:
-                    self._on_order_filled(order)
-                orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
-
-                # Log ORDER_FILLED event
-                self._log_activity_event(
-                    EventType.ORDER_FILLED,
-                    f"Order filled at ${order.entry_price:,.2f}",
-                    {
-                        "order_id": order_id,
-                        "entry_price": order.entry_price,
-                        "tp_price": order.tp_price,
-                        "quantity": order.quantity,
-                        "source": "websocket",
-                    },
-                )
+                # Schedule async order_filled (persists trade to DB)
+                asyncio.create_task(self._handle_order_filled_ws(order_id, order))
 
         # Order canceled
         elif status == "CANCELED":
             self.tracker.cancel_order(order_id)
             orders_logger.info(f"WS: Ordem cancelada: {order_id}")
+
+    async def _handle_order_filled_ws(self, order_id: str, order: TrackedOrder) -> None:
+        """Handle order filled event from WebSocket (async wrapper)."""
+        filled_order = await self.tracker.order_filled(order_id)
+
+        # Broadcast order filled to dashboard
+        if filled_order:
+            self._broadcast_order_update(filled_order)
+
+            # Broadcast position update (new position created)
+            unrealized_pnl = (
+                self._current_price - filled_order.entry_price
+            ) * filled_order.quantity
+            self._broadcast_position_update(
+                symbol=self.symbol,
+                side="LONG",
+                size=str(filled_order.quantity),
+                entry_price=str(filled_order.entry_price),
+                current_price=str(self._current_price),
+                unrealized_pnl=str(unrealized_pnl),
+                leverage=self.leverage,
+            )
+
+            # Fetch and update TP order ID
+            await self._fetch_and_update_tp_order_id(filled_order)
+
+        if self._on_order_filled:
+            self._on_order_filled(order)
+        orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
+
+        # Log ORDER_FILLED event
+        self._log_activity_event(
+            EventType.ORDER_FILLED,
+            f"Order filled at ${order.entry_price:,.2f}",
+            {
+                "order_id": order_id,
+                "entry_price": order.entry_price,
+                "tp_price": order.tp_price,
+                "quantity": order.quantity,
+                "source": "websocket",
+            },
+        )
 
     async def _fetch_and_update_tp_order_id(self, filled_order: TrackedOrder) -> None:
         """
@@ -904,42 +904,49 @@ class GridManager:
 
         # If position closed (amt = 0), mark as TP hit
         if position_amt == 0 and self.tracker.filled_orders:
-            for order in list(self.tracker.filled_orders):
-                exit_price = self._current_price
-                pnl = (exit_price - order.entry_price) * order.quantity
-                self.tracker.order_tp_hit(order.order_id, exit_price)
+            # Schedule async handling for all TP hits
+            asyncio.create_task(self._handle_position_closed_ws())
 
-                # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
-                self._broadcast_order_update(order)
+    async def _handle_position_closed_ws(self) -> None:
+        """Handle position closed event from WebSocket (async wrapper)."""
+        for order in list(self.tracker.filled_orders):
+            exit_price = self._current_price
+            pnl = (exit_price - order.entry_price) * order.quantity
 
-                # Broadcast position closure (position closed - TP hit)
-                self._broadcast_position_update(
-                    symbol=self.symbol,
-                    side="LONG",
-                    size="0",  # Position closed
-                    entry_price=str(order.entry_price),
-                    current_price=str(exit_price),
-                    unrealized_pnl=str(pnl),
-                    leverage=self.leverage,
-                )
+            # Persist trade to database (now awaited)
+            await self.tracker.order_tp_hit(order.order_id, exit_price)
 
-                if self._on_tp_hit:
-                    self._on_tp_hit(order)
-                orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
+            # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
+            self._broadcast_order_update(order)
 
-                # Log TRADE_CLOSED event
-                self._log_activity_event(
-                    EventType.TRADE_CLOSED,
-                    f"Trade closed at ${exit_price:,.2f} (+${pnl:,.2f})",
-                    {
-                        "order_id": order.order_id,
-                        "entry_price": order.entry_price,
-                        "exit_price": exit_price,
-                        "quantity": order.quantity,
-                        "pnl": pnl,
-                        "source": "websocket",
-                    },
-                )
+            # Broadcast position closure (position closed - TP hit)
+            self._broadcast_position_update(
+                symbol=self.symbol,
+                side="LONG",
+                size="0",  # Position closed
+                entry_price=str(order.entry_price),
+                current_price=str(exit_price),
+                unrealized_pnl=str(pnl),
+                leverage=self.leverage,
+            )
+
+            if self._on_tp_hit:
+                self._on_tp_hit(order)
+            orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
+
+            # Log TRADE_CLOSED event
+            self._log_activity_event(
+                EventType.TRADE_CLOSED,
+                f"Trade closed at ${exit_price:,.2f} (+${pnl:,.2f})",
+                {
+                    "order_id": order.order_id,
+                    "entry_price": order.entry_price,
+                    "exit_price": exit_price,
+                    "quantity": order.quantity,
+                    "pnl": pnl,
+                    "source": "websocket",
+                },
+            )
 
     async def _stop_websocket(self) -> None:
         """Stop WebSocket and cleanup."""
@@ -1511,7 +1518,7 @@ class GridManager:
 
                     if position_delta >= order.quantity * 0.99:  # 1% tolerance for rounding
                         # Order was FILLED - position increased
-                        filled_order = self.tracker.order_filled(order.order_id)
+                        filled_order = await self.tracker.order_filled(order.order_id)
 
                         # Broadcast order filled to dashboard
                         if filled_order:
@@ -1565,7 +1572,7 @@ class GridManager:
                     # Position was closed (TP hit or manual close)
                     exit_price = self._current_price
                     pnl = (exit_price - order.entry_price) * order.quantity
-                    self.tracker.order_tp_hit(order.order_id, exit_price)
+                    await self.tracker.order_tp_hit(order.order_id, exit_price)
 
                     # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                     self._broadcast_order_update(order)
@@ -1613,7 +1620,7 @@ class GridManager:
                             break
                         exit_price = self._current_price
                         pnl = (exit_price - order.entry_price) * order.quantity
-                        self.tracker.order_tp_hit(order.order_id, exit_price)
+                        await self.tracker.order_tp_hit(order.order_id, exit_price)
 
                         # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                         self._broadcast_order_update(order)

@@ -22,7 +22,6 @@ from src.database.repositories.bot_state_repository import BotStateRepository
 from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
 from src.database.repositories.strategy_repository import StrategyRepository
 from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
-from src.database.repositories.trade_repository import TradeRepository
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
@@ -198,7 +197,6 @@ async def run_bot() -> None:
         on_tp_hit=on_tp_hit,
         account_id=account_id,
         bot_state_repository=None,  # Will be set after
-        trade_repository=None,  # Will be set after
         strategy_repository=None,  # Will be set after
         tp_adjustment_repository=tp_adjustment_repository_wrapper,
     )
@@ -220,19 +218,8 @@ async def run_bot() -> None:
             {"save_state": lambda self, *args, **kwargs: _save_state_with_session(*args, **kwargs)},
         )()
 
-        # Create a wrapper trade repository that creates sessions on demand
-        async def _save_trade_with_session(trade_data):
-            """Helper to save trade with a new session."""
-            async for session in get_session():
-                repo = TradeRepository(session)
-                return await repo.save_trade(trade_data)
-
-        # Monkey-patch the repository into the tracker
-        grid_manager.tracker._trade_repository = type(
-            "TradeRepositoryWrapper",
-            (),
-            {"save_trade": lambda self, *args, **kwargs: _save_trade_with_session(*args, **kwargs)},
-        )()
+        # Trade repository is no longer needed here - OrderTracker creates
+        # fresh sessions on demand for trade persistence
 
         # Create a wrapper strategy repository that creates sessions on demand
         async def _get_active_strategy_with_session(account_id):
