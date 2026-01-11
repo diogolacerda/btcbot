@@ -34,6 +34,27 @@ class WebSocketEventType(str, Enum):
     SUBSCRIPTION_CONFIRMED = "subscription_confirmed"
 
 
+class EMAStatusData(BaseModel):
+    """EMA filter status data for WebSocket broadcasts."""
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    enabled: bool = False
+    period: int = 13
+    timeframe: str = "1h"
+    value: float | None = None
+    direction: str | None = None  # rising, falling, flat
+    allow_trade: bool = True
+
+
+class FiltersStatusData(BaseModel):
+    """Aggregated filters status data for WebSocket broadcasts."""
+
+    model_config = ConfigDict(use_enum_values=True)
+
+    should_allow_trade: bool = True
+
+
 class BotStatusEvent(BaseModel):
     """Bot status update event data."""
 
@@ -49,6 +70,10 @@ class BotStatusEvent(BaseModel):
     macd_line: float | None = None
     histogram: float | None = None
     signal_line: float | None = None
+    # EMA filter status
+    ema: EMAStatusData | None = None
+    # Aggregated filters status
+    filters: FiltersStatusData | None = None
 
 
 class PositionUpdateEvent(BaseModel):

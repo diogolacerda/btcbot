@@ -281,3 +281,60 @@ class FilterRegistry:
 
         macd_filter.sync_with_strategy()
         return True
+
+    def sync_ema_filter(
+        self,
+        enabled: bool,
+        period: int,
+        timeframe: str,
+        allow_on_rising: bool,
+        allow_on_falling: bool,
+    ) -> bool:
+        """
+        Sync EMAFilter with provided configuration values.
+
+        After loading EMA configuration from database, call this method
+        to synchronize the filter's state with the loaded values.
+
+        Args:
+            enabled: Whether the filter is enabled.
+            period: EMA period for calculation.
+            timeframe: Candle timeframe for EMA calculation.
+            allow_on_rising: Allow trades when EMA is rising.
+            allow_on_falling: Allow trades when EMA is falling.
+
+        Returns:
+            True if sync was successful, False if no EMA filter registered.
+
+        Example:
+            # In GridManager.start():
+            config = await ema_repo.get_by_strategy(strategy_id)
+            if config:
+                self._filter_registry.sync_ema_filter(
+                    enabled=config.enabled,
+                    period=config.period,
+                    timeframe=config.timeframe,
+                    allow_on_rising=config.allow_on_rising,
+                    allow_on_falling=config.allow_on_falling,
+                )
+        """
+        ema_filter = self._filters.get("ema")
+        if not ema_filter:
+            main_logger.debug("No EMA filter registered, skipping sync")
+            return False
+
+        # Type narrowing for EMAFilter
+        from src.filters.ema_filter import EMAFilter
+
+        if not isinstance(ema_filter, EMAFilter):
+            main_logger.warning("Filter 'ema' is not an EMAFilter instance")
+            return False
+
+        ema_filter.sync_config(
+            enabled=enabled,
+            period=period,
+            timeframe=timeframe,
+            allow_on_rising=allow_on_rising,
+            allow_on_falling=allow_on_falling,
+        )
+        return True
