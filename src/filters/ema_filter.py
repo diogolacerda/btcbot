@@ -220,7 +220,7 @@ class EMAFilter(Filter):
 
             main_logger.debug(
                 f"EMA filter updated: period={self._period}, "
-                f"ema={self._current_ema:.2f if self._current_ema else 'N/A'}, "
+                f"ema={f'{self._current_ema:.2f}' if self._current_ema is not None else 'N/A'}, "
                 f"direction={self._direction.value}"
             )
 
