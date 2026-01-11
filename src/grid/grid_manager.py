@@ -1194,12 +1194,13 @@ class GridManager:
             # Update EMA filter with klines data
             # EMAFilter expects list format with close at index 4: [timestamp, open, high, low, close, volume]
             # Convert DataFrame to list if needed
+            klines_list: list[Any]
             if hasattr(klines, "values"):
                 klines_list = klines[
                     ["timestamp", "open", "high", "low", "close", "volume"]
                 ].values.tolist()
             else:
-                klines_list = klines
+                klines_list = list(klines)
             self._ema_filter.update(klines_list)
 
             # Log EMA direction changes
