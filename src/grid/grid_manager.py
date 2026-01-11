@@ -12,6 +12,8 @@ from src.api.websocket.connection_manager import get_connection_manager
 from src.api.websocket.events import (
     ActivityEventData,
     BotStatusEvent,
+    EMAStatusData,
+    FiltersStatusData,
     OrderUpdateEvent,
     PositionUpdateEvent,
     WebSocketEvent,
@@ -19,6 +21,7 @@ from src.api.websocket.events import (
 from src.client.bingx_client import BingXClient
 from src.client.websocket_client import BingXAccountWebSocket
 from src.database.models.activity_event import EventType
+from src.filters.ema_filter import EMADirection, EMAFilter
 from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 from src.grid.dynamic_tp_manager import DynamicTPManager
@@ -30,6 +33,7 @@ from src.utils.logger import main_logger, orders_logger
 if TYPE_CHECKING:
     from src.database.repositories.activity_event_repository import ActivityEventRepository
     from src.database.repositories.bot_state_repository import BotStateRepository
+    from src.database.repositories.ema_filter_config_repository import EMAFilterConfigRepository
     from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
     from src.database.repositories.strategy_repository import StrategyRepository
     from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
@@ -75,6 +79,7 @@ class GridManager:
         bot_state_repository: BotStateRepository | None = None,
         strategy_repository: StrategyRepository | None = None,
         macd_filter_config_repository: MACDFilterConfigRepository | None = None,
+        ema_filter_config_repository: EMAFilterConfigRepository | None = None,
         activity_event_repository: ActivityEventRepository | None = None,
         tp_adjustment_repository: TPAdjustmentRepository | None = None,
     ):
@@ -87,6 +92,7 @@ class GridManager:
         self._account_id = account_id
         self._strategy_repository = strategy_repository
         self._macd_filter_config_repository = macd_filter_config_repository
+        self._ema_filter_config_repository = ema_filter_config_repository
         self._activity_event_repository = activity_event_repository
         self._tp_adjustment_repository = tp_adjustment_repository
 
@@ -107,7 +113,12 @@ class GridManager:
         # Filter system
         self._filter_registry = FilterRegistry()
         self._macd_filter = MACDFilter(self.strategy)
+        self._ema_filter = EMAFilter()
         self._filter_registry.register(self._macd_filter)
+        self._filter_registry.register(self._ema_filter)
+
+        # Track previous EMA direction for change logging
+        self._previous_ema_direction: EMADirection | None = None
 
         # Register callbacks for filter state changes
         self._filter_registry.set_on_filter_change_callback(self._on_filter_change)
@@ -324,6 +335,21 @@ class GridManager:
             main_logger.debug("Skipping bot status broadcast - no clients connected")
             return
 
+        # Build EMA status data
+        ema_status = EMAStatusData(
+            enabled=self._ema_filter.enabled,
+            period=self._ema_filter.period,
+            timeframe=self._ema_filter.timeframe,
+            value=self._ema_filter.current_ema,
+            direction=self._ema_filter.direction.value if self._ema_filter.direction else None,
+            allow_trade=self._ema_filter.should_allow_trade(),
+        )
+
+        # Build filters status data
+        filters_status = FiltersStatusData(
+            should_allow_trade=self._filter_registry.should_allow_trade(),
+        )
+
         event_data = BotStatusEvent(
             state=state.value,
             is_running=is_running,
@@ -334,13 +360,16 @@ class GridManager:
             macd_line=macd_line,
             histogram=histogram,
             signal_line=signal_line,
+            ema=ema_status,
+            filters=filters_status,
         )
 
         event = WebSocketEvent.bot_status(event_data)
 
         main_logger.info(
             f"Broadcasting bot status: state={state.value}, is_running={is_running}, "
-            f"macd_line={macd_line}, histogram={histogram}"
+            f"macd_line={macd_line}, histogram={histogram}, "
+            f"ema_direction={ema_status.direction}, filters_allow={filters_status.should_allow_trade}"
         )
 
         # Fire and forget - don't await, just schedule
@@ -532,6 +561,57 @@ class GridManager:
                 f"Failed to refresh grid config from database: {e}. Using config.py values."
             )
 
+    async def _load_ema_filter_config(self) -> None:
+        """
+        Load EMA filter configuration from database.
+
+        If repository and account_id are available, loads EMA config for the
+        active strategy and syncs it with the EMA filter.
+
+        Gracefully handles cases where:
+        - No repository is configured
+        - No account_id is set
+        - No active strategy exists
+        - No EMA config exists for the strategy
+        """
+        if not self._ema_filter_config_repository or not self._account_id:
+            main_logger.debug("EMA filter config not loaded - no repository or account_id")
+            return
+
+        try:
+            # Get active strategy to find strategy_id
+            if not self._strategy_repository:
+                main_logger.debug("No strategy repository - cannot load EMA config")
+                return
+
+            strategy = await self._strategy_repository.get_active_by_account(self._account_id)
+            if not strategy:
+                main_logger.debug("No active strategy found - cannot load EMA config")
+                return
+
+            # Load EMA filter config for this strategy
+            ema_config = await self._ema_filter_config_repository.get_by_strategy(strategy.id)
+            if not ema_config:
+                main_logger.debug(f"No EMA filter config found for strategy {strategy.id}")
+                return
+
+            # Sync filter with database values
+            self._filter_registry.sync_ema_filter(
+                enabled=ema_config.enabled,
+                period=ema_config.period,
+                timeframe=ema_config.timeframe,
+                allow_on_rising=ema_config.allow_on_rising,
+                allow_on_falling=ema_config.allow_on_falling,
+            )
+
+            main_logger.info(
+                f"EMA filter config loaded: enabled={ema_config.enabled}, "
+                f"period={ema_config.period}, timeframe={ema_config.timeframe}"
+            )
+
+        except Exception as e:
+            main_logger.warning(f"Failed to load EMA filter config: {e}")
+
     def get_status(self) -> GridStatus:
         """Get current grid status."""
         stats = self.tracker.get_stats()
@@ -571,6 +651,9 @@ class GridManager:
 
         # Sync filter enabled state with strategy config from DB
         self._filter_registry.sync_macd_filter_with_strategy()
+
+        # Load EMA filter config from database (if available)
+        await self._load_ema_filter_config()
 
         # Set leverage
         try:
@@ -1108,6 +1191,30 @@ class GridManager:
             # Update MACD filter with current state
             self._macd_filter.set_current_state(new_state)
 
+            # Update EMA filter with klines data
+            # EMAFilter expects list format with close at index 4: [timestamp, open, high, low, close, volume]
+            # Convert DataFrame to list if needed
+            klines_list: list[Any]
+            if hasattr(klines, "values"):
+                klines_list = klines[
+                    ["timestamp", "open", "high", "low", "close", "volume"]
+                ].values.tolist()
+            else:
+                klines_list = list(klines)
+            self._ema_filter.update(klines_list)
+
+            # Log EMA direction changes
+            current_direction = self._ema_filter.direction
+            if (
+                self._previous_ema_direction is not None
+                and current_direction != self._previous_ema_direction
+            ):
+                main_logger.info(
+                    f"EMA direction changed: {self._previous_ema_direction.value} → "
+                    f"{current_direction.value} (EMA={self._ema_filter.current_ema:.2f if self._ema_filter.current_ema else 'N/A'})"
+                )
+            self._previous_ema_direction = current_direction
+
             # Handle state change
             if new_state != self._current_state:
                 await self._handle_state_change(new_state)
@@ -1169,17 +1276,43 @@ class GridManager:
                 },
             )
 
-        # Cancel pending orders on INACTIVE
+        # Cancel pending orders on INACTIVE (unless EMA protection is active)
         if new_state == GridState.INACTIVE:
-            await self._cancel_all_pending()
+            if self._ema_filter.enabled and self._ema_filter.should_protect_orders():
+                main_logger.info(
+                    "Entering INACTIVE state but EMA rising - protecting existing orders"
+                )
+            else:
+                await self._cancel_all_pending()
 
     async def _execute_state_actions(self) -> None:
-        """Execute actions based on current state."""
+        """Execute actions based on current state.
+
+        Decision Matrix:
+        | MACD State | EMA Direction | EMA Enabled | Action                          |
+        |------------|---------------|-------------|---------------------------------|
+        | ACTIVATE   | RISING        | Yes         | Create orders                   |
+        | ACTIVATE   | FALLING       | Yes         | Block (don't create)            |
+        | ACTIVATE   | *             | No          | Create orders                   |
+        | ACTIVE     | RISING        | Yes         | Create orders                   |
+        | ACTIVE     | FALLING       | Yes         | Block (don't create)            |
+        | ACTIVE     | *             | No          | Create orders                   |
+        | PAUSE      | *             | *           | No create, no cancel            |
+        | INACTIVE   | RISING        | Yes         | No create, no cancel (protect)  |
+        | INACTIVE   | FALLING       | Yes         | No create, CANCEL               |
+        | INACTIVE   | *             | No          | No create, CANCEL               |
+        """
         # Check if filters allow trade creation
         if self._filter_registry.should_allow_trade():
             await self._create_grid_orders()
         elif self._current_state == GridState.INACTIVE:
-            await self._cancel_all_pending()
+            # Check EMA protection before cancelling
+            if self._ema_filter.enabled and self._ema_filter.should_protect_orders():
+                # EMA is rising - protect existing orders
+                orders_logger.debug("INACTIVE state but EMA rising - protecting orders")
+            else:
+                # EMA is falling or disabled - cancel pending orders
+                await self._cancel_all_pending()
 
     def _count_filled_orders_awaiting_tp(self, orders: list[dict]) -> int:
         """

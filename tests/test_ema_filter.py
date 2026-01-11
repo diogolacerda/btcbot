@@ -5,8 +5,6 @@ Tests the EMA direction filter functionality including EMA calculation,
 direction detection, and trade filtering logic.
 """
 
-import pytest
-
 from src.filters.base import FilterState
 from src.filters.ema_filter import EMADirection, EMAFilter
 
