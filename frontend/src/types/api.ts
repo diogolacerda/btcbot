@@ -574,3 +574,27 @@ export interface MACDFilterConfigUpdateRequest {
   signalPeriod?: number
   timeframe?: MACDTimeframe
 }
+
+// ============================================================================
+// EMA Filter Config API Types
+// ============================================================================
+
+export interface EMAFilterConfigResponse {
+  id: string
+  strategyId: string
+  enabled: boolean
+  period: number
+  timeframe: MACDTimeframe // Reuses existing timeframe type
+  allowOnRising: boolean
+  allowOnFalling: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EMAFilterConfigUpdateRequest {
+  enabled?: boolean
+  period?: number
+  timeframe?: MACDTimeframe
+  allowOnRising?: boolean
+  allowOnFalling?: boolean
+}
