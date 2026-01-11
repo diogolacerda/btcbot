@@ -1192,7 +1192,15 @@ class GridManager:
             self._macd_filter.set_current_state(new_state)
 
             # Update EMA filter with klines data
-            self._ema_filter.update(klines)
+            # EMAFilter expects list format with close at index 4: [timestamp, open, high, low, close, volume]
+            # Convert DataFrame to list if needed
+            if hasattr(klines, "values"):
+                klines_list = klines[
+                    ["timestamp", "open", "high", "low", "close", "volume"]
+                ].values.tolist()
+            else:
+                klines_list = klines
+            self._ema_filter.update(klines_list)
 
             # Log EMA direction changes
             current_direction = self._ema_filter.direction
