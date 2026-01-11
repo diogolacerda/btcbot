@@ -635,6 +635,50 @@ class OrderTracker:
 
         return linked_count
 
+    async def persist_loaded_positions(self) -> int:
+        """
+        Persist loaded positions to database if they don't exist.
+
+        For positions loaded from exchange that have no matching trade in the database,
+        creates new OPEN trades. This ensures the Dashboard can display all positions.
+
+        Returns:
+            Number of trades created
+
+        Note:
+            This method should be called after link_existing_trades() during bot startup.
+            Positions that were already linked will be skipped.
+        """
+        if not self._account_id:
+            orders_logger.debug("Skipping position persistence: account_id not configured")
+            return 0
+
+        created_count = 0
+
+        for order in self.filled_orders:
+            # Skip if already has trade_id (was linked to existing trade)
+            if order.trade_id:
+                continue
+
+            # Only persist positions loaded from exchange (existing_tp_ prefix)
+            if not order.order_id.startswith("existing_tp_"):
+                continue
+
+            try:
+                await self._persist_open_trade(order)
+                created_count += 1
+            except Exception as e:
+                orders_logger.warning(
+                    f"Failed to persist loaded position {order.order_id[:20]}: {e}"
+                )
+
+        if created_count > 0:
+            orders_logger.info(
+                f"Persisted {created_count} loaded positions to database"
+            )
+
+        return created_count
+
     def load_existing_orders(
         self,
         orders: list[dict],
