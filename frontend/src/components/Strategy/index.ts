@@ -7,6 +7,7 @@
 export { StrategyForm } from './StrategyForm'
 export { RiskSummaryCard } from './RiskSummaryCard'
 export { MACDFilterSection } from './MACDFilterSection'
+export { EMAFilterSection } from './EMAFilterSection'
 export {
   strategyFormSchema,
   defaultStrategyValues,

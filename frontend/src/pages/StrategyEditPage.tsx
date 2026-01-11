@@ -8,7 +8,7 @@
 
 import { useParams, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { StrategyForm, MACDFilterSection } from '@/components/Strategy'
+import { StrategyForm, MACDFilterSection, EMAFilterSection } from '@/components/Strategy'
 import type { StrategyFormValues } from '@/components/Strategy'
 import { useStrategy, useUpdateStrategy } from '@/hooks/useStrategies'
 
@@ -180,7 +180,7 @@ export function StrategyEditPage() {
           </p>
         </header>
 
-        {/* Form with MACD Filter Section */}
+        {/* Form with Filter Sections */}
         <StrategyForm
           mode="edit"
           initialValues={initialValues}
@@ -189,6 +189,8 @@ export function StrategyEditPage() {
         >
           {/* MACD Filter Configuration (FE-STRAT-003) */}
           <MACDFilterSection strategyId={id!} />
+          {/* EMA Filter Configuration */}
+          <EMAFilterSection strategyId={id!} />
         </StrategyForm>
       </div>
     </div>

@@ -15,6 +15,8 @@ import type {
   StrategyActivateResponse,
   MACDFilterConfigResponse,
   MACDFilterConfigUpdateRequest,
+  EMAFilterConfigResponse,
+  EMAFilterConfigUpdateRequest,
 } from '../types/api'
 
 // ============================================================================
@@ -27,6 +29,8 @@ export const strategyKeys = {
   detail: (id: string) => [...strategyKeys.all, 'detail', id] as const,
   macdFilter: (strategyId: string) =>
     [...strategyKeys.all, 'macd-filter', strategyId] as const,
+  emaFilter: (strategyId: string) =>
+    [...strategyKeys.all, 'ema-filter', strategyId] as const,
 }
 
 // ============================================================================
@@ -292,6 +296,84 @@ export function useUpdateMACDFilterConfig() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: strategyKeys.macdFilter(variables.strategyId),
+      })
+    },
+  })
+}
+
+// ============================================================================
+// EMA Filter Config Hooks
+// ============================================================================
+
+async function fetchEMAFilterConfig(
+  strategyId: string
+): Promise<EMAFilterConfigResponse> {
+  const response = await axiosInstance.get(
+    `/strategies/${strategyId}/ema-filter`
+  )
+  return parseApiResponse<EMAFilterConfigResponse>(response.data)
+}
+
+async function updateEMAFilterConfig(
+  strategyId: string,
+  data: EMAFilterConfigUpdateRequest
+): Promise<EMAFilterConfigResponse> {
+  const response = await axiosInstance.patch(
+    `/strategies/${strategyId}/ema-filter`,
+    serializeApiRequest(data)
+  )
+  return parseApiResponse<EMAFilterConfigResponse>(response.data)
+}
+
+export interface UseEMAFilterConfigOptions {
+  enabled?: boolean
+}
+
+/**
+ * Fetch EMA filter configuration for a strategy.
+ *
+ * @example
+ * const { data: emaConfig, isLoading } = useEMAFilterConfig(strategyId)
+ */
+export function useEMAFilterConfig(
+  strategyId: string,
+  options: UseEMAFilterConfigOptions = {}
+) {
+  const { enabled = true } = options
+
+  return useQuery({
+    queryKey: strategyKeys.emaFilter(strategyId),
+    queryFn: () => fetchEMAFilterConfig(strategyId),
+    enabled: enabled && !!strategyId,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Update EMA filter configuration for a strategy.
+ *
+ * @example
+ * const mutation = useUpdateEMAFilterConfig()
+ * mutation.mutate({
+ *   strategyId: 'strategy-id',
+ *   data: { enabled: true, period: 13 }
+ * })
+ */
+export function useUpdateEMAFilterConfig() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      strategyId,
+      data,
+    }: {
+      strategyId: string
+      data: EMAFilterConfigUpdateRequest
+    }) => updateEMAFilterConfig(strategyId, data),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: strategyKeys.emaFilter(variables.strategyId),
       })
     },
   })
