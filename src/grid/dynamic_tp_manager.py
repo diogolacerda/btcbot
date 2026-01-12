@@ -235,13 +235,16 @@ class DynamicTPManager:
             return
 
         try:
+            # Get position side dynamically (One-way = "BOTH", Hedge = "LONG"/"SHORT")
+            position_side = await self.order_tracker.get_position_side()
+
             # Modify TP order on exchange (cancel old + create new)
             # Grid bot only does LONG positions, so TP side is SELL
             result = await self.client.modify_tp_order(
                 symbol=self.symbol,
                 old_tp_order_id=order.exchange_tp_order_id,
                 side="SELL",  # TP for LONG position is SELL
-                position_side="LONG",
+                position_side=position_side,
                 quantity=order.quantity,
                 new_tp_price=new_tp_price,
             )
