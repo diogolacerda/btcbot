@@ -453,6 +453,10 @@ async def get_trades(
                 status_code=400, detail="Invalid status. Must be one of: OPEN, CLOSED, CANCELLED"
             )
 
+        # Normalize dates to UTC timezone to ensure correct comparison with DB timestamps
+        start_date = _ensure_utc_timezone(start_date)
+        end_date = _ensure_utc_timezone(end_date)
+
         # Validate price range
         if min_entry_price is not None and max_entry_price is not None:
             if min_entry_price > max_entry_price:
@@ -570,6 +574,10 @@ async def get_trade_stats(
         HTTPException: If database operation fails
     """
     try:
+        # Normalize dates to UTC timezone to ensure correct comparison with DB timestamps
+        start_date = _ensure_utc_timezone(start_date)
+        end_date = _ensure_utc_timezone(end_date)
+
         # Fetch trades based on date filters
         if start_date and end_date:
             trades = await trade_repo.get_trades_by_period(account_id, start_date, end_date)
@@ -640,6 +648,27 @@ async def get_trade_stats(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to calculate stats: {str(e)}") from e
+
+
+def _ensure_utc_timezone(dt: datetime | None) -> datetime | None:
+    """Ensure datetime has UTC timezone.
+
+    If the datetime is naive (no timezone), assumes it's UTC and adds timezone.
+    If the datetime already has a timezone, converts it to UTC.
+
+    Args:
+        dt: Datetime to normalize, or None.
+
+    Returns:
+        Datetime with UTC timezone, or None if input was None.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # Naive datetime - assume UTC
+        return dt.replace(tzinfo=UTC)
+    # Already has timezone - convert to UTC
+    return dt.astimezone(UTC)
 
 
 def _calculate_period_dates(
