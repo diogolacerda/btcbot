@@ -50,6 +50,8 @@ GitHub Projects is the **source of truth** for task status. Follow this workflow
 
 ### 1. Starting a Task
 
+**CRITICAL**: Always update your local main branch with remote before creating a new branch to avoid working on outdated code.
+
 ```bash
 # 1. Read task description from GitHub Projects
 gh api graphql -f query='
@@ -74,9 +76,11 @@ query {
 gh project item-edit --project-id PVT_kwHOABvENc4BLYiG --id <ITEM_ID> \
   --field-id PVTSSF_lAHOABvENc4BLYiGzg6-Uo8 --single-select-option-id 1609e48b
 
-# 3. Create feature branch
+# 3. ALWAYS update main branch before creating feature branch
 git checkout main
 git pull origin main
+
+# 4. Create feature branch from updated main
 git checkout -b feature/TASK-ID-description
 ```
 
@@ -354,7 +358,7 @@ git worktree remove --force ../btcbot-worktrees/feature-TASK-ID
 ### Workflow per Agent
 
 1. **Check available worktrees**: `git worktree list`
-2. **Update main**: `git checkout main && git pull origin main`
+2. **Update main (CRITICAL)**: `git checkout main && git pull origin main` - Always do this before creating new branches!
 3. **Create worktree**: `git worktree add ../btcbot-worktrees/TASK-ID -b feature/TASK-ID main`
 4. **Setup environment**: venv, deps, pre-commit, .env
 5. **Develop**: edit, test (`pytest`)
