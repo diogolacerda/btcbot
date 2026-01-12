@@ -161,6 +161,7 @@ export function StrategyStatusCard({
               <button
                 onClick={onResume}
                 disabled={isControlLoading}
+                title="Resume normal strategy operations and continue placing orders"
                 className="flex-1 px-4 py-2 text-sm font-medium bg-green-500/10 text-green-600 rounded-md hover:bg-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Resume
@@ -169,17 +170,19 @@ export function StrategyStatusCard({
               <button
                 onClick={onPause}
                 disabled={isControlLoading}
+                title="Stop creating new orders while keeping existing orders and positions active"
                 className="flex-1 px-4 py-2 text-sm font-medium bg-yellow-500/10 text-yellow-600 rounded-md hover:bg-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Pause Strategy
+                Pause New Orders
               </button>
             )}
             <button
               onClick={onDeactivate}
               disabled={isControlLoading}
+              title="Stop the bot completely and cancel all pending grid orders (TP orders will be preserved)"
               className="flex-1 px-4 py-2 text-sm font-medium bg-destructive/10 text-destructive rounded-md hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              Deactivate
+              Stop & Cancel Grid
             </button>
           </>
         ) : (

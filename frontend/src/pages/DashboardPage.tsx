@@ -159,16 +159,16 @@ export function DashboardPage() {
         }
       case 'stop':
         return {
-          title: 'Deactivate Strategy',
-          message: 'Are you sure you want to deactivate this strategy? This will cancel all pending orders and stop new order placement. Open positions will remain until TP is hit.',
-          confirmLabel: 'Deactivate',
+          title: 'Stop & Cancel Grid',
+          message: 'Are you sure you want to stop the bot? This will cancel all pending grid orders (LIMIT orders) and stop the strategy. Open positions and their TP orders will remain active until they hit their take-profit targets.',
+          confirmLabel: 'Stop & Cancel Grid',
           variant: 'danger' as const,
         }
       case 'pause':
         return {
-          title: 'Pause Strategy',
-          message: 'Are you sure you want to pause this strategy? It will stop placing new orders but keep existing positions and TP orders active.',
-          confirmLabel: 'Pause',
+          title: 'Pause New Orders',
+          message: 'Are you sure you want to pause new orders? The bot will stop placing new grid orders but will keep all existing LIMIT orders and positions active.',
+          confirmLabel: 'Pause New Orders',
           variant: 'default' as const,
         }
       case 'resume':
