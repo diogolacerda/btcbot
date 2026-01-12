@@ -85,8 +85,8 @@ class GridManager:
     ):
         self.config = config
         self.client = client
-        self.symbol = config.trading.symbol
-        self.order_size = config.trading.order_size_usdt
+        self._symbol_from_config = config.trading.symbol
+        self._order_size_from_config = config.trading.order_size_usdt
 
         # Database repository for unified strategy config
         self._account_id = account_id
@@ -107,7 +107,7 @@ class GridManager:
         self.tracker = OrderTracker(
             account_id=account_id,
             bingx_client=client,
-            symbol=config.trading.symbol,
+            symbol=self._symbol_from_config,
         )
 
         # Filter system
@@ -193,6 +193,30 @@ class GridManager:
         if self._db_strategy:
             return int(self._db_strategy.max_total_orders)
         return self.config.grid.max_total_orders
+
+    @property
+    def symbol(self) -> str:
+        """Get symbol from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return str(self._db_strategy.symbol)
+        return self._symbol_from_config
+
+    @symbol.setter
+    def symbol(self, value: str) -> None:
+        """Set symbol (for testing purposes - updates config fallback)."""
+        self._symbol_from_config = value
+
+    @property
+    def order_size(self) -> float:
+        """Get order size from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return float(self._db_strategy.order_size_usdt)
+        return self._order_size_from_config
+
+    @order_size.setter
+    def order_size(self, value: float) -> None:
+        """Set order size (for testing purposes - updates config fallback)."""
+        self._order_size_from_config = value
 
     def update_price_from_websocket(self, price: float) -> None:
         """Update current price from WebSocket stream.
