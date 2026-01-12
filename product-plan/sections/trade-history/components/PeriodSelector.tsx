@@ -1,15 +1,12 @@
 import { Calendar, Check, ChevronDown, X } from 'lucide-react'
 import { useState } from 'react'
 import { format } from 'date-fns'
-import type { TimePeriod } from './types'
+import type { TimePeriod } from '@/../product/sections/trade-history/types'
 
 interface PeriodSelectorProps {
   selectedPeriod?: TimePeriod
   customDateRange?: { startDate: string; endDate: string }
-  onPeriodChange?: (
-    period: TimePeriod,
-    customRange?: { startDate: string; endDate: string }
-  ) => void
+  onPeriodChange?: (period: TimePeriod, customRange?: { startDate: string; endDate: string }) => void
 }
 
 export function PeriodSelector({

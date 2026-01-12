@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useMemo } from 'react'
+import { format } from 'date-fns'
 import { TradeHistory } from '@/components/trade-history'
 import type {
   Trade,
@@ -132,22 +133,22 @@ function transformFiltersToApi(filters: TradeFilters): TradesFilterParams {
     const endDate = filters.customDateRange.endDate
     apiFilters.endDate = endDate.includes('T') ? endDate : `${endDate}T23:59:59Z`
   } else if (filters.period === 'today') {
-    const today = new Date().toISOString().split('T')[0]
+    const today = format(new Date(), 'yyyy-MM-dd')
     apiFilters.startDate = today
     apiFilters.endDate = `${today}T23:59:59Z`
   } else if (filters.period === '7days') {
     const end = new Date()
     const start = new Date()
     start.setDate(end.getDate() - 7)
-    const endDate = end.toISOString().split('T')[0]
-    apiFilters.startDate = start.toISOString().split('T')[0]
+    const endDate = format(end, 'yyyy-MM-dd')
+    apiFilters.startDate = format(start, 'yyyy-MM-dd')
     apiFilters.endDate = `${endDate}T23:59:59Z`
   } else if (filters.period === '30days') {
     const end = new Date()
     const start = new Date()
     start.setDate(end.getDate() - 30)
-    const endDate = end.toISOString().split('T')[0]
-    apiFilters.startDate = start.toISOString().split('T')[0]
+    const endDate = format(end, 'yyyy-MM-dd')
+    apiFilters.startDate = format(start, 'yyyy-MM-dd')
     apiFilters.endDate = `${endDate}T23:59:59Z`
   }
 
