@@ -91,6 +91,35 @@ class OrderTracker:
         self._account_id = account_id
         self._bingx_client = bingx_client
         self._symbol = symbol
+        self._position_side: str | None = None  # Cached position side from exchange
+
+    async def get_position_side(self) -> str:
+        """
+        Get the position side for creating/modifying orders.
+
+        Returns "BOTH" for One-way mode or "LONG"/"SHORT" for Hedge mode.
+        Result is cached after first call since position mode rarely changes.
+
+        Returns:
+            Position side string ("BOTH", "LONG", or "SHORT")
+        """
+        if self._position_side is not None:
+            return self._position_side
+
+        # Get position mode from BingX client
+        if self._bingx_client:
+            try:
+                self._position_side = await self._bingx_client.get_position_mode(self._symbol)
+                orders_logger.info(f"Detected position mode: {self._position_side}")
+            except Exception as e:
+                orders_logger.warning(f"Failed to detect position mode, defaulting to BOTH: {e}")
+                self._position_side = "BOTH"
+        else:
+            # Fallback if no client available
+            orders_logger.warning("No BingX client available, defaulting to BOTH")
+            self._position_side = "BOTH"
+
+        return self._position_side
 
     @property
     def pending_orders(self) -> list[TrackedOrder]:
