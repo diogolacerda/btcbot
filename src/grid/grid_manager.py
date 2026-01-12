@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from config import Config
+from config import Config, GridAnchorMode, SpacingType
 from src.api.websocket.connection_manager import get_connection_manager
 from src.api.websocket.events import (
     ActivityEventData,
@@ -546,11 +546,12 @@ class GridManager:
             self._db_strategy = strategy
 
             # Update calculator properties with strategy values
-            self.calculator.spacing_type = strategy.spacing_type  # type: ignore[assignment]
+            # Convert string values from DB to enums
+            self.calculator.spacing_type = SpacingType(strategy.spacing_type)
             self.calculator.spacing_value = float(strategy.spacing_value)
             self.calculator.range_percent = float(strategy.range_percent)
             self.calculator.max_total_orders = strategy.max_total_orders
-            self.calculator.anchor_mode = strategy.anchor_mode  # type: ignore[assignment]
+            self.calculator.anchor_mode = GridAnchorMode(strategy.anchor_mode)
             self.calculator.anchor_value = float(strategy.anchor_threshold)
 
             # Update take_profit_percent from strategy
