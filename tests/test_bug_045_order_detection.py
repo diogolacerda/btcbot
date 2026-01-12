@@ -85,6 +85,7 @@ class TestOrderDetection:
 
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
+            gm._db_strategy = None  # No DB strategy cached
 
             # Run sync
             await gm._sync_with_exchange()
@@ -132,6 +133,7 @@ class TestOrderDetection:
             gm._broadcast_order_update = AsyncMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
+            gm._db_strategy = None  # No DB strategy cached
 
             await gm._sync_with_exchange()
 
@@ -177,6 +179,7 @@ class TestOrderDetection:
             gm._broadcast_order_update = AsyncMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
+            gm._db_strategy = None  # No DB strategy cached
 
             await gm._sync_with_exchange()
 
@@ -215,6 +218,7 @@ class TestOrderDetection:
             gm._broadcast_order_update = AsyncMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
+            gm._db_strategy = None  # No DB strategy cached
 
             await gm._sync_with_exchange()
 
@@ -261,6 +265,7 @@ class TestOrderDetection:
             gm._broadcast_order_update = AsyncMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
+            gm._db_strategy = None  # No DB strategy cached
 
             await gm._sync_with_exchange()
 

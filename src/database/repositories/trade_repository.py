@@ -219,6 +219,7 @@ class TradeRepository(BaseRepository[Trade]):
         pnl_percent: Decimal | None = None,
         closed_at: datetime | None = None,
         status: str = "CLOSED",
+        funding_fee: Decimal | None = None,
     ) -> None:
         """Update trade exit information when position is closed.
 
@@ -231,6 +232,7 @@ class TradeRepository(BaseRepository[Trade]):
             pnl_percent: Profit and loss percentage (optional).
             closed_at: Close timestamp (defaults to now if not provided).
             status: Trade status (default: CLOSED).
+            funding_fee: Funding fees paid during position hold (optional).
 
         Raises:
             ValueError: If trade is not found.
@@ -249,9 +251,16 @@ class TradeRepository(BaseRepository[Trade]):
             trade.closed_at = closed_at if closed_at is not None else datetime.now(UTC)
             trade.status = status
 
+            # Update funding fee if provided
+            if funding_fee is not None:
+                trade.funding_fee = funding_fee
+
             # Use inherited update method
             await super().update(trade)
-            main_logger.info(f"Trade {trade_id} updated with exit data: pnl={pnl}")
+            main_logger.info(
+                f"Trade {trade_id} updated with exit data: pnl={pnl}"
+                + (f", funding_fee={funding_fee}" if funding_fee else "")
+            )
         except ValueError:
             raise
         except Exception as e:

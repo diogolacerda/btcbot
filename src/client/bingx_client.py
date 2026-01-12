@@ -654,6 +654,126 @@ class BingXClient:
         self._set_cache(cache_key, result)
         return result
 
+    async def get_income_history(
+        self,
+        symbol: str | None = None,
+        income_type: str | None = None,
+        start_time: int | None = None,
+        end_time: int | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """
+        Get account income history (funding fees, trading fees, etc.).
+
+        This endpoint returns the capital flow of the perpetual contract,
+        including funding fees paid/received.
+
+        Args:
+            symbol: Trading pair (e.g., "BTC-USDT"). Optional.
+            income_type: Type of income to filter. Options:
+                - "FUNDING_FEE": Funding fee payments
+                - "REALIZED_PNL": Realized profit/loss
+                - "COMMISSION": Trading commissions
+                - "TRANSFER": Transfers
+                - None: All types
+            start_time: Start time in milliseconds. Optional.
+            end_time: End time in milliseconds. Optional.
+            limit: Number of records to return (default 100, max 1000).
+
+        Returns:
+            List of income records, each containing:
+                - symbol: Trading pair
+                - incomeType: Type of income
+                - income: Amount (positive = received, negative = paid)
+                - asset: Asset (usually USDT)
+                - time: Timestamp in milliseconds
+                - tranId: Transaction ID
+                - info: Additional info (e.g., position info for funding)
+        """
+        endpoint = "/openApi/swap/v2/user/income"
+        params: dict[str, Any] = {"limit": limit}
+
+        if symbol:
+            params["symbol"] = symbol
+        if income_type:
+            params["incomeType"] = income_type
+        if start_time:
+            params["startTime"] = start_time
+        if end_time:
+            params["endTime"] = end_time
+
+        data = await self._request("GET", endpoint, params)
+
+        # API returns list directly or wrapped in data
+        if isinstance(data, list):
+            return data
+        if isinstance(data, dict):
+            result = data.get("data", [])
+            return result if isinstance(result, list) else []
+        return []
+
+    async def get_funding_fees(
+        self,
+        symbol: str,
+        start_time: int | None = None,
+        end_time: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Get funding fee history for a specific symbol.
+
+        Convenience method that wraps get_income_history for funding fees only.
+
+        Args:
+            symbol: Trading pair (e.g., "BTC-USDT")
+            start_time: Start time in milliseconds. Optional.
+            end_time: End time in milliseconds. Optional.
+
+        Returns:
+            List of funding fee records with:
+                - time: Timestamp in milliseconds
+                - income: Funding fee amount (negative = paid, positive = received)
+                - symbol: Trading pair
+        """
+        return await self.get_income_history(
+            symbol=symbol,
+            income_type="FUNDING_FEE",
+            start_time=start_time,
+            end_time=end_time,
+            limit=1000,  # Get max records for accurate calculation
+        )
+
+    async def calculate_position_funding_cost(
+        self,
+        symbol: str,
+        position_opened_at: int,
+        position_closed_at: int | None = None,
+    ) -> float:
+        """
+        Calculate total funding cost for a position's open period.
+
+        Args:
+            symbol: Trading pair (e.g., "BTC-USDT")
+            position_opened_at: Position open timestamp in milliseconds
+            position_closed_at: Position close timestamp in ms (None = now)
+
+        Returns:
+            Total funding cost (positive = paid, negative = received)
+        """
+        end_time = position_closed_at or int(time.time() * 1000)
+
+        funding_records = await self.get_funding_fees(
+            symbol=symbol,
+            start_time=position_opened_at,
+            end_time=end_time,
+        )
+
+        # Sum all funding fees in the period
+        # Note: BingX returns negative values for fees paid
+        total_funding = sum(float(record.get("income", 0)) for record in funding_records)
+
+        # Return as positive for costs (fees paid)
+        return -total_funding if total_funding < 0 else total_funding
+
     async def generate_listen_key(self) -> str:
         """Generate a listenKey for WebSocket account updates."""
         endpoint = "/openApi/user/auth/userDataStream"

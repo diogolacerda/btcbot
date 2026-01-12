@@ -363,7 +363,7 @@ class TestTradeHistoryLoading:
     ):
         """Test full integration: save trades → load from repository."""
         # Arrange
-        tracker = OrderTracker(trade_repository=trade_repository, account_id=account.id)
+        tracker = OrderTracker(account_id=account.id)
         now = datetime.now(UTC)
 
         # Save some trades via repository

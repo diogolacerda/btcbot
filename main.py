@@ -22,7 +22,6 @@ from src.database.repositories.bot_state_repository import BotStateRepository
 from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
 from src.database.repositories.strategy_repository import StrategyRepository
 from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
-from src.database.repositories.trade_repository import TradeRepository
 from src.grid.grid_manager import GridManager
 from src.health.health_server import HealthServer
 from src.strategy.macd_strategy import GridState
@@ -198,7 +197,6 @@ async def run_bot() -> None:
         on_tp_hit=on_tp_hit,
         account_id=account_id,
         bot_state_repository=None,  # Will be set after
-        trade_repository=None,  # Will be set after
         strategy_repository=None,  # Will be set after
         tp_adjustment_repository=tp_adjustment_repository_wrapper,
     )
@@ -220,19 +218,8 @@ async def run_bot() -> None:
             {"save_state": lambda self, *args, **kwargs: _save_state_with_session(*args, **kwargs)},
         )()
 
-        # Create a wrapper trade repository that creates sessions on demand
-        async def _save_trade_with_session(trade_data):
-            """Helper to save trade with a new session."""
-            async for session in get_session():
-                repo = TradeRepository(session)
-                return await repo.save_trade(trade_data)
-
-        # Monkey-patch the repository into the tracker
-        grid_manager.tracker._trade_repository = type(
-            "TradeRepositoryWrapper",
-            (),
-            {"save_trade": lambda self, *args, **kwargs: _save_trade_with_session(*args, **kwargs)},
-        )()
+        # Trade repository is no longer needed here - OrderTracker creates
+        # fresh sessions on demand for trade persistence
 
         # Create a wrapper strategy repository that creates sessions on demand
         async def _get_active_strategy_with_session(account_id):
@@ -443,15 +430,28 @@ async def run_bot() -> None:
     if grid_manager._account_ws:
         health_server.set_account_websocket(grid_manager._account_ws)
 
+    # Connect price streamer to grid manager for real-time price updates
+    # This enables GridManager to receive prices via WebSocket instead of REST API polling
+    price_streamer.set_price_callback(grid_manager.update_price_from_websocket)
+
     # Start price streamer for real-time dashboard updates
     await price_streamer.start()
 
     main_logger.info("Bot iniciado. Pressione Ctrl+C para encerrar.")
 
     try:
-        # Main loop
+        # Main loop with heartbeat monitoring
+        iteration_count = 0
         while True:
             try:
+                iteration_count += 1
+
+                # Heartbeat log every 60s (12 iterations * 5s)
+                if iteration_count % 12 == 0:
+                    main_logger.info(
+                        f"Loop heartbeat: iteration {iteration_count}, uptime: {iteration_count * 5}s"
+                    )
+
                 # Update grid manager
                 await grid_manager.update()
 

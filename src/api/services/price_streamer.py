@@ -12,6 +12,7 @@ Key features:
 """
 
 import asyncio
+from collections.abc import Callable
 from decimal import Decimal
 
 from config import BingXConfig
@@ -27,6 +28,9 @@ class PriceStreamer:
 
     Connects to BingX market WebSocket, subscribes to BTC-USDT trade stream,
     applies throttling, and broadcasts price updates via ConnectionManager.
+
+    Also supports external price callbacks to share real-time prices with
+    other components (e.g., GridManager).
     """
 
     def __init__(self, config: BingXConfig, symbol: str = "BTC-USDT"):
@@ -45,6 +49,19 @@ class PriceStreamer:
         )
         self._stream_task: asyncio.Task[None] | None = None
         self._running = False
+        self._price_callback: Callable[[float], None] | None = None
+
+    def set_price_callback(self, callback: Callable[[float], None]) -> None:
+        """Set callback to receive real-time price updates.
+
+        This allows other components (like GridManager) to receive
+        price updates without polling the REST API.
+
+        Args:
+            callback: Function to call with each price update (float)
+        """
+        self._price_callback = callback
+        logger.info("Price callback registered for real-time updates")
 
     async def start(self) -> None:
         """Start the price streaming service.
@@ -112,14 +129,23 @@ class PriceStreamer:
     def _handle_price_update(self, price: float) -> None:
         """Handle incoming price update from WebSocket.
 
-        Applies throttling and broadcasts to connected clients if conditions met.
+        Always notifies registered price callback (for GridManager).
+        Applies throttling for dashboard broadcasts.
 
         Args:
             price: Current BTC price from trade stream
         """
         logger.debug(f"Price streamer: Received price update {price}")
 
-        # Skip if no clients connected
+        # Always notify price callback (for GridManager real-time updates)
+        # This is NOT throttled - GridManager needs every update for accuracy
+        if self._price_callback:
+            try:
+                self._price_callback(price)
+            except Exception as e:
+                logger.error(f"Price callback error: {e}")
+
+        # Skip dashboard broadcast if no clients connected
         if self._connection_manager.active_connections_count == 0:
             logger.debug("Price streamer: No clients connected, skipping broadcast")
             return

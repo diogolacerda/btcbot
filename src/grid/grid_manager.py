@@ -4,7 +4,7 @@ import asyncio
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from config import Config
@@ -12,6 +12,8 @@ from src.api.websocket.connection_manager import get_connection_manager
 from src.api.websocket.events import (
     ActivityEventData,
     BotStatusEvent,
+    EMAStatusData,
+    FiltersStatusData,
     OrderUpdateEvent,
     PositionUpdateEvent,
     WebSocketEvent,
@@ -19,6 +21,7 @@ from src.api.websocket.events import (
 from src.client.bingx_client import BingXClient
 from src.client.websocket_client import BingXAccountWebSocket
 from src.database.models.activity_event import EventType
+from src.filters.ema_filter import EMADirection, EMAFilter
 from src.filters.macd_filter import MACDFilter
 from src.filters.registry import FilterRegistry
 from src.grid.dynamic_tp_manager import DynamicTPManager
@@ -30,10 +33,10 @@ from src.utils.logger import main_logger, orders_logger
 if TYPE_CHECKING:
     from src.database.repositories.activity_event_repository import ActivityEventRepository
     from src.database.repositories.bot_state_repository import BotStateRepository
+    from src.database.repositories.ema_filter_config_repository import EMAFilterConfigRepository
     from src.database.repositories.macd_filter_config_repository import MACDFilterConfigRepository
     from src.database.repositories.strategy_repository import StrategyRepository
     from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
-    from src.database.repositories.trade_repository import TradeRepository
 
 
 @dataclass
@@ -74,9 +77,9 @@ class GridManager:
         on_state_change: Callable | None = None,
         account_id: UUID | None = None,
         bot_state_repository: BotStateRepository | None = None,
-        trade_repository: TradeRepository | None = None,
         strategy_repository: StrategyRepository | None = None,
         macd_filter_config_repository: MACDFilterConfigRepository | None = None,
+        ema_filter_config_repository: EMAFilterConfigRepository | None = None,
         activity_event_repository: ActivityEventRepository | None = None,
         tp_adjustment_repository: TPAdjustmentRepository | None = None,
     ):
@@ -89,6 +92,7 @@ class GridManager:
         self._account_id = account_id
         self._strategy_repository = strategy_repository
         self._macd_filter_config_repository = macd_filter_config_repository
+        self._ema_filter_config_repository = ema_filter_config_repository
         self._activity_event_repository = activity_event_repository
         self._tp_adjustment_repository = tp_adjustment_repository
 
@@ -101,14 +105,20 @@ class GridManager:
         )
         self.calculator = GridCalculator(config.grid)
         self.tracker = OrderTracker(
-            trade_repository=trade_repository,
             account_id=account_id,
+            bingx_client=client,
+            symbol=config.trading.symbol,
         )
 
         # Filter system
         self._filter_registry = FilterRegistry()
         self._macd_filter = MACDFilter(self.strategy)
+        self._ema_filter = EMAFilter()
         self._filter_registry.register(self._macd_filter)
+        self._filter_registry.register(self._ema_filter)
+
+        # Track previous EMA direction for change logging
+        self._previous_ema_direction: EMADirection | None = None
 
         # Register callbacks for filter state changes
         self._filter_registry.set_on_filter_change_callback(self._on_filter_change)
@@ -116,6 +126,7 @@ class GridManager:
 
         self._current_state = GridState.WAIT
         self._current_price = 0.0
+        self._ws_price_timestamp = 0.0  # Timestamp of last WebSocket price update
         self._last_macd_line = 0.0
         self._last_histogram = 0.0
         self._running = False
@@ -144,6 +155,9 @@ class GridManager:
         # Dynamic TP Manager
         self.dynamic_tp: DynamicTPManager | None = None
 
+        # Cached DB strategy (database config has priority over env vars)
+        self._db_strategy: Any = None
+
     @property
     def is_running(self) -> bool:
         return self._running
@@ -151,6 +165,74 @@ class GridManager:
     @property
     def current_state(self) -> GridState:
         return self._current_state
+
+    @property
+    def leverage(self) -> int:
+        """Get leverage from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return int(self._db_strategy.leverage)
+        return self.config.trading.leverage
+
+    @property
+    def margin_mode(self) -> str:
+        """Get margin mode from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return str(self._db_strategy.margin_mode)
+        return self.config.trading.margin_mode.value
+
+    @property
+    def take_profit_percent(self) -> float:
+        """Get TP percent from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return float(self._db_strategy.take_profit_percent)
+        return self.config.grid.take_profit_percent
+
+    @property
+    def max_total_orders(self) -> int:
+        """Get max total orders from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            return int(self._db_strategy.max_total_orders)
+        return self.config.grid.max_total_orders
+
+    def update_price_from_websocket(self, price: float) -> None:
+        """Update current price from WebSocket stream.
+
+        This method is called by PriceStreamer when a new price is received
+        via WebSocket, enabling real-time price updates without REST API polling.
+
+        Args:
+            price: Current BTC price from WebSocket trade stream
+        """
+        self._current_price = price
+        self._ws_price_timestamp = time.time()
+
+    def _is_ws_price_fresh(self, max_age_seconds: float = 10.0) -> bool:
+        """Check if WebSocket price is fresh enough to use.
+
+        Args:
+            max_age_seconds: Maximum age in seconds to consider price fresh
+
+        Returns:
+            True if WebSocket price was updated within max_age_seconds
+        """
+        if self._ws_price_timestamp == 0:
+            return False
+        return (time.time() - self._ws_price_timestamp) < max_age_seconds
+
+    def _get_dynamic_tp_config(self) -> Any:
+        """Get Dynamic TP config from DB strategy (priority) or env config (fallback)."""
+        if self._db_strategy:
+            from config import DynamicTPConfig
+
+            return DynamicTPConfig(
+                enabled=self._db_strategy.tp_dynamic_enabled,
+                base_percent=float(self._db_strategy.tp_dynamic_base),
+                min_percent=float(self._db_strategy.tp_dynamic_min),
+                max_percent=float(self._db_strategy.tp_dynamic_max),
+                safety_margin=float(self._db_strategy.tp_dynamic_safety_margin),
+                check_interval_minutes=self._db_strategy.tp_dynamic_check_interval,
+            )
+        return self.config.dynamic_tp
 
     def _log_activity_event(
         self,
@@ -253,6 +335,21 @@ class GridManager:
             main_logger.debug("Skipping bot status broadcast - no clients connected")
             return
 
+        # Build EMA status data
+        ema_status = EMAStatusData(
+            enabled=self._ema_filter.enabled,
+            period=self._ema_filter.period,
+            timeframe=self._ema_filter.timeframe,
+            value=self._ema_filter.current_ema,
+            direction=self._ema_filter.direction.value if self._ema_filter.direction else None,
+            allow_trade=self._ema_filter.should_allow_trade(),
+        )
+
+        # Build filters status data
+        filters_status = FiltersStatusData(
+            should_allow_trade=self._filter_registry.should_allow_trade(),
+        )
+
         event_data = BotStatusEvent(
             state=state.value,
             is_running=is_running,
@@ -263,13 +360,16 @@ class GridManager:
             macd_line=macd_line,
             histogram=histogram,
             signal_line=signal_line,
+            ema=ema_status,
+            filters=filters_status,
         )
 
         event = WebSocketEvent.bot_status(event_data)
 
         main_logger.info(
             f"Broadcasting bot status: state={state.value}, is_running={is_running}, "
-            f"macd_line={macd_line}, histogram={histogram}"
+            f"macd_line={macd_line}, histogram={histogram}, "
+            f"ema_direction={ema_status.direction}, filters_allow={filters_status.should_allow_trade}"
         )
 
         # Fire and forget - don't await, just schedule
@@ -401,7 +501,7 @@ class GridManager:
                 entry_price=str(order.entry_price),
                 current_price=str(self._current_price),
                 unrealized_pnl=str(unrealized_pnl),
-                leverage=self.config.trading.leverage,
+                leverage=self.leverage,
             )
 
     def _get_anchor_mode_value(self) -> str:
@@ -442,6 +542,9 @@ class GridManager:
                 main_logger.debug("No active strategy found, using config.py values")
                 return
 
+            # Cache the strategy (database config has priority over env vars)
+            self._db_strategy = strategy
+
             # Update calculator properties with strategy values
             self.calculator.spacing_type = strategy.spacing_type  # type: ignore[assignment]
             self.calculator.spacing_value = float(strategy.spacing_value)
@@ -463,6 +566,57 @@ class GridManager:
             main_logger.warning(
                 f"Failed to refresh grid config from database: {e}. Using config.py values."
             )
+
+    async def _load_ema_filter_config(self) -> None:
+        """
+        Load EMA filter configuration from database.
+
+        If repository and account_id are available, loads EMA config for the
+        active strategy and syncs it with the EMA filter.
+
+        Gracefully handles cases where:
+        - No repository is configured
+        - No account_id is set
+        - No active strategy exists
+        - No EMA config exists for the strategy
+        """
+        if not self._ema_filter_config_repository or not self._account_id:
+            main_logger.debug("EMA filter config not loaded - no repository or account_id")
+            return
+
+        try:
+            # Get active strategy to find strategy_id
+            if not self._strategy_repository:
+                main_logger.debug("No strategy repository - cannot load EMA config")
+                return
+
+            strategy = await self._strategy_repository.get_active_by_account(self._account_id)
+            if not strategy:
+                main_logger.debug("No active strategy found - cannot load EMA config")
+                return
+
+            # Load EMA filter config for this strategy
+            ema_config = await self._ema_filter_config_repository.get_by_strategy(strategy.id)
+            if not ema_config:
+                main_logger.debug(f"No EMA filter config found for strategy {strategy.id}")
+                return
+
+            # Sync filter with database values
+            self._filter_registry.sync_ema_filter(
+                enabled=ema_config.enabled,
+                period=ema_config.period,
+                timeframe=ema_config.timeframe,
+                allow_on_rising=ema_config.allow_on_rising,
+                allow_on_falling=ema_config.allow_on_falling,
+            )
+
+            main_logger.info(
+                f"EMA filter config loaded: enabled={ema_config.enabled}, "
+                f"period={ema_config.period}, timeframe={ema_config.timeframe}"
+            )
+
+        except Exception as e:
+            main_logger.warning(f"Failed to load EMA filter config: {e}")
 
     def get_status(self) -> GridStatus:
         """Get current grid status."""
@@ -492,7 +646,7 @@ class GridManager:
             "Bot started",
             {
                 "symbol": self.symbol,
-                "leverage": self.config.trading.leverage,
+                "leverage": self.leverage,
                 "order_size_usdt": self.order_size,
                 "trading_mode": self.config.trading.mode.value,
             },
@@ -507,13 +661,16 @@ class GridManager:
         # Sync filter enabled state with strategy config from DB
         self._filter_registry.sync_macd_filter_with_strategy()
 
+        # Load EMA filter config from database (if available)
+        await self._load_ema_filter_config()
+
         # Set leverage
         try:
             await self.client.set_leverage(
                 self.symbol,
-                self.config.trading.leverage,
+                self.leverage,
             )
-            main_logger.info(f"Leverage configurado: {self.config.trading.leverage}x")
+            main_logger.info(f"Leverage configurado: {self.leverage}x")
         except Exception as e:
             main_logger.warning(f"Falha ao configurar leverage: {e}")
 
@@ -521,7 +678,7 @@ class GridManager:
         try:
             # Get current margin mode
             current_mode = await self.client.get_margin_mode(self.symbol)
-            desired_mode = self.config.trading.margin_mode.value
+            desired_mode = self.margin_mode
 
             if current_mode != desired_mode:
                 # Only try to change if different
@@ -552,10 +709,10 @@ class GridManager:
             use_anchor = self._get_anchor_mode_value() != "none"
             anchor_value = self.calculator.anchor_value if use_anchor else 0
 
-            positions_loaded = self.tracker.load_existing_positions(
+            positions_loaded = await self.tracker.load_existing_positions(
                 positions,
                 open_orders,
-                self.config.grid.take_profit_percent,
+                self.take_profit_percent,
                 anchor_value=anchor_value,
             )
 
@@ -563,7 +720,7 @@ class GridManager:
             limit_orders = [o for o in open_orders if o.get("type") == "LIMIT"]
             orders_loaded = self.tracker.load_existing_orders(
                 limit_orders,
-                self.config.grid.take_profit_percent,
+                self.take_profit_percent,
             )
 
             if positions_loaded > 0:
@@ -580,6 +737,14 @@ class GridManager:
                         main_logger.info(
                             f"{linked_count} posição(ões) vinculada(s) ao banco de dados"
                         )
+
+                    # Persist positions that weren't linked (new to DB)
+                    # This ensures Dashboard can display all positions
+                    persisted_count = await self.tracker.persist_loaded_positions()
+                    if persisted_count > 0:
+                        main_logger.info(
+                            f"{persisted_count} posição(ões) persistida(s) no banco de dados"
+                        )
                 except Exception as e:
                     main_logger.warning(f"Falha ao vincular trades: {e}")
         except Exception as e:
@@ -588,7 +753,7 @@ class GridManager:
         # Instanciar DynamicTPManager
         # Note: tp_adjustment_repository is optional (graceful degradation)
         self.dynamic_tp = DynamicTPManager(
-            config=self.config.dynamic_tp,
+            config=self._get_dynamic_tp_config(),
             client=self.client,
             order_tracker=self.tracker,
             symbol=self.symbol,
@@ -598,7 +763,7 @@ class GridManager:
         )
 
         # Iniciar monitoramento
-        if self.config.dynamic_tp.enabled is True:
+        if self._get_dynamic_tp_config().enabled is True:
             await self.dynamic_tp.start()
             orders_logger.info("DynamicTPManager started")
 
@@ -739,50 +904,55 @@ class GridManager:
         if status == "FILLED":
             order = self.tracker.get_order(order_id)
             if order:
-                filled_order = self.tracker.order_filled(order_id)
-
-                # Broadcast order filled to dashboard
-                if filled_order:
-                    self._broadcast_order_update(filled_order)
-
-                    # Broadcast position update (new position created)
-                    unrealized_pnl = (
-                        self._current_price - filled_order.entry_price
-                    ) * filled_order.quantity
-                    self._broadcast_position_update(
-                        symbol=self.symbol,
-                        side="LONG",
-                        size=str(filled_order.quantity),
-                        entry_price=str(filled_order.entry_price),
-                        current_price=str(self._current_price),
-                        unrealized_pnl=str(unrealized_pnl),
-                        leverage=self.config.trading.leverage,
-                    )
-
-                    # Fetch and update TP order ID (async task)
-                    asyncio.create_task(self._fetch_and_update_tp_order_id(filled_order))
-
-                if self._on_order_filled:
-                    self._on_order_filled(order)
-                orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
-
-                # Log ORDER_FILLED event
-                self._log_activity_event(
-                    EventType.ORDER_FILLED,
-                    f"Order filled at ${order.entry_price:,.2f}",
-                    {
-                        "order_id": order_id,
-                        "entry_price": order.entry_price,
-                        "tp_price": order.tp_price,
-                        "quantity": order.quantity,
-                        "source": "websocket",
-                    },
-                )
+                # Schedule async order_filled (persists trade to DB)
+                asyncio.create_task(self._handle_order_filled_ws(order_id, order))
 
         # Order canceled
         elif status == "CANCELED":
             self.tracker.cancel_order(order_id)
             orders_logger.info(f"WS: Ordem cancelada: {order_id}")
+
+    async def _handle_order_filled_ws(self, order_id: str, order: TrackedOrder) -> None:
+        """Handle order filled event from WebSocket (async wrapper)."""
+        filled_order = await self.tracker.order_filled(order_id)
+
+        # Broadcast order filled to dashboard
+        if filled_order:
+            self._broadcast_order_update(filled_order)
+
+            # Broadcast position update (new position created)
+            unrealized_pnl = (
+                self._current_price - filled_order.entry_price
+            ) * filled_order.quantity
+            self._broadcast_position_update(
+                symbol=self.symbol,
+                side="LONG",
+                size=str(filled_order.quantity),
+                entry_price=str(filled_order.entry_price),
+                current_price=str(self._current_price),
+                unrealized_pnl=str(unrealized_pnl),
+                leverage=self.leverage,
+            )
+
+            # Fetch and update TP order ID
+            await self._fetch_and_update_tp_order_id(filled_order)
+
+        if self._on_order_filled:
+            self._on_order_filled(order)
+        orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
+
+        # Log ORDER_FILLED event
+        self._log_activity_event(
+            EventType.ORDER_FILLED,
+            f"Order filled at ${order.entry_price:,.2f}",
+            {
+                "order_id": order_id,
+                "entry_price": order.entry_price,
+                "tp_price": order.tp_price,
+                "quantity": order.quantity,
+                "source": "websocket",
+            },
+        )
 
     async def _fetch_and_update_tp_order_id(self, filled_order: TrackedOrder) -> None:
         """
@@ -838,42 +1008,49 @@ class GridManager:
 
         # If position closed (amt = 0), mark as TP hit
         if position_amt == 0 and self.tracker.filled_orders:
-            for order in list(self.tracker.filled_orders):
-                exit_price = self._current_price
-                pnl = (exit_price - order.entry_price) * order.quantity
-                self.tracker.order_tp_hit(order.order_id, exit_price)
+            # Schedule async handling for all TP hits
+            asyncio.create_task(self._handle_position_closed_ws())
 
-                # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
-                self._broadcast_order_update(order)
+    async def _handle_position_closed_ws(self) -> None:
+        """Handle position closed event from WebSocket (async wrapper)."""
+        for order in list(self.tracker.filled_orders):
+            exit_price = self._current_price
+            pnl = (exit_price - order.entry_price) * order.quantity
 
-                # Broadcast position closure (position closed - TP hit)
-                self._broadcast_position_update(
-                    symbol=self.symbol,
-                    side="LONG",
-                    size="0",  # Position closed
-                    entry_price=str(order.entry_price),
-                    current_price=str(exit_price),
-                    unrealized_pnl=str(pnl),
-                    leverage=self.config.trading.leverage,
-                )
+            # Persist trade to database (now awaited)
+            await self.tracker.order_tp_hit(order.order_id, exit_price)
 
-                if self._on_tp_hit:
-                    self._on_tp_hit(order)
-                orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
+            # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
+            self._broadcast_order_update(order)
 
-                # Log TRADE_CLOSED event
-                self._log_activity_event(
-                    EventType.TRADE_CLOSED,
-                    f"Trade closed at ${exit_price:,.2f} (+${pnl:,.2f})",
-                    {
-                        "order_id": order.order_id,
-                        "entry_price": order.entry_price,
-                        "exit_price": exit_price,
-                        "quantity": order.quantity,
-                        "pnl": pnl,
-                        "source": "websocket",
-                    },
-                )
+            # Broadcast position closure (position closed - TP hit)
+            self._broadcast_position_update(
+                symbol=self.symbol,
+                side="LONG",
+                size="0",  # Position closed
+                entry_price=str(order.entry_price),
+                current_price=str(exit_price),
+                unrealized_pnl=str(pnl),
+                leverage=self.leverage,
+            )
+
+            if self._on_tp_hit:
+                self._on_tp_hit(order)
+            orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
+
+            # Log TRADE_CLOSED event
+            self._log_activity_event(
+                EventType.TRADE_CLOSED,
+                f"Trade closed at ${exit_price:,.2f} (+${pnl:,.2f})",
+                {
+                    "order_id": order.order_id,
+                    "entry_price": order.entry_price,
+                    "exit_price": exit_price,
+                    "quantity": order.quantity,
+                    "pnl": pnl,
+                    "source": "websocket",
+                },
+            )
 
     async def _stop_websocket(self) -> None:
         """Stop WebSocket and cleanup."""
@@ -998,13 +1175,17 @@ class GridManager:
             return
 
         try:
-            # Get current price
-            self._current_price = await self.client.get_price(self.symbol)
+            # Get current price - prefer WebSocket (real-time) over REST API (polling)
+            if not self._is_ws_price_fresh():
+                # WebSocket price is stale or not available, fetch from REST API
+                self._current_price = await self.client.get_price(self.symbol)
+            # else: _current_price is already up-to-date from WebSocket callback
 
             # Get klines for MACD calculation
+            # Use timeframe from DB config (strategy.timeframe), not env (config.macd.timeframe)
             klines = await self.client.get_klines(
                 self.symbol,
-                interval=self.config.macd.timeframe,
+                interval=self.strategy.timeframe,
                 limit=100,
             )
 
@@ -1018,6 +1199,35 @@ class GridManager:
 
             # Update MACD filter with current state
             self._macd_filter.set_current_state(new_state)
+
+            # Update EMA filter with klines data
+            # EMAFilter expects list format with close at index 4: [timestamp, open, high, low, close, volume]
+            # Convert DataFrame to list if needed
+            klines_list: list[Any]
+            if hasattr(klines, "values"):
+                klines_list = klines[
+                    ["timestamp", "open", "high", "low", "close", "volume"]
+                ].values.tolist()
+            else:
+                klines_list = list(klines)
+            self._ema_filter.update(klines_list)
+
+            # Log EMA direction changes
+            current_direction = self._ema_filter.direction
+            if (
+                self._previous_ema_direction is not None
+                and current_direction != self._previous_ema_direction
+            ):
+                ema_value = (
+                    f"{self._ema_filter.current_ema:.2f}"
+                    if self._ema_filter.current_ema is not None
+                    else "N/A"
+                )
+                main_logger.info(
+                    f"EMA direction changed: {self._previous_ema_direction.value} → "
+                    f"{current_direction.value} (EMA={ema_value})"
+                )
+            self._previous_ema_direction = current_direction
 
             # Handle state change
             if new_state != self._current_state:
@@ -1080,17 +1290,43 @@ class GridManager:
                 },
             )
 
-        # Cancel pending orders on INACTIVE
+        # Cancel pending orders on INACTIVE (unless EMA protection is active)
         if new_state == GridState.INACTIVE:
-            await self._cancel_all_pending()
+            if self._ema_filter.enabled and self._ema_filter.should_protect_orders():
+                main_logger.info(
+                    "Entering INACTIVE state but EMA rising - protecting existing orders"
+                )
+            else:
+                await self._cancel_all_pending()
 
     async def _execute_state_actions(self) -> None:
-        """Execute actions based on current state."""
+        """Execute actions based on current state.
+
+        Decision Matrix:
+        | MACD State | EMA Direction | EMA Enabled | Action                          |
+        |------------|---------------|-------------|---------------------------------|
+        | ACTIVATE   | RISING        | Yes         | Create orders                   |
+        | ACTIVATE   | FALLING       | Yes         | Block (don't create)            |
+        | ACTIVATE   | *             | No          | Create orders                   |
+        | ACTIVE     | RISING        | Yes         | Create orders                   |
+        | ACTIVE     | FALLING       | Yes         | Block (don't create)            |
+        | ACTIVE     | *             | No          | Create orders                   |
+        | PAUSE      | *             | *           | No create, no cancel            |
+        | INACTIVE   | RISING        | Yes         | No create, no cancel (protect)  |
+        | INACTIVE   | FALLING       | Yes         | No create, CANCEL               |
+        | INACTIVE   | *             | No          | No create, CANCEL               |
+        """
         # Check if filters allow trade creation
         if self._filter_registry.should_allow_trade():
             await self._create_grid_orders()
         elif self._current_state == GridState.INACTIVE:
-            await self._cancel_all_pending()
+            # Check EMA protection before cancelling
+            if self._ema_filter.enabled and self._ema_filter.should_protect_orders():
+                # EMA is rising - protect existing orders
+                orders_logger.debug("INACTIVE state but EMA rising - protecting orders")
+            else:
+                # EMA is falling or disabled - cancel pending orders
+                await self._cancel_all_pending()
 
     def _count_filled_orders_awaiting_tp(self, orders: list[dict]) -> int:
         """
@@ -1135,7 +1371,7 @@ class GridManager:
             Set of entry prices that have fills awaiting TP
         """
         occupied_prices: set[float] = set()
-        tp_multiplier = 1 + (self.config.grid.take_profit_percent / 100)
+        tp_multiplier = 1 + (self.take_profit_percent / 100)
 
         # Check if anchor mode is enabled
         use_anchor = self._get_anchor_mode_value() != "none"
@@ -1246,7 +1482,7 @@ class GridManager:
             return
 
         # BE-008: Log available slots
-        max_total = self.config.grid.max_total_orders
+        max_total = self.max_total_orders
         limit_orders_count = len([o for o in exchange_orders if o.get("type") == "LIMIT"])
         available_slots = max(0, max_total - filled_orders_count - limit_orders_count)
         orders_logger.info(
@@ -1441,7 +1677,7 @@ class GridManager:
 
                     if position_delta >= order.quantity * 0.99:  # 1% tolerance for rounding
                         # Order was FILLED - position increased
-                        filled_order = self.tracker.order_filled(order.order_id)
+                        filled_order = await self.tracker.order_filled(order.order_id)
 
                         # Broadcast order filled to dashboard
                         if filled_order:
@@ -1458,7 +1694,7 @@ class GridManager:
                                 entry_price=str(filled_order.entry_price),
                                 current_price=str(self._current_price),
                                 unrealized_pnl=str(unrealized_pnl),
-                                leverage=self.config.trading.leverage,
+                                leverage=self.leverage,
                             )
 
                         expected_position += order.quantity  # Update expected for next iteration
@@ -1495,7 +1731,7 @@ class GridManager:
                     # Position was closed (TP hit or manual close)
                     exit_price = self._current_price
                     pnl = (exit_price - order.entry_price) * order.quantity
-                    self.tracker.order_tp_hit(order.order_id, exit_price)
+                    await self.tracker.order_tp_hit(order.order_id, exit_price)
 
                     # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                     self._broadcast_order_update(order)
@@ -1508,7 +1744,7 @@ class GridManager:
                         entry_price=str(order.entry_price),
                         current_price=str(exit_price),
                         unrealized_pnl=str(pnl),
-                        leverage=self.config.trading.leverage,
+                        leverage=self.leverage,
                     )
 
                     if self._on_tp_hit:
@@ -1543,7 +1779,7 @@ class GridManager:
                             break
                         exit_price = self._current_price
                         pnl = (exit_price - order.entry_price) * order.quantity
-                        self.tracker.order_tp_hit(order.order_id, exit_price)
+                        await self.tracker.order_tp_hit(order.order_id, exit_price)
 
                         # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                         self._broadcast_order_update(order)
@@ -1556,7 +1792,7 @@ class GridManager:
                             entry_price=str(order.entry_price),
                             current_price=str(exit_price),
                             unrealized_pnl=str(pnl),
-                            leverage=self.config.trading.leverage,
+                            leverage=self.leverage,
                         )
 
                         excess -= order.quantity

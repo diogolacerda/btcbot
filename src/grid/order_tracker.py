@@ -8,7 +8,7 @@ from uuid import UUID
 from src.utils.logger import orders_logger, trades_logger
 
 if TYPE_CHECKING:
-    from src.database.repositories.trade_repository import TradeRepository
+    from src.client.bingx_client import BingXClient
 
 
 class OrderStatus(Enum):
@@ -80,15 +80,17 @@ class OrderTracker:
 
     def __init__(
         self,
-        trade_repository: "TradeRepository | None" = None,
         account_id: UUID | None = None,
+        bingx_client: "BingXClient | None" = None,
+        symbol: str = "BTC-USDT",
     ):
         self._orders: dict[str, TrackedOrder] = {}
         self._orders_by_price: dict[float, str] = {}  # price -> order_id mapping
         self._trades: list[TradeRecord] = []
         self._initial_pnl: float = 0.0  # PnL from exchange at startup
-        self._trade_repository = trade_repository
         self._account_id = account_id
+        self._bingx_client = bingx_client
+        self._symbol = symbol
 
     @property
     def pending_orders(self) -> list[TrackedOrder]:
@@ -253,20 +255,28 @@ class OrderTracker:
             return self._orders.get(order_id)
         return None
 
-    def order_filled(self, order_id: str) -> TrackedOrder | None:
-        """Mark order as filled and create OPEN trade in database."""
+    async def order_filled(self, order_id: str) -> TrackedOrder | None:
+        """Mark order as filled and create OPEN trade in database.
+
+        This method persists the trade synchronously with a fresh database session
+        to ensure data consistency.
+        """
         order = self._orders.get(order_id)
         if order:
             order.mark_filled()
             orders_logger.info(f"Order filled: {order_id} @ ${order.entry_price:,.2f}")
 
-            # Persist OPEN trade to database (non-blocking)
-            if self._trade_repository and self._account_id:
-                self._schedule_open_trade_persistence(order)
+            # Persist OPEN trade to database synchronously
+            if self._account_id:
+                await self._persist_open_trade(order)
         return order
 
-    def order_tp_hit(self, order_id: str, exit_price: float) -> TradeRecord | None:
-        """Mark order as take profit hit and record trade."""
+    async def order_tp_hit(self, order_id: str, exit_price: float) -> TradeRecord | None:
+        """Mark order as take profit hit and record trade.
+
+        This method persists the trade synchronously with a fresh database session
+        to ensure data consistency.
+        """
         order = self._orders.get(order_id)
         if not order:
             return None
@@ -289,9 +299,9 @@ class OrderTracker:
             f"PnL: +${pnl:.2f} ({trade.pnl_percent:.2f}%)"
         )
 
-        # Persist trade to database (async, non-blocking)
-        if self._trade_repository and self._account_id:
-            self._schedule_trade_persistence(order, exit_price, pnl, trade.pnl_percent)
+        # Persist trade to database synchronously
+        if self._account_id:
+            await self._persist_trade_closed(order, exit_price, pnl, trade.pnl_percent)
 
         # Remove from tracking
         del self._orders[order_id]
@@ -300,92 +310,117 @@ class OrderTracker:
 
         return trade
 
-    def _schedule_open_trade_persistence(self, order: TrackedOrder) -> None:
-        """Persist OPEN trade to database when order is filled (non-blocking)."""
-        import asyncio
+    async def _persist_open_trade(self, order: TrackedOrder) -> None:
+        """Persist OPEN trade to database with a fresh session.
 
-        async def _persist_open_trade() -> None:
-            if not self._trade_repository or not self._account_id:
-                return
+        Creates a new database session for each operation to avoid stale session issues.
+        """
+        from src.database.engine import get_session
+        from src.database.repositories.trade_repository import TradeRepository
 
-            try:
-                # Calculate TP percent
-                tp_percent = (
-                    ((order.tp_price - order.entry_price) / order.entry_price) * 100
-                    if order.tp_price
-                    else None
-                )
+        try:
+            # Calculate TP percent
+            tp_percent = (
+                ((order.tp_price - order.entry_price) / order.entry_price) * 100
+                if order.tp_price
+                else None
+            )
 
-                trade_data = {
-                    "account_id": self._account_id,
-                    "exchange_order_id": order.order_id,
-                    "exchange_tp_order_id": order.exchange_tp_order_id,
-                    "symbol": "BTC-USDT",
-                    "side": "LONG",
-                    "leverage": 10,
-                    "entry_price": Decimal(str(order.entry_price)),
-                    "exit_price": None,  # Not closed yet
-                    "quantity": Decimal(str(order.quantity)),
-                    "tp_price": Decimal(str(order.tp_price)) if order.tp_price else None,
-                    "tp_percent": Decimal(str(tp_percent)) if tp_percent else None,
-                    "pnl": None,  # Calculated when closed
-                    "pnl_percent": None,
-                    "trading_fee": Decimal("0"),
-                    "funding_fee": Decimal("0"),
-                    "status": "OPEN",  # KEY: status is OPEN
-                    "grid_level": None,
-                    "opened_at": order.created_at.replace(tzinfo=UTC),
-                    "filled_at": (order.filled_at.replace(tzinfo=UTC) if order.filled_at else None),
-                    "closed_at": None,  # Not closed yet
-                }
+            trade_data = {
+                "account_id": self._account_id,
+                "exchange_order_id": order.order_id,
+                "exchange_tp_order_id": order.exchange_tp_order_id,
+                "symbol": "BTC-USDT",
+                "side": "LONG",
+                "leverage": 10,
+                "entry_price": Decimal(str(order.entry_price)),
+                "exit_price": None,  # Not closed yet
+                "quantity": Decimal(str(order.quantity)),
+                "tp_price": Decimal(str(order.tp_price)) if order.tp_price else None,
+                "tp_percent": Decimal(str(tp_percent)) if tp_percent else None,
+                "pnl": None,  # Calculated when closed
+                "pnl_percent": None,
+                "trading_fee": Decimal("0"),
+                "funding_fee": Decimal("0"),
+                "status": "OPEN",
+                "grid_level": None,
+                "opened_at": order.created_at.replace(tzinfo=UTC),
+                "filled_at": (order.filled_at.replace(tzinfo=UTC) if order.filled_at else None),
+                "closed_at": None,  # Not closed yet
+            }
 
-                # Save and get trade_id
-                trade_id = await self._trade_repository.save_trade(trade_data)
+            # Create fresh session and repository for this operation
+            async for session in get_session():
+                trade_repo = TradeRepository(session)
+                trade_id = await trade_repo.save_trade(trade_data)
                 order.trade_id = trade_id  # Store ID in TrackedOrder for later update
 
                 trades_logger.info(
                     f"OPEN trade persisted: {order.order_id[:8]} (trade_id: {trade_id})"
                 )
-            except Exception as e:
-                trades_logger.warning(f"Failed to persist OPEN trade: {e}")
+                break  # Only need one iteration
 
-        # Schedule task in background (fire and forget)
-        try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_open_trade())
-        except RuntimeError:
-            trades_logger.warning("No event loop running, skipping OPEN trade persistence")
+        except Exception as e:
+            trades_logger.warning(f"Failed to persist OPEN trade: {e}")
 
-    def _schedule_trade_persistence(
+    async def _persist_trade_closed(
         self,
         order: TrackedOrder,
         exit_price: float,
         pnl: float,
         pnl_percent: float,
     ) -> None:
-        """Schedule trade persistence to database (non-blocking)."""
-        import asyncio
+        """Persist CLOSED trade to database with a fresh session.
 
-        async def _persist_trade() -> None:
-            if not self._trade_repository or not self._account_id:
-                return
+        Either updates an existing OPEN trade to CLOSED, or creates a new CLOSED trade
+        if no OPEN trade exists (backward compatibility).
 
+        Also fetches and records actual funding fees from BingX if client is available.
+        """
+        from src.database.engine import get_session
+        from src.database.repositories.trade_repository import TradeRepository
+
+        # Calculate funding fee if BingX client is available
+        funding_fee = Decimal("0")
+        if self._bingx_client and order.filled_at:
             try:
+                # Convert filled_at to milliseconds timestamp
+                position_opened_at = int(order.filled_at.timestamp() * 1000)
+                position_closed_at = int(datetime.now().timestamp() * 1000)
+
+                funding_cost = await self._bingx_client.calculate_position_funding_cost(
+                    symbol=self._symbol,
+                    position_opened_at=position_opened_at,
+                    position_closed_at=position_closed_at,
+                )
+                funding_fee = Decimal(str(funding_cost))
+
+                if funding_cost != 0:
+                    trades_logger.info(f"Funding fee for {order.order_id[:8]}: ${funding_cost:.4f}")
+            except Exception as e:
+                trades_logger.warning(f"Failed to fetch funding fees: {e}")
+
+        try:
+            # Create fresh session and repository for this operation
+            async for session in get_session():
+                trade_repo = TradeRepository(session)
+
                 if order.trade_id:
-                    # NUOVO: Update existing OPEN trade to CLOSED
-                    await self._trade_repository.update_trade_exit(
+                    # Update existing OPEN trade to CLOSED with funding fee
+                    await trade_repo.update_trade_exit(
                         trade_id=order.trade_id,
                         exit_price=Decimal(str(exit_price)),
                         pnl=Decimal(str(pnl)),
                         pnl_percent=Decimal(str(pnl_percent)),
+                        funding_fee=funding_fee,
                     )
                     trades_logger.info(
                         f"Trade updated to CLOSED: {order.order_id[:8]} (trade_id: {order.trade_id})"
+                        + (f" | Funding: ${funding_fee:.4f}" if funding_fee != 0 else "")
                     )
                 else:
-                    # FALLBACK: Create CLOSED trade (backward compatible with trades without OPEN state)
-                    # Calculate TP percent
-                    tp_percent = (
+                    # Fallback: Create CLOSED trade directly (for trades without prior OPEN state)
+                    tp_percent_calc = (
                         ((order.tp_price - order.entry_price) / order.entry_price) * 100
                         if order.tp_price
                         else None
@@ -395,18 +430,18 @@ class OrderTracker:
                         "account_id": self._account_id,
                         "exchange_order_id": order.order_id,
                         "exchange_tp_order_id": order.exchange_tp_order_id,
-                        "symbol": "BTC-USDT",
+                        "symbol": self._symbol,
                         "side": "LONG",
                         "leverage": 10,
                         "entry_price": Decimal(str(order.entry_price)),
                         "exit_price": Decimal(str(exit_price)),
                         "quantity": Decimal(str(order.quantity)),
                         "tp_price": Decimal(str(order.tp_price)) if order.tp_price else None,
-                        "tp_percent": Decimal(str(tp_percent)) if tp_percent else None,
+                        "tp_percent": Decimal(str(tp_percent_calc)) if tp_percent_calc else None,
                         "pnl": Decimal(str(pnl)),
                         "pnl_percent": Decimal(str(pnl_percent)),
                         "trading_fee": Decimal("0"),
-                        "funding_fee": Decimal("0"),
+                        "funding_fee": funding_fee,
                         "status": "CLOSED",
                         "grid_level": None,
                         "opened_at": order.created_at.replace(tzinfo=UTC),
@@ -416,23 +451,15 @@ class OrderTracker:
                         "closed_at": datetime.now(UTC),
                     }
 
-                    await self._trade_repository.save_trade(trade_data)
+                    await trade_repo.save_trade(trade_data)
                     trades_logger.info(
                         f"Trade persisted (CLOSED, no prior OPEN): {order.order_id[:8]}"
+                        + (f" | Funding: ${funding_fee:.4f}" if funding_fee != 0 else "")
                     )
-            except Exception as e:
-                # Fallback: log warning but don't crash
-                trades_logger.warning(
-                    f"Failed to persist trade to database: {e}. Trade data kept in memory only."
-                )
+                break  # Only need one iteration
 
-        # Schedule task in background (fire and forget)
-        try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_trade())
-        except RuntimeError:
-            # No event loop running, skip persistence
-            trades_logger.warning("No event loop running, skipping trade persistence")
+        except Exception as e:
+            trades_logger.error(f"Failed to persist CLOSED trade: {e}")
 
     def cancel_order(self, order_id: str) -> TrackedOrder | None:
         """Mark order as cancelled and remove from tracking."""
@@ -470,7 +497,7 @@ class OrderTracker:
             "recent_trades": self._trades[-10:] if self._trades else [],
         }
 
-    def load_existing_positions(
+    async def load_existing_positions(
         self,
         positions: list[dict],
         open_orders: list[dict],
@@ -510,6 +537,9 @@ class OrderTracker:
         # Calculate multiplier for reverse entry price calculation
         tp_multiplier = 1 + (tp_percent / 100)
 
+        # Pre-fetch existing trades from database for accurate filled_at times
+        trade_opened_at_map = await self._get_trades_opened_at_map()
+
         loaded = 0
         for open_order in open_orders:
             order_type = open_order.get("type", "")
@@ -537,14 +567,44 @@ class OrderTracker:
             # Generate unique ID for this position (based on TP order ID)
             position_id = f"existing_tp_{tp_order_id}"
 
-            # Skip if already tracked
+            # Skip if already tracked (by unique TP order ID)
             if position_id in self._orders:
                 continue
 
-            # Also skip if we already have an order at this entry price
-            # (handles duplicate tracking)
-            if entry_price in self._orders_by_price:
-                continue
+            # NOTE: We do NOT skip based on entry_price because multiple positions
+            # can have the same rounded entry_price when GRID_ANCHOR_MODE is active.
+            # Each position has a unique TP order ID, so we track all of them.
+
+            # Get the actual filled_at time - priority:
+            # 1. BingX order 'time' or 'updateTime' field (source of truth)
+            # 2. Database opened_at (fallback for existing records)
+            # 3. datetime.now() (last resort)
+            filled_at = None
+
+            # Try to get timestamp from BingX order response
+            order_time_ms = open_order.get("time") or open_order.get("updateTime")
+            if order_time_ms:
+                try:
+                    filled_at = datetime.fromtimestamp(int(order_time_ms) / 1000)
+                    orders_logger.debug(
+                        f"Using BingX order time for TP#{tp_order_id[:8]}: {filled_at}"
+                    )
+                except (ValueError, TypeError):
+                    pass
+
+            # Fallback to database timestamp
+            if filled_at is None and tp_order_id in trade_opened_at_map:
+                filled_at = trade_opened_at_map[tp_order_id]
+                orders_logger.debug(
+                    f"Using database opened_at for TP#{tp_order_id[:8]}: {filled_at}"
+                )
+
+            # Last resort: current time
+            if filled_at is None:
+                filled_at = datetime.now()
+                orders_logger.warning(
+                    f"No timestamp found for TP#{tp_order_id[:8]}, using current time"
+                )
 
             # Create tracked order as FILLED
             order = TrackedOrder(
@@ -553,11 +613,14 @@ class OrderTracker:
                 tp_price=tp_price,
                 quantity=quantity,
                 status=OrderStatus.FILLED,
-                filled_at=datetime.now(),
+                filled_at=filled_at,
                 exchange_tp_order_id=tp_order_id,
             )
             self._orders[position_id] = order
-            self._orders_by_price[entry_price] = position_id
+            # Only add to price mapping if no order exists at this price
+            # Multiple positions can share the same rounded entry_price
+            if entry_price not in self._orders_by_price:
+                self._orders_by_price[entry_price] = position_id
 
             orders_logger.info(
                 f"Position loaded from TP: {quantity} BTC @ ${entry_price:,.2f} → TP ${tp_price:,.2f} (TP#{tp_order_id[:8]})"
@@ -568,6 +631,59 @@ class OrderTracker:
             orders_logger.info(f"Loaded {loaded} individual positions from TP orders")
 
         return loaded
+
+    async def _get_trades_opened_at_map(self) -> dict[str, datetime]:
+        """
+        Get a map of exchange_tp_order_id -> opened_at from database.
+
+        This allows loaded positions to use their actual opened_at time
+        instead of datetime.now(), which is critical for accurate funding
+        cost calculations in Dynamic TP Manager.
+
+        Returns:
+            Dict mapping exchange_tp_order_id to opened_at datetime
+        """
+        if not self._account_id:
+            return {}
+
+        from sqlalchemy import select
+
+        from src.database.engine import get_session
+        from src.database.models.trade import Trade
+
+        result_map: dict[str, datetime] = {}
+
+        try:
+            async for session in get_session():
+                result = await session.execute(
+                    select(Trade.exchange_tp_order_id, Trade.opened_at, Trade.filled_at).where(
+                        Trade.account_id == self._account_id,
+                        Trade.status == "OPEN",
+                        Trade.exchange_tp_order_id.isnot(None),
+                    )
+                )
+
+                for row in result:
+                    tp_order_id = row.exchange_tp_order_id
+                    # Use filled_at if available, otherwise opened_at
+                    timestamp = row.filled_at or row.opened_at
+                    if tp_order_id and timestamp:
+                        # Remove timezone info if present for consistency
+                        if timestamp.tzinfo is not None:
+                            timestamp = timestamp.replace(tzinfo=None)
+                        result_map[tp_order_id] = timestamp
+
+                break  # Only need one iteration
+
+        except Exception as e:
+            orders_logger.warning(f"Failed to fetch trades opened_at map: {e}")
+
+        if result_map:
+            orders_logger.info(
+                f"Loaded {len(result_map)} trade timestamps from database for position restoration"
+            )
+
+        return result_map
 
     async def link_existing_trades(self) -> int:
         """
@@ -588,8 +704,8 @@ class OrderTracker:
             bot startup to establish the connection between in-memory positions
             and database records.
         """
-        if not self._trade_repository or not self._account_id:
-            orders_logger.debug("Skipping trade linking: repository or account_id not configured")
+        if not self._account_id:
+            orders_logger.debug("Skipping trade linking: account_id not configured")
             return 0
 
         # Import here to avoid circular dependency
@@ -637,6 +753,48 @@ class OrderTracker:
             orders_logger.info(f"Successfully linked {linked_count} trades to existing positions")
 
         return linked_count
+
+    async def persist_loaded_positions(self) -> int:
+        """
+        Persist loaded positions to database if they don't exist.
+
+        For positions loaded from exchange that have no matching trade in the database,
+        creates new OPEN trades. This ensures the Dashboard can display all positions.
+
+        Returns:
+            Number of trades created
+
+        Note:
+            This method should be called after link_existing_trades() during bot startup.
+            Positions that were already linked will be skipped.
+        """
+        if not self._account_id:
+            orders_logger.debug("Skipping position persistence: account_id not configured")
+            return 0
+
+        created_count = 0
+
+        for order in self.filled_orders:
+            # Skip if already has trade_id (was linked to existing trade)
+            if order.trade_id:
+                continue
+
+            # Only persist positions loaded from exchange (existing_tp_ prefix)
+            if not order.order_id.startswith("existing_tp_"):
+                continue
+
+            try:
+                await self._persist_open_trade(order)
+                created_count += 1
+            except Exception as e:
+                orders_logger.warning(
+                    f"Failed to persist loaded position {order.order_id[:20]}: {e}"
+                )
+
+        if created_count > 0:
+            orders_logger.info(f"Persisted {created_count} loaded positions to database")
+
+        return created_count
 
     def load_existing_orders(
         self,
