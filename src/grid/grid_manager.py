@@ -556,6 +556,12 @@ class GridManager:
             # Update take_profit_percent from strategy
             self.calculator.tp_percent = float(strategy.take_profit_percent)
 
+            main_logger.info(
+                f"Grid config loaded from DB: spacing={self.calculator.spacing_value} "
+                f"({self.calculator.spacing_type}), range={self.calculator.range_percent}%, "
+                f"TP={self.calculator.tp_percent}%"
+            )
+
         except Exception as e:
             main_logger.warning(
                 f"Failed to refresh grid config from database: {e}. Using config.py values."
@@ -648,6 +654,9 @@ class GridManager:
 
         # Load MACD config from database (if available)
         await self.strategy.load_config_from_db()
+
+        # Load grid config from database (if available)
+        await self._refresh_grid_calculator()
 
         # Sync filter enabled state with strategy config from DB
         self._filter_registry.sync_macd_filter_with_strategy()
