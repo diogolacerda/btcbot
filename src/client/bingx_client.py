@@ -681,16 +681,25 @@ class BingXClient:
         if cached is not None:
             return str(cached)
 
-        # Get position info which includes positionSide
+        # Get position info which includes position mode indicator
         positions = await self.get_positions(symbol)
 
         # Default to BOTH (One-way mode) if no positions exist
         if not positions:
             position_mode = "BOTH"
         else:
-            # Get positionSide from first position
-            position_side = positions[0].get("positionSide", "BOTH")
-            position_mode = str(position_side)
+            # Check onlyOnePosition flag to determine mode
+            # onlyOnePosition=True means One-way mode (use "BOTH")
+            # onlyOnePosition=False means Hedge mode (use "LONG"/"SHORT")
+            first_position = positions[0]
+            only_one_position = first_position.get("onlyOnePosition", True)
+
+            if only_one_position:
+                # One-way mode: use "BOTH" for all orders
+                position_mode = "BOTH"
+            else:
+                # Hedge mode: use the actual position side
+                position_mode = str(first_position.get("positionSide", "BOTH"))
 
         # Cache for 1 hour (position mode changes are rare)
         self._cache_ttl[cache_key] = 3600
