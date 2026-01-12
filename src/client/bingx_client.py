@@ -140,6 +140,15 @@ class BingXClient:
                     raise Exception(f"BingX API Error: {error_msg}")
 
                 result: dict[str, Any] = data.get("data", data)
+
+                # Validate result is a dict before returning
+                if not isinstance(result, dict):
+                    error_logger.error(
+                        f"Invalid API response type: expected dict, got {type(result).__name__}. "
+                        f"Full response: {data}"
+                    )
+                    raise ValueError(f"API returned non-dict data: {type(result).__name__}")
+
                 return result
 
             except httpx.HTTPStatusError as e:
@@ -430,6 +439,14 @@ class BingXClient:
             price=price,
             take_profit=take_profit,
         )
+
+        # Validate result is a dict before accessing .get()
+        if not isinstance(result, dict):
+            orders_logger.error(
+                f"Invalid API response type in create_limit_order_with_tp: expected dict, got {type(result).__name__}. "
+                f"Value: {result}"
+            )
+            raise ValueError(f"API returned non-dict response: {type(result).__name__}")
 
         entry_order_id = (
             result.get("orderId")
