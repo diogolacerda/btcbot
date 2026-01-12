@@ -25,11 +25,11 @@ warnings.filterwarnings("ignore", category=RuntimeWarning, message="overflow enc
 class GridState(Enum):
     """Estados do grid baseado no MACD."""
 
-    ACTIVATE = "activate"  # Vermelho claro + ambas linhas < 0 → começa criar ordens
-    ACTIVE = "active"  # Verde escuro → continua criando
-    PAUSE = "pause"  # Verde claro → para de criar, mantém existentes
-    INACTIVE = "inactive"  # Vermelho escuro → cancela ordens pendentes
-    WAIT = "wait"  # Vermelho claro + alguma linha >= 0 → aguarda
+    ACTIVATE = "activate"  # Histograma negativo + subindo → começa criar ordens
+    ACTIVE = "active"  # Histograma positivo + subindo → continua criando
+    PAUSE = "pause"  # Histograma positivo + descendo → para de criar, mantém existentes
+    INACTIVE = "inactive"  # Histograma negativo + descendo → cancela ordens pendentes
+    WAIT = "wait"  # Estado inicial antes de qualquer sinal
 
 
 @dataclass
@@ -79,12 +79,11 @@ class MACDStrategy:
     """
     Estratégia baseada no MACD para controlar o grid.
 
-    Regras simplificadas baseadas no histograma:
-    - ATIVAR: hist < 0 e subindo (vermelho claro), MACD < 0 E Signal < 0
-    - ATIVO: hist > 0 e subindo (verde escuro)
-    - PAUSA: hist > 0 e descendo (verde claro) - sempre pausa
-    - INATIVO: hist < 0 e descendo (vermelho escuro)
-    - ESPERA: hist < 0 e subindo (vermelho claro), mas MACD >= 0 ou Signal >= 0
+    Regras simplificadas baseadas apenas no histograma:
+    - ATIVAR: histograma < 0 e subindo (vermelho claro)
+    - ATIVO: histograma > 0 e subindo (verde escuro)
+    - PAUSA: histograma > 0 e descendo (verde claro)
+    - INATIVO: histograma < 0 e descendo (vermelho escuro)
     """
 
     def __init__(
@@ -360,14 +359,11 @@ class MACDStrategy:
         return state
 
     def _determine_state(self, macd: MACDValues) -> GridState:
-        """Determine state based on MACD values."""
+        """Determine state based on MACD histogram only."""
 
         # Histograma negativo e subindo (vermelho claro)
         if macd.is_histogram_negative and macd.is_histogram_rising:
-            if macd.are_both_lines_negative:
-                return GridState.ACTIVATE  # Vermelho claro + ambas linhas < 0 → ATIVA
-            else:
-                return GridState.WAIT  # Vermelho claro + alguma linha >= 0 → ESPERA
+            return GridState.ACTIVATE  # Vermelho claro → ATIVA
 
         # Histograma positivo e subindo (verde escuro)
         elif macd.is_histogram_positive and macd.is_histogram_rising:
@@ -375,7 +371,7 @@ class MACDStrategy:
 
         # Histograma positivo e descendo (verde claro)
         elif macd.is_histogram_positive and macd.is_histogram_falling:
-            return GridState.PAUSE  # Verde claro → sempre PAUSA
+            return GridState.PAUSE  # Verde claro → PAUSA
 
         # Histograma negativo e descendo (vermelho escuro)
         else:
@@ -571,11 +567,11 @@ class MACDStrategy:
         """Get human-readable description of state."""
         cycle_status = "🟢" if self._cycle_activated else "🔴"
         descriptions = {
-            GridState.ACTIVATE: f"{cycle_status} ATIVANDO - Vermelho claro + linhas negativas",
+            GridState.ACTIVATE: f"{cycle_status} ATIVANDO - Histograma subindo (vermelho claro)",
             GridState.ACTIVE: f"{cycle_status} ATIVO - Criando ordens"
             if self._cycle_activated
             else f"{cycle_status} ATIVO - Aguardando ciclo",
-            GridState.PAUSE: f"{cycle_status} PAUSADO - Verde claro",
+            GridState.PAUSE: f"{cycle_status} PAUSADO - Histograma descendo (verde claro)",
             GridState.INACTIVE: f"{cycle_status} INATIVO - Cancelando ordens pendentes",
             GridState.WAIT: f"{cycle_status} AGUARDANDO - Condições não atendidas",
         }
