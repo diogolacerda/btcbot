@@ -98,8 +98,6 @@ def _strategy_to_response(strategy) -> StrategyResponse:
         spacing_value=strategy.spacing_value,
         range_percent=strategy.range_percent,
         max_total_orders=strategy.max_total_orders,
-        anchor_mode=strategy.anchor_mode,
-        anchor_threshold=strategy.anchor_threshold,
         created_at=strategy.created_at,
         updated_at=strategy.updated_at,
     )
@@ -273,8 +271,6 @@ async def create_strategy(
             "spacing_value": data.spacing_value,
             "range_percent": data.range_percent,
             "max_total_orders": data.max_total_orders,
-            "anchor_mode": data.anchor_mode,
-            "anchor_threshold": data.anchor_threshold,
         }
 
         # If creating as active, deactivate others first
@@ -359,8 +355,6 @@ async def update_strategy(
             "spacing_value",
             "range_percent",
             "max_total_orders",
-            "anchor_mode",
-            "anchor_threshold",
         ]:
             value = getattr(data, field)
             if value is not None:

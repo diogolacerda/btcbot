@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod'
-import type { MarginMode, SpacingType, AnchorMode } from '@/types/api'
+import type { MarginMode, SpacingType } from '@/types/api'
 
 // ============================================================================
 // Constants - Match backend constraints
@@ -14,7 +14,6 @@ import type { MarginMode, SpacingType, AnchorMode } from '@/types/api'
 
 export const MARGIN_MODES: MarginMode[] = ['crossed', 'isolated']
 export const SPACING_TYPES: SpacingType[] = ['fixed', 'percentage']
-export const ANCHOR_MODES: AnchorMode[] = ['none', 'hundred', 'thousand']
 
 export const LEVERAGE_MIN = 1
 export const LEVERAGE_MAX = 125
@@ -74,8 +73,6 @@ export const strategyFormSchema = z
       .int('Max orders must be a whole number')
       .min(1, 'At least 1 order required')
       .max(50, 'Maximum 50 orders allowed'),
-    anchorMode: z.enum(['none', 'hundred', 'thousand']),
-    anchorThreshold: z.number().min(1, 'Threshold must be at least 1'),
   })
   .refine(
     (data) => {
@@ -124,6 +121,4 @@ export const defaultStrategyValues: StrategyFormValues = {
   spacingValue: 100,
   rangePercent: 5.0,
   maxTotalOrders: 10,
-  anchorMode: 'none',
-  anchorThreshold: 100,
 }
