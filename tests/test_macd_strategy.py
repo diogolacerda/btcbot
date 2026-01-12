@@ -73,10 +73,10 @@ class TestMACDStrategyDetermineState:
         config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         return MACDStrategy(config)
 
-    # Tests for ACTIVATE state (vermelho claro + ambas linhas < 0)
+    # Tests for ACTIVATE state (histograma negativo e subindo)
 
-    def test_activate_both_lines_negative(self, strategy):
-        """Test ACTIVATE when vermelho claro and both lines negative."""
+    def test_activate_histogram_negative_rising(self, strategy):
+        """Test ACTIVATE when histogram is negative and rising (vermelho claro)."""
         macd = MACDValues(
             macd_line=-100,
             signal_line=-50,
@@ -86,49 +86,49 @@ class TestMACDStrategyDetermineState:
         state = strategy._determine_state(macd)
         assert state == GridState.ACTIVATE
 
-    def test_wait_macd_positive(self, strategy):
-        """Test WAIT when vermelho claro but MACD is positive."""
+    def test_activate_regardless_of_macd_line(self, strategy):
+        """Test ACTIVATE works regardless of MACD line value."""
         macd = MACDValues(
-            macd_line=10,  # positive
+            macd_line=10,  # positive - doesn't matter anymore
             signal_line=-50,
             histogram=-50,  # negative
             prev_histogram=-60,  # rising
         )
         state = strategy._determine_state(macd)
-        assert state == GridState.WAIT
+        assert state == GridState.ACTIVATE
 
-    def test_wait_signal_positive(self, strategy):
-        """Test WAIT when vermelho claro but Signal is positive."""
+    def test_activate_regardless_of_signal_line(self, strategy):
+        """Test ACTIVATE works regardless of Signal line value."""
         macd = MACDValues(
             macd_line=-100,
-            signal_line=10,  # positive
+            signal_line=10,  # positive - doesn't matter anymore
             histogram=-50,  # negative
             prev_histogram=-60,  # rising
         )
         state = strategy._determine_state(macd)
-        assert state == GridState.WAIT
+        assert state == GridState.ACTIVATE
 
-    def test_wait_both_lines_positive(self, strategy):
-        """Test WAIT when vermelho claro but both lines positive."""
+    def test_activate_both_lines_positive(self, strategy):
+        """Test ACTIVATE works even when both lines are positive."""
         macd = MACDValues(
             macd_line=10,  # positive
             signal_line=5,  # positive
-            histogram=-50,  # negative
-            prev_histogram=-60,  # rising
+            histogram=-50,  # negative - this is what matters
+            prev_histogram=-60,  # rising - this is what matters
         )
         state = strategy._determine_state(macd)
-        assert state == GridState.WAIT
+        assert state == GridState.ACTIVATE
 
-    def test_wait_macd_at_zero(self, strategy):
-        """Test WAIT when vermelho claro but MACD is exactly zero."""
+    def test_activate_with_zero_lines(self, strategy):
+        """Test ACTIVATE works even when lines are at zero."""
         macd = MACDValues(
-            macd_line=0,  # not negative
+            macd_line=0,  # zero - doesn't matter
             signal_line=-50,
             histogram=-50,  # negative
             prev_histogram=-60,  # rising
         )
         state = strategy._determine_state(macd)
-        assert state == GridState.WAIT
+        assert state == GridState.ACTIVATE
 
     # Tests for ACTIVE state (verde escuro)
 
@@ -234,31 +234,33 @@ class TestMACDStrategyStateMachine:
         config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         return MACDStrategy(config)
 
-    def test_cycle_activation_requires_both_lines_negative(self, strategy):
-        """Test that cycle only activates with both lines negative."""
-        # Simulate vermelho claro with only MACD negative
-        macd_one_negative = MACDValues(
-            macd_line=-100,
-            signal_line=10,  # positive
-            histogram=-50,
-            prev_histogram=-60,
+    def test_cycle_activation_only_checks_histogram(self, strategy):
+        """Test that cycle activates based on histogram only, not MACD/Signal lines."""
+        # Simulate vermelho claro (histogram negative and rising)
+        # Should ACTIVATE regardless of MACD/Signal line values
+        macd_lines_positive = MACDValues(
+            macd_line=100,  # positive - doesn't matter
+            signal_line=50,  # positive - doesn't matter
+            histogram=-50,  # negative
+            prev_histogram=-60,  # rising
         )
 
-        state = strategy._determine_state(macd_one_negative)
-        assert state == GridState.WAIT
-        assert strategy._cycle_activated is False
-
-        # Simulate vermelho claro with both lines negative
-        macd_both_negative = MACDValues(
-            macd_line=-100,
-            signal_line=-50,
-            histogram=-50,
-            prev_histogram=-60,
-        )
-
-        # Verify that both lines negative returns ACTIVATE
-        state = strategy._determine_state(macd_both_negative)
+        state = strategy._determine_state(macd_lines_positive)
         assert state == GridState.ACTIVATE
+
+        # Now test that calling get_state() activates the cycle
+        import pandas as pd
+
+        # Create fake klines that will produce the above MACD
+        klines = pd.DataFrame({"close": [100] * 50})
+
+        # Mock calculate_macd to return our test values
+        strategy.calculate_macd = lambda x: macd_lines_positive
+
+        # Call get_state to trigger cycle activation
+        state = strategy.get_state(klines)
+        assert state == GridState.ACTIVATE
+        assert strategy._cycle_activated is True
 
     def test_verde_claro_to_verde_escuro_reactivates(self, strategy):
         """Test that going from verde claro to verde escuro reactivates trading."""
