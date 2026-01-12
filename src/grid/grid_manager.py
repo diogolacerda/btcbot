@@ -1582,6 +1582,14 @@ class GridManager:
             tp_price=level.tp_price,
         )
 
+        # Validate result is a dict before accessing .get()
+        if not isinstance(result, dict):
+            orders_logger.error(
+                f"Invalid API response type: expected dict, got {type(result).__name__}. "
+                f"Value: {result}"
+            )
+            raise ValueError(f"API returned non-dict response: {type(result).__name__}")
+
         order_id = str(
             result.get(
                 "entry_order_id",
