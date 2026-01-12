@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models.trade import Trade
@@ -154,13 +154,16 @@ class TradeRepository(BaseRepository[Trade]):
     ) -> list[Trade]:
         """Get trades for an account within a time period.
 
+        Returns trades that were opened OR closed within the specified period.
+        This ensures trades opened before the period but closed within it are included.
+
         Args:
             account_id: Account UUID.
             start: Start datetime (inclusive).
             end: End datetime (inclusive).
 
         Returns:
-            List of Trade instances in the specified period.
+            List of Trade instances, ordered by most recent activity (closed_at or opened_at).
 
         Raises:
             Exception: If database operation fails.
@@ -170,10 +173,16 @@ class TradeRepository(BaseRepository[Trade]):
                 select(Trade)
                 .where(
                     Trade.account_id == account_id,
-                    Trade.opened_at >= start,
-                    Trade.opened_at <= end,
+                    or_(
+                        and_(Trade.opened_at >= start, Trade.opened_at <= end),
+                        and_(
+                            Trade.closed_at.isnot(None),
+                            Trade.closed_at >= start,
+                            Trade.closed_at <= end,
+                        ),
+                    ),
                 )
-                .order_by(Trade.opened_at.desc())
+                .order_by(func.coalesce(Trade.closed_at, Trade.opened_at).desc())
             )
             result = await self.session.execute(stmt)
             return list(result.scalars().all())
