@@ -319,10 +319,13 @@ class TradeRepository(BaseRepository[Trade]):
         Applies filters and sorting at database level for efficiency. Returns both
         filtered trades and total count for pagination.
 
+        Date filtering includes trades that were opened OR closed within the period,
+        ensuring trades opened before the period but closed within it are included.
+
         Args:
             account_id: Account UUID.
-            start_date: Filter trades opened after this date.
-            end_date: Filter trades opened before this date.
+            start_date: Filter trades opened or closed after this date.
+            end_date: Filter trades opened or closed before this date.
             status: Filter by status (OPEN, CLOSED, CANCELLED).
             min_entry_price: Minimum entry price filter.
             max_entry_price: Maximum entry price filter.
@@ -343,11 +346,35 @@ class TradeRepository(BaseRepository[Trade]):
             # Build base query
             conditions = [Trade.account_id == account_id]
 
-            # Date filters
-            if start_date:
-                conditions.append(Trade.opened_at >= start_date)
-            if end_date:
-                conditions.append(Trade.opened_at <= end_date)
+            # Date filters - include trades opened OR closed in the period
+            if start_date and end_date:
+                # Both dates provided: trade must have activity in the period
+                conditions.append(
+                    or_(
+                        and_(Trade.opened_at >= start_date, Trade.opened_at <= end_date),
+                        and_(
+                            Trade.closed_at.isnot(None),
+                            Trade.closed_at >= start_date,
+                            Trade.closed_at <= end_date,
+                        ),
+                    )
+                )
+            elif start_date:
+                # Only start date: trade opened or closed after start
+                conditions.append(
+                    or_(
+                        Trade.opened_at >= start_date,
+                        and_(Trade.closed_at.isnot(None), Trade.closed_at >= start_date),
+                    )
+                )
+            elif end_date:
+                # Only end date: trade opened or closed before end
+                conditions.append(
+                    or_(
+                        Trade.opened_at <= end_date,
+                        and_(Trade.closed_at.isnot(None), Trade.closed_at <= end_date),
+                    )
+                )
 
             # Status filter
             if status:
