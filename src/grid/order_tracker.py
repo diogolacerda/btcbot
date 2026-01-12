@@ -888,3 +888,37 @@ class OrderTracker:
                 # Order was filled or cancelled on exchange
                 order.mark_filled()
                 orders_logger.info(f"Order synced as filled: {order_id}")
+
+        # Sync TP prices for filled orders
+        # Build map of exchange TP order ID -> TP price
+        tp_order_map: dict[str, float] = {}
+        for exchange_order in exchange_orders:
+            order_type = exchange_order.get("type", "")
+            if order_type in ["TAKE_PROFIT_MARKET", "TAKE_PROFIT"]:
+                tp_order_id = str(exchange_order.get("orderId", ""))
+                tp_price = float(exchange_order.get("stopPrice", 0))
+                if tp_order_id and tp_price > 0:
+                    tp_order_map[tp_order_id] = tp_price
+
+        # Update TP prices for filled orders if they differ from exchange
+        synced_count = 0
+        for order in self.filled_orders:
+            if not order.exchange_tp_order_id:
+                continue
+
+            exchange_tp_price = tp_order_map.get(order.exchange_tp_order_id)
+            if exchange_tp_price is None:
+                continue
+
+            # Check if TP price differs (with small tolerance for floating point)
+            if abs(order.tp_price - exchange_tp_price) > 0.01:
+                old_tp = order.tp_price
+                order.tp_price = exchange_tp_price
+                orders_logger.info(
+                    f"TP synced for {order.order_id[:8]}: "
+                    f"${old_tp:,.2f} -> ${exchange_tp_price:,.2f}"
+                )
+                synced_count += 1
+
+        if synced_count > 0:
+            orders_logger.info(f"Synced {synced_count} TP prices with exchange")
