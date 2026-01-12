@@ -140,15 +140,6 @@ class BingXClient:
                     raise Exception(f"BingX API Error: {error_msg}")
 
                 result: dict[str, Any] = data.get("data", data)
-
-                # Validate result is a dict before returning
-                if not isinstance(result, dict):
-                    error_logger.error(
-                        f"Invalid API response type: expected dict, got {type(result).__name__}. "
-                        f"Full response: {data}"
-                    )
-                    raise ValueError(f"API returned non-dict data: {type(result).__name__}")
-
                 return result
 
             except httpx.HTTPStatusError as e:
