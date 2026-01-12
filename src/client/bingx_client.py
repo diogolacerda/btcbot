@@ -625,6 +625,45 @@ class BingXClient:
         margin_type = positions[0].get("marginType", "CROSSED")
         return str(margin_type)
 
+    async def get_position_mode(self, symbol: str) -> str:
+        """
+        Get current position mode for the account.
+
+        Position mode determines how positions are tracked:
+        - One-way mode: All positions use positionSide="BOTH"
+        - Hedge mode: Long/short positions tracked separately with positionSide="LONG"/"SHORT"
+
+        Args:
+            symbol: Trading symbol (e.g., BTC-USDT)
+
+        Returns:
+            "BOTH" for One-way mode, "LONG" or "SHORT" for Hedge mode
+
+        Note:
+            Result is cached for 1 hour since position mode rarely changes.
+            Cache is invalidated when creating orders to detect mode changes.
+        """
+        cache_key = f"position_mode:{symbol}"
+        cached = self._get_cached(cache_key)
+        if cached is not None:
+            return str(cached)
+
+        # Get position info which includes positionSide
+        positions = await self.get_positions(symbol)
+
+        # Default to BOTH (One-way mode) if no positions exist
+        if not positions:
+            position_mode = "BOTH"
+        else:
+            # Get positionSide from first position
+            position_side = positions[0].get("positionSide", "BOTH")
+            position_mode = str(position_side)
+
+        # Cache for 1 hour (position mode changes are rare)
+        self._cache_ttl[cache_key] = 3600
+        self._set_cache(cache_key, position_mode)
+        return position_mode
+
     async def get_funding_rate(self, symbol: str) -> dict[str, Any]:
         """
         Get current funding rate for a symbol (cached for 5 min).
