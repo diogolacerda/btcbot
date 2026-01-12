@@ -92,37 +92,6 @@ class TestBugFix006LoadExistingPositions:
         assert position.tp_price == tp_price
 
     @pytest.mark.asyncio
-    async def test_applies_anchor_rounding(self):
-        """
-        Given anchor_value is configured,
-        When position is loaded,
-        Then entry_price is rounded to anchor multiple.
-        """
-        positions = [{"symbol": "BTC-USDT", "positionAmt": 0.0001, "avgPrice": 95000}]
-        tp_percent = 0.5
-        tp_price = 95524.88  # Results in entry ~95049.63 before rounding
-        anchor_value = 100
-
-        # With anchor_value=100, 95049.63 rounds to 95000
-        expected_entry = 95000
-
-        tp_orders = [
-            {
-                "type": "TAKE_PROFIT_MARKET",
-                "orderId": "tp_123",
-                "stopPrice": tp_price,
-                "origQty": 0.0001,
-            }
-        ]
-
-        await self.tracker.load_existing_positions(
-            positions, tp_orders, tp_percent, anchor_value=anchor_value
-        )
-
-        position = self.tracker.filled_orders[0]
-        assert position.entry_price == expected_entry
-
-    @pytest.mark.asyncio
     async def test_prevents_duplicate_positions(self):
         """
         Given a position is already tracked at an entry price,

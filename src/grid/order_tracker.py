@@ -531,7 +531,6 @@ class OrderTracker:
         positions: list[dict],
         open_orders: list[dict],
         tp_percent: float,
-        anchor_value: float = 0,
     ) -> int:
         """
         Load existing positions from exchange into tracker.
@@ -551,7 +550,6 @@ class OrderTracker:
             positions: List of positions from exchange (used only for validation)
             open_orders: List of open orders (TP orders are derived from here)
             tp_percent: Take profit percentage to reverse-calculate entry prices
-            anchor_value: Grid anchor value for rounding (0 = no rounding)
 
         Returns:
             Number of positions loaded (count of TP orders)
@@ -586,12 +584,7 @@ class OrderTracker:
 
             # Reverse-calculate entry price from TP price
             entry_price = tp_price / tp_multiplier
-
-            # Apply anchor rounding if configured
-            if anchor_value > 0:
-                entry_price = round(entry_price / anchor_value) * anchor_value
-            else:
-                entry_price = round(entry_price, 2)
+            entry_price = round(entry_price, 2)
 
             # Generate unique ID for this position (based on TP order ID)
             position_id = f"existing_tp_{tp_order_id}"
@@ -599,10 +592,6 @@ class OrderTracker:
             # Skip if already tracked (by unique TP order ID)
             if position_id in self._orders:
                 continue
-
-            # NOTE: We do NOT skip based on entry_price because multiple positions
-            # can have the same rounded entry_price when GRID_ANCHOR_MODE is active.
-            # Each position has a unique TP order ID, so we track all of them.
 
             # Get the actual filled_at time - priority:
             # 1. BingX order 'time' or 'updateTime' field (source of truth)

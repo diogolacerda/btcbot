@@ -15,7 +15,7 @@ BingX keeps separate TP orders for each fill, so we can use them to determine
 which price levels are occupied.
 """
 
-from config import GridAnchorMode, GridConfig, SpacingType
+from config import GridConfig, SpacingType
 
 
 class MockGridConfig:
@@ -28,8 +28,6 @@ class MockGridConfig:
             range_percent=2.0,
             take_profit_percent=take_profit_percent,
             max_total_orders=10,
-            anchor_mode=GridAnchorMode.NONE,
-            anchor_value=100,
         )
 
 

@@ -12,11 +12,6 @@ class SpacingType(Enum):
     PERCENT = "percent"
 
 
-class GridAnchorMode(Enum):
-    NONE = "none"
-    HUNDRED = "hundred"
-
-
 class ReactivationMode(Enum):
     IMMEDIATE = "immediate"
     FULL_CYCLE = "full_cycle"
@@ -70,8 +65,6 @@ class GridConfig:
     range_percent: float
     take_profit_percent: float
     max_total_orders: int = 10  # Total orders (pending LIMIT + open positions)
-    anchor_mode: GridAnchorMode = GridAnchorMode.NONE
-    anchor_value: float = 100.0  # Anchor value in USD (e.g., 100 for hundreds)
 
 
 @dataclass
@@ -135,8 +128,6 @@ def load_config() -> Config:
             range_percent=float(os.getenv("GRID_RANGE_PERCENT", "5")),
             take_profit_percent=float(os.getenv("TAKE_PROFIT_PERCENT", "1.0")),
             max_total_orders=int(os.getenv("MAX_TOTAL_ORDERS", "10")),
-            anchor_mode=GridAnchorMode(os.getenv("GRID_ANCHOR_MODE", "none")),
-            anchor_value=float(os.getenv("GRID_ANCHOR_VALUE", "100")),
         ),
         macd=MACDConfig(
             fast=int(os.getenv("MACD_FAST", "12")),

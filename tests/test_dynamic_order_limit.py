@@ -6,7 +6,7 @@ BingX consolidates multiple fills into one position but keeps separate TPs.
 
 import pytest
 
-from config import GridAnchorMode, GridConfig, SpacingType
+from config import GridConfig, SpacingType
 from src.grid.grid_calculator import GridCalculator
 
 
@@ -22,21 +22,6 @@ class TestDynamicOrderLimit:
             range_percent=5,
             take_profit_percent=1.0,
             max_total_orders=10,
-            anchor_mode=GridAnchorMode.NONE,
-            anchor_value=100,
-        )
-
-    @pytest.fixture
-    def config_anchored(self):
-        """Create config with anchoring enabled."""
-        return GridConfig(
-            spacing_type=SpacingType.FIXED,
-            spacing_value=100,
-            range_percent=5,
-            take_profit_percent=1.0,
-            max_total_orders=10,
-            anchor_mode=GridAnchorMode.HUNDRED,
-            anchor_value=100,
         )
 
     def test_no_filled_orders_full_slots(self, config):
@@ -124,46 +109,6 @@ class TestDynamicOrderLimit:
         # Available: max(0, 10 - 6 - 5) = max(0, -1) = 0
         assert len(levels) == 0
 
-    def test_cancel_excess_orders_with_filled_orders(self, config_anchored):
-        """Should cancel excess LIMIT orders when filled orders reduce available slots."""
-        calculator = GridCalculator(config_anchored)
-        current_price = 88500
-
-        # 8 existing LIMIT orders
-        existing_orders = [
-            {"orderId": f"order_{i}", "price": str(88000 - i * 100), "type": "LIMIT"}
-            for i in range(8)
-        ]
-        # 5 filled orders (total = 13, available limit slots = 10 - 5 = 5)
-        filled_orders_count = 5
-
-        orders_to_cancel = calculator.get_orders_to_cancel(
-            current_price, existing_orders, filled_orders_count
-        )
-
-        # Should cancel 3 orders (8 existing - 5 available slots = 3 to cancel)
-        assert len(orders_to_cancel) == 3
-
-    def test_cancel_orders_with_max_filled_orders(self, config_anchored):
-        """With max filled orders, all LIMIT orders should be cancelled."""
-        calculator = GridCalculator(config_anchored)
-        current_price = 88500
-
-        # 5 existing LIMIT orders
-        existing_orders = [
-            {"orderId": f"order_{i}", "price": str(88000 - i * 100), "type": "LIMIT"}
-            for i in range(5)
-        ]
-        # 10 filled orders (no slots available for LIMIT)
-        filled_orders_count = 10
-
-        orders_to_cancel = calculator.get_orders_to_cancel(
-            current_price, existing_orders, filled_orders_count
-        )
-
-        # Should cancel all 5 LIMIT orders
-        assert len(orders_to_cancel) == 5
-
     def test_summary_includes_filled_orders(self, config):
         """Grid summary should include filled orders count and available slots."""
         calculator = GridCalculator(config)
@@ -220,8 +165,6 @@ class TestDynamicOrderLimitIntegration:
             range_percent=5,
             take_profit_percent=1.0,
             max_total_orders=10,
-            anchor_mode=GridAnchorMode.HUNDRED,
-            anchor_value=100,
         )
 
     def test_order_filled_reduces_available_slots(self, config):
