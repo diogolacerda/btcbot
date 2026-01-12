@@ -439,24 +439,49 @@ class BingXClient:
             )
             raise ValueError(f"API returned non-dict response: {type(result).__name__}")
 
-        entry_order_id = (
-            result.get("orderId")
-            or result.get("order", {}).get("orderId")
-            or result.get("data", {}).get("orderId")
-        )
-        tp_order_id = (
-            result.get("takeProfit", {}).get("orderId")
-            or result.get("takeProfitOrder", {}).get("orderId")
-            or result.get("takeProfitOrderId")
-            or result.get("tpOrderId")
-            or result.get("order", {}).get("takeProfit", {}).get("orderId")
-            or result.get("data", {}).get("takeProfit", {}).get("orderId")
-        )
+        # Log full response for debugging
+        orders_logger.debug(f"create_limit_order_with_tp raw result: {result}")
+
+        # Safely extract entry_order_id
+        entry_order_id = result.get("orderId")
+        if not entry_order_id:
+            order_obj = result.get("order")
+            if isinstance(order_obj, dict):
+                entry_order_id = order_obj.get("orderId")
+        if not entry_order_id:
+            data_obj = result.get("data")
+            if isinstance(data_obj, dict):
+                entry_order_id = data_obj.get("orderId")
+
+        # Safely extract tp_order_id
+        tp_order_id = result.get("takeProfitOrderId") or result.get("tpOrderId")
+        if not tp_order_id:
+            tp_obj = result.get("takeProfit")
+            if isinstance(tp_obj, dict):
+                tp_order_id = tp_obj.get("orderId")
+        if not tp_order_id:
+            tp_order_obj = result.get("takeProfitOrder")
+            if isinstance(tp_order_obj, dict):
+                tp_order_id = tp_order_obj.get("orderId")
+        if not tp_order_id:
+            order_obj = result.get("order")
+            if isinstance(order_obj, dict):
+                tp_sub = order_obj.get("takeProfit")
+                if isinstance(tp_sub, dict):
+                    tp_order_id = tp_sub.get("orderId")
+        if not tp_order_id:
+            data_obj = result.get("data")
+            if isinstance(data_obj, dict):
+                tp_sub = data_obj.get("takeProfit")
+                if isinstance(tp_sub, dict):
+                    tp_order_id = tp_sub.get("orderId")
 
         result["entry_order_id"] = entry_order_id
         result["tp_order_id"] = tp_order_id
 
-        orders_logger.debug(f"create_limit_order_with_tp response: {result}")
+        orders_logger.debug(
+            f"create_limit_order_with_tp processed: entry_id={entry_order_id}, tp_id={tp_order_id}"
+        )
 
         return result
 
