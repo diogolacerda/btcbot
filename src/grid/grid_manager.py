@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from config import Config, GridAnchorMode, SpacingType
+from config import Config, SpacingType
 from src.api.websocket.connection_manager import get_connection_manager
 from src.api.websocket.events import (
     ActivityEventData,
@@ -528,23 +528,6 @@ class GridManager:
                 leverage=self.leverage,
             )
 
-    def _get_anchor_mode_value(self) -> str:
-        """
-        Get anchor mode value, handling both string and enum types.
-
-        Returns string value regardless of whether anchor_mode is stored as
-        a string (from database) or GridAnchorMode enum (from config).
-
-        Returns:
-            Anchor mode value as string ("none", "hundred", etc.)
-        """
-        anchor_mode = self.calculator.anchor_mode
-        # If it's already a string (from database), return it directly
-        if isinstance(anchor_mode, str):
-            return anchor_mode
-        # If it's an enum (from config), return its value
-        return anchor_mode.value
-
     async def _refresh_grid_calculator(self) -> None:
         """
         Refresh grid calculator with latest config from database.
@@ -575,8 +558,6 @@ class GridManager:
             self.calculator.spacing_value = float(strategy.spacing_value)
             self.calculator.range_percent = float(strategy.range_percent)
             self.calculator.max_total_orders = strategy.max_total_orders
-            self.calculator.anchor_mode = GridAnchorMode(strategy.anchor_mode)
-            self.calculator.anchor_value = float(strategy.anchor_threshold)
 
             # Update take_profit_percent from strategy
             self.calculator.tp_percent = float(strategy.take_profit_percent)
@@ -730,15 +711,10 @@ class GridManager:
                     break
 
             # Load positions from TP orders (BUG-FIX-006: derive individual positions)
-            # Get anchor value for proper price rounding
-            use_anchor = self._get_anchor_mode_value() != "none"
-            anchor_value = self.calculator.anchor_value if use_anchor else 0
-
             positions_loaded = await self.tracker.load_existing_positions(
                 positions,
                 open_orders,
                 self.take_profit_percent,
-                anchor_value=anchor_value,
             )
 
             # Load only LIMIT orders (not TPs)
@@ -1384,11 +1360,6 @@ class GridManager:
         This allows us to know which price levels are "occupied" even after
         bot restart, without needing to persist data locally.
 
-        Note: When anchor mode is enabled, the entry price is rounded to the
-        nearest anchor value (e.g., $100 multiples) to match the grid levels.
-        This is necessary because BingX may round the TP price slightly
-        differently than our calculation.
-
         Args:
             orders: List of open orders from exchange
 
@@ -1398,10 +1369,6 @@ class GridManager:
         occupied_prices: set[float] = set()
         tp_multiplier = 1 + (self.take_profit_percent / 100)
 
-        # Check if anchor mode is enabled
-        use_anchor = self._get_anchor_mode_value() != "none"
-        anchor_value = self.calculator.anchor_value if use_anchor else 0
-
         for order in orders:
             if "TAKE_PROFIT" in order.get("type", ""):
                 # TP orders use stopPrice field
@@ -1409,14 +1376,7 @@ class GridManager:
                 if tp_price > 0:
                     # Reverse calculate the entry price
                     entry_price = tp_price / tp_multiplier
-
-                    # Round to anchor value if anchor mode is enabled
-                    # This handles BingX rounding differences (e.g., $87,799.90 → $87,800)
-                    if use_anchor and anchor_value > 0:
-                        rounded_price = round(entry_price / anchor_value) * anchor_value
-                    else:
-                        rounded_price = round(entry_price, 2)
-
+                    rounded_price = round(entry_price, 2)
                     occupied_prices.add(rounded_price)
 
         return occupied_prices
@@ -1466,15 +1426,10 @@ class GridManager:
                 order_id = str(order["orderId"])
                 await self.client.cancel_order(self.symbol, order_id)
 
-                # Log cancellation reason based on mode
-                if self._get_anchor_mode_value() != "none":
-                    orders_logger.info(
-                        f"Ordem cancelada (muito distante): ${order_price:,.2f} - ID: {order_id}"
-                    )
-                else:
-                    orders_logger.info(
-                        f"Ordem cancelada (fora do range): ${order_price:,.2f} - ID: {order_id}"
-                    )
+                # Log cancellation
+                orders_logger.info(
+                    f"Ordem cancelada (fora do range): ${order_price:,.2f} - ID: {order_id}"
+                )
             except Exception as e:
                 orders_logger.error(f"Erro ao cancelar ordem: {e}")
 
@@ -1637,12 +1592,8 @@ class GridManager:
             if self._on_order_created:
                 self._on_order_created(level)
 
-            # Log with additional context for anchored mode
-            if self._get_anchor_mode_value() != "none":
-                anchor_level = self.calculator.get_anchor_level(level.entry_price)
-                orders_logger.info(f"Ordem criada (nível ancorado ${anchor_level:,.0f}): {level}")
-            else:
-                orders_logger.info(f"Ordem criada: {level}")
+            # Log order creation
+            orders_logger.info(f"Ordem criada: {level}")
 
     async def _cancel_all_limit_orders(self, reason: str = "filter change") -> None:
         """

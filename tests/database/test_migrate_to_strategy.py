@@ -87,8 +87,6 @@ async def grid_config(async_session: AsyncSession, account: Account) -> GridConf
         spacing_value=Decimal("100.0"),
         range_percent=Decimal("5.0"),
         max_total_orders=10,
-        anchor_mode="hundred",
-        anchor_value=Decimal("100.0"),
     )
     async_session.add(config)
     await async_session.commit()
@@ -149,8 +147,6 @@ class TestCreateStrategyFromConfigs:
         assert strategy.spacing_value == Decimal("100.0")
         assert strategy.range_percent == Decimal("5.0")
         assert strategy.max_total_orders == 10
-        assert strategy.anchor_mode == "hundred"
-        assert strategy.anchor_threshold == Decimal("100.0")
 
 
 class TestCreateDefaultMacdConfig:

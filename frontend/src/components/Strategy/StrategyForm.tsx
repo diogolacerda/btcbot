@@ -8,7 +8,7 @@
  * - Basic Info: Name, Symbol
  * - Risk Parameters: Leverage, Position Size, Margin Mode
  * - Take Profit: TP%, Dynamic TP settings
- * - Grid Settings: Spacing, Range, Max Orders, Anchor Mode
+ * - Grid Settings: Spacing, Range, Max Orders
  */
 
 import { useForm } from 'react-hook-form'
@@ -21,7 +21,6 @@ import {
   LEVERAGE_MAX,
   MARGIN_MODES,
   SPACING_TYPES,
-  ANCHOR_MODES,
   type StrategyFormValues,
 } from './strategySchema'
 import { RiskSummaryCard } from './RiskSummaryCard'
@@ -396,7 +395,7 @@ export function StrategyForm({
           {/* Grid Settings Section */}
           <FormSection
             title="Grid Settings"
-            description="Configure grid levels, spacing, and anchoring"
+            description="Configure grid levels and spacing"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -497,46 +496,6 @@ export function StrategyForm({
                   placeholder="10"
                   className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
                   {...register('maxTotalOrders', { valueAsNumber: true })}
-                />
-              </FormField>
-
-              <FormField
-                label="Anchor Mode"
-                htmlFor="anchorMode"
-                error={errors.anchorMode?.message}
-                hint="Align grid levels to round numbers"
-              >
-                <select
-                  id="anchorMode"
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  {...register('anchorMode')}
-                >
-                  {ANCHOR_MODES.map((anchorMode) => (
-                    <option key={anchorMode} value={anchorMode}>
-                      {anchorMode === 'none'
-                        ? 'None'
-                        : anchorMode === 'hundred'
-                          ? '$100 multiples'
-                          : '$1000 multiples'}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-
-              <FormField
-                label="Anchor Threshold"
-                htmlFor="anchorThreshold"
-                error={errors.anchorThreshold?.message}
-                hint="Threshold for anchor alignment"
-              >
-                <input
-                  id="anchorThreshold"
-                  type="number"
-                  step="1"
-                  min="1"
-                  placeholder="100"
-                  className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                  {...register('anchorThreshold', { valueAsNumber: true })}
                 />
               </FormField>
             </div>

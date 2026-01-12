@@ -106,8 +106,6 @@ def create_strategy_from_configs(
         spacing_value=grid_config.spacing_value,
         range_percent=grid_config.range_percent,
         max_total_orders=grid_config.max_total_orders,
-        anchor_mode=grid_config.anchor_mode,
-        anchor_threshold=grid_config.anchor_value,
     )
 
 

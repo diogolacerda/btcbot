@@ -94,8 +94,6 @@ def sample_strategy(account_id):
         spacing_value=Decimal("100.0"),
         range_percent=Decimal("5.0"),
         max_total_orders=10,
-        anchor_mode="none",
-        anchor_threshold=Decimal("100.0"),
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
@@ -510,19 +508,6 @@ class TestStrategySchemaValidation:
             json={
                 "name": "Invalid Strategy",
                 "spacing_type": "invalid",
-            },
-        )
-
-        assert response.status_code == 422
-
-    def test_invalid_anchor_mode(self, client, auth_token):
-        """Test creation with invalid anchor mode."""
-        response = client.post(
-            "/api/v1/strategies",
-            headers={"Authorization": f"Bearer {auth_token}"},
-            json={
-                "name": "Invalid Strategy",
-                "anchor_mode": "invalid",
             },
         )
 

@@ -39,7 +39,6 @@ export interface GridConfig {
   accountId: string
   gridSpacing: number
   maxTotalOrders: number
-  gridAnchorMode: 'none' | 'hundred'
   createdAt: string
   updatedAt: string
 }

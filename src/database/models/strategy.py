@@ -54,8 +54,6 @@ class Strategy(Base):
         spacing_value: Grid spacing value (USD or percentage).
         range_percent: Grid range as percentage from current price.
         max_total_orders: Maximum total orders (pending + filled).
-        anchor_mode: Grid anchor mode ('none', 'hundred', 'thousand').
-        anchor_threshold: Anchor threshold value in USD.
 
         created_at: Timestamp of strategy creation.
         updated_at: Timestamp of last update.
@@ -117,10 +115,6 @@ class Strategy(Base):
         Numeric(precision=10, scale=4), nullable=False, default=Decimal("5.0")
     )
     max_total_orders: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
-    anchor_mode: Mapped[str] = mapped_column(String(20), nullable=False, default="none")
-    anchor_threshold: Mapped[Decimal] = mapped_column(
-        Numeric(precision=20, scale=8), nullable=False, default=Decimal("100.0")
-    )
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

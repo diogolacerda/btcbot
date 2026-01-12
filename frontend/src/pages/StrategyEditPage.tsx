@@ -145,8 +145,6 @@ export function StrategyEditPage() {
     spacingValue: strategy.spacingValue,
     rangePercent: strategy.rangePercent,
     maxTotalOrders: strategy.maxTotalOrders,
-    anchorMode: strategy.anchorMode,
-    anchorThreshold: strategy.anchorThreshold,
   }
 
   return (

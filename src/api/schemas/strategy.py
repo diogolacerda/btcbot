@@ -55,12 +55,6 @@ class StrategyCreate(BaseModel):
         default=Decimal("5.0"), gt=0, description="Grid range as percentage from current price"
     )
     max_total_orders: int = Field(default=10, gt=0, description="Maximum total orders")
-    anchor_mode: str = Field(
-        default="none", description="Grid anchor mode (none, hundred, thousand)"
-    )
-    anchor_threshold: Decimal = Field(
-        default=Decimal("100.0"), gt=0, description="Anchor threshold"
-    )
 
     @field_validator("margin_mode")
     @classmethod
@@ -78,15 +72,6 @@ class StrategyCreate(BaseModel):
         v_lower = v.lower()
         if v_lower not in ["fixed", "percentage"]:
             raise ValueError("spacing_type must be 'fixed' or 'percentage'")
-        return v_lower
-
-    @field_validator("anchor_mode")
-    @classmethod
-    def validate_anchor_mode(cls, v: str) -> str:
-        """Validate anchor mode."""
-        v_lower = v.lower()
-        if v_lower not in ["none", "hundred", "thousand"]:
-            raise ValueError("anchor_mode must be 'none', 'hundred', or 'thousand'")
         return v_lower
 
 
@@ -124,8 +109,6 @@ class StrategyUpdate(BaseModel):
     spacing_value: Decimal | None = Field(default=None, gt=0, description="Grid spacing value")
     range_percent: Decimal | None = Field(default=None, gt=0, description="Grid range percentage")
     max_total_orders: int | None = Field(default=None, gt=0, description="Maximum total orders")
-    anchor_mode: str | None = Field(default=None, description="Grid anchor mode")
-    anchor_threshold: Decimal | None = Field(default=None, gt=0, description="Anchor threshold")
 
     @field_validator("margin_mode")
     @classmethod
@@ -146,17 +129,6 @@ class StrategyUpdate(BaseModel):
             v_lower = v.lower()
             if v_lower not in ["fixed", "percentage"]:
                 raise ValueError("spacing_type must be 'fixed' or 'percentage'")
-            return v_lower
-        return v
-
-    @field_validator("anchor_mode")
-    @classmethod
-    def validate_anchor_mode(cls, v: str | None) -> str | None:
-        """Validate anchor mode."""
-        if v is not None:
-            v_lower = v.lower()
-            if v_lower not in ["none", "hundred", "thousand"]:
-                raise ValueError("anchor_mode must be 'none', 'hundred', or 'thousand'")
             return v_lower
         return v
 
@@ -191,8 +163,6 @@ class StrategyResponse(BaseModel):
     spacing_value: Decimal
     range_percent: Decimal
     max_total_orders: int
-    anchor_mode: str
-    anchor_threshold: Decimal
 
     # Timestamps
     created_at: datetime
@@ -207,7 +177,6 @@ class StrategyResponse(BaseModel):
         "tp_dynamic_safety_margin",
         "spacing_value",
         "range_percent",
-        "anchor_threshold",
     )
     def serialize_decimal(self, value: Decimal) -> str:
         """Normalize Decimal values to remove trailing zeros.

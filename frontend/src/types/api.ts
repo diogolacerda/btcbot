@@ -76,7 +76,6 @@ export interface TradingConfigResponse {
 export interface GridConfigRequest {
   gridSpacing?: number
   maxTotalOrders?: number
-  gridAnchorMode?: 'none' | 'hundred'
 }
 
 export interface GridConfigResponse {
@@ -84,7 +83,6 @@ export interface GridConfigResponse {
   accountId: string
   gridSpacing: number
   maxTotalOrders: number
-  gridAnchorMode: 'none' | 'hundred'
   createdAt: string
   updatedAt: string
 }
@@ -467,7 +465,6 @@ export interface CumulativePnlResponse {
 
 export type MarginMode = 'crossed' | 'isolated'
 export type SpacingType = 'fixed' | 'percentage'
-export type AnchorMode = 'none' | 'hundred' | 'thousand'
 
 export interface StrategyResponse {
   id: string
@@ -489,8 +486,6 @@ export interface StrategyResponse {
   spacingValue: number
   rangePercent: number
   maxTotalOrders: number
-  anchorMode: AnchorMode
-  anchorThreshold: number
   createdAt: string
   updatedAt: string
 }
@@ -513,8 +508,6 @@ export interface StrategyCreateRequest {
   spacingValue?: number
   rangePercent?: number
   maxTotalOrders?: number
-  anchorMode?: AnchorMode
-  anchorThreshold?: number
 }
 
 export interface StrategyUpdateRequest {
@@ -535,8 +528,6 @@ export interface StrategyUpdateRequest {
   spacingValue?: number
   rangePercent?: number
   maxTotalOrders?: number
-  anchorMode?: AnchorMode
-  anchorThreshold?: number
 }
 
 export interface StrategyActivateResponse {

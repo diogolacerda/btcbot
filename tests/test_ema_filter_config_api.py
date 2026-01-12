@@ -99,8 +99,6 @@ def sample_strategy(account_id):
         spacing_value=Decimal("100.0"),
         range_percent=Decimal("5.0"),
         max_total_orders=10,
-        anchor_mode="none",
-        anchor_threshold=Decimal("100.0"),
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )
