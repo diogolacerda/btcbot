@@ -225,31 +225,32 @@ describe('DashboardPage', () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Pause Strategy' }))
+      await user.click(screen.getByRole('button', { name: 'Pause New Orders' }))
 
-      // Dialog title and button both have "Pause Strategy" text
-      expect(screen.getAllByText('Pause Strategy').length).toBeGreaterThanOrEqual(2)
-      expect(screen.getByText(/stop placing new orders/)).toBeInTheDocument()
+      // Dialog title and button both have "Pause New Orders" text
+      expect(screen.getAllByText('Pause New Orders').length).toBeGreaterThanOrEqual(2)
+      expect(screen.getByText(/stop placing new grid orders/)).toBeInTheDocument()
     })
 
     it('shows confirm dialog when deactivate is clicked', async () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Deactivate' }))
+      await user.click(screen.getByRole('button', { name: 'Stop & Cancel Grid' }))
 
-      expect(screen.getByText('Deactivate Strategy')).toBeInTheDocument()
-      expect(screen.getByText(/cancel all pending orders/)).toBeInTheDocument()
+      // Dialog title and button both have "Stop & Cancel Grid" text
+      expect(screen.getAllByText('Stop & Cancel Grid').length).toBeGreaterThanOrEqual(2)
+      expect(screen.getByText(/cancel all pending grid orders/)).toBeInTheDocument()
     })
 
     it('calls pauseBot when confirmed', async () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Pause Strategy' }))
-      // Find the confirm button in the dialog
-      const confirmButton = screen.getByRole('button', { name: 'Pause' })
-      await user.click(confirmButton)
+      await user.click(screen.getByRole('button', { name: 'Pause New Orders' }))
+      // Find the confirm button in the dialog (second Pause New Orders button)
+      const confirmButtons = screen.getAllByRole('button', { name: 'Pause New Orders' })
+      await user.click(confirmButtons[1])
 
       expect(mockPauseBot.mutate).toHaveBeenCalled()
     })
@@ -258,9 +259,9 @@ describe('DashboardPage', () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Deactivate' }))
-      // Find the confirm button in the dialog (second Deactivate button)
-      const confirmButtons = screen.getAllByRole('button', { name: 'Deactivate' })
+      await user.click(screen.getByRole('button', { name: 'Stop & Cancel Grid' }))
+      // Find the confirm button in the dialog (second Stop & Cancel Grid button)
+      const confirmButtons = screen.getAllByRole('button', { name: 'Stop & Cancel Grid' })
       await user.click(confirmButtons[1])
 
       expect(mockStopBot.mutate).toHaveBeenCalled()
@@ -270,11 +271,11 @@ describe('DashboardPage', () => {
       const user = userEvent.setup()
       render(<DashboardPage />)
 
-      await user.click(screen.getByRole('button', { name: 'Pause Strategy' }))
+      await user.click(screen.getByRole('button', { name: 'Pause New Orders' }))
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
       // Dialog message should be gone (button remains)
-      expect(screen.queryByText(/stop placing new orders/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/stop placing new grid orders/)).not.toBeInTheDocument()
     })
   })
 

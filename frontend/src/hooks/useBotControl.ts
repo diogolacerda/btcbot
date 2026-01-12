@@ -56,14 +56,14 @@ export function useBotControl(options?: UseBotControlOptions) {
   const stopBot = useMutation({
     mutationFn: botControlService.stopBot,
     onSuccess: () => {
-      toast.success('Bot Stopped', {
-        description: 'All pending orders cancelled. Open positions remain active.',
+      toast.success('Strategy Stopped', {
+        description: 'Grid orders cancelled. Open positions and TP orders remain active.',
       })
       invalidateBotStatus()
       options?.onSuccess?.('stop')
     },
     onError: (error: Error) => {
-      toast.error('Failed to Stop Bot', {
+      toast.error('Failed to Stop Strategy', {
         description: error.message || 'An unexpected error occurred.',
       })
       options?.onError?.('stop', error)
@@ -73,14 +73,14 @@ export function useBotControl(options?: UseBotControlOptions) {
   const pauseBot = useMutation({
     mutationFn: botControlService.pauseBot,
     onSuccess: () => {
-      toast.success('Bot Paused', {
-        description: 'No new orders will be placed. Existing positions preserved.',
+      toast.success('New Orders Paused', {
+        description: 'Strategy will not place new orders. Existing orders preserved.',
       })
       invalidateBotStatus()
       options?.onSuccess?.('pause')
     },
     onError: (error: Error) => {
-      toast.error('Failed to Pause Bot', {
+      toast.error('Failed to Pause', {
         description: error.message || 'An unexpected error occurred.',
       })
       options?.onError?.('pause', error)
