@@ -1769,6 +1769,10 @@ class GridManager:
                                 leverage=self.leverage,
                             )
 
+                        # Fetch and update TP order ID (same as WebSocket flow)
+                        if filled_order:
+                            await self._fetch_and_update_tp_order_id(filled_order)
+
                         expected_position += order.quantity  # Update expected for next iteration
                         if self._on_order_filled:
                             self._on_order_filled(order)
