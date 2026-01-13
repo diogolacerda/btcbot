@@ -6,10 +6,10 @@
  */
 
 import { useEffect, useRef } from 'react'
-import type { OrderSchema } from '@/types/api'
+import type { Position } from '@/types'
 
 interface PositionDetailsModalProps {
-  position: OrderSchema | null
+  position: Position | null
   currentPrice: number | undefined
   isOpen: boolean
   onClose: () => void
@@ -31,8 +31,8 @@ function formatDate(dateStr: string | null): string {
   })
 }
 
-function calculatePnL(position: OrderSchema, currentPrice: number): { pnl: number; percent: number } {
-  const entryValue = position.price * position.quantity
+function calculatePnL(position: Position, currentPrice: number): { pnl: number; percent: number } {
+  const entryValue = position.entryPrice * position.quantity
   const currentValue = currentPrice * position.quantity
 
   const pnl = position.side === 'LONG'
@@ -42,13 +42,6 @@ function calculatePnL(position: OrderSchema, currentPrice: number): { pnl: numbe
   const percent = (pnl / entryValue) * 100
 
   return { pnl, percent }
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pending',
-  FILLED: 'Filled (Awaiting TP)',
-  TP_HIT: 'Take Profit Hit',
-  CANCELLED: 'Cancelled',
 }
 
 export function PositionDetailsModal({
@@ -84,7 +77,6 @@ export function PositionDetailsModal({
     ? calculatePnL(position, currentPrice)
     : { pnl: 0, percent: 0 }
   const isProfitable = pnl >= 0
-  const isFilled = position.status === 'FILLED'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -107,7 +99,7 @@ export function PositionDetailsModal({
               Position Details
             </h2>
             <p className="text-sm text-muted-foreground">
-              Order ID: <span className="font-mono">{position.orderId.slice(0, 12)}...</span>
+              {position.symbol} - Grid Level {position.gridLevel ?? 'N/A'}
             </p>
           </div>
           <button
@@ -120,7 +112,7 @@ export function PositionDetailsModal({
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Side & Status */}
+          {/* Side & Quantity */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className={`text-xl font-bold ${position.side === 'LONG' ? 'text-green-500' : 'text-red-500'}`}>
@@ -130,18 +122,16 @@ export function PositionDetailsModal({
                 {position.quantity.toFixed(4)} BTC
               </span>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              position.status === 'FILLED' ? 'bg-blue-500/10 text-blue-500' :
-              position.status === 'TP_HIT' ? 'bg-green-500/10 text-green-500' :
-              position.status === 'PENDING' ? 'bg-yellow-500/10 text-yellow-500' :
-              'bg-gray-500/10 text-gray-500'
-            }`}>
-              {STATUS_LABELS[position.status]}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Leverage:</span>
+              <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-500/10 text-blue-500">
+                {position.leverage}x
+              </span>
+            </div>
           </div>
 
-          {/* P&L (for filled positions) */}
-          {isFilled && currentPrice && (
+          {/* P&L */}
+          {currentPrice && (
             <div className="bg-muted/50 rounded-lg p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Unrealized P&L</p>
               <div className="flex items-baseline gap-2">
@@ -161,11 +151,11 @@ export function PositionDetailsModal({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Entry Price</p>
-                <p className="font-mono text-foreground">{formatPrice(position.price)}</p>
+                <p className="font-mono text-foreground">{formatPrice(position.entryPrice)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">TP Price</p>
-                <p className="font-mono text-foreground">{formatPrice(position.tpPrice)}</p>
+                <p className="font-mono text-foreground">{position.tpPrice ? formatPrice(position.tpPrice) : '--'}</p>
               </div>
               {currentPrice && (
                 <>
@@ -173,12 +163,14 @@ export function PositionDetailsModal({
                     <p className="text-xs text-muted-foreground">Current Price</p>
                     <p className="font-mono text-foreground">{formatPrice(currentPrice)}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Distance to TP</p>
-                    <p className="font-mono text-foreground">
-                      {(((position.tpPrice - currentPrice) / currentPrice) * 100).toFixed(2)}%
-                    </p>
-                  </div>
+                  {position.tpPrice && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">Distance to TP</p>
+                      <p className="font-mono text-foreground">
+                        {(((position.tpPrice - currentPrice) / currentPrice) * 100).toFixed(2)}%
+                      </p>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -190,7 +182,7 @@ export function PositionDetailsModal({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Entry Value</p>
-                <p className="font-mono text-foreground">{formatPrice(position.price * position.quantity)}</p>
+                <p className="font-mono text-foreground">{formatPrice(position.entryPrice * position.quantity)}</p>
               </div>
               {currentPrice && (
                 <div>
@@ -198,16 +190,20 @@ export function PositionDetailsModal({
                   <p className="font-mono text-foreground">{formatPrice(currentPrice * position.quantity)}</p>
                 </div>
               )}
-              <div>
-                <p className="text-xs text-muted-foreground">TP Value</p>
-                <p className="font-mono text-foreground">{formatPrice(position.tpPrice * position.quantity)}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Expected Profit</p>
-                <p className="font-mono text-green-500">
-                  +${((position.tpPrice - position.price) * position.quantity).toFixed(2)}
-                </p>
-              </div>
+              {position.tpPrice && (
+                <>
+                  <div>
+                    <p className="text-xs text-muted-foreground">TP Value</p>
+                    <p className="font-mono text-foreground">{formatPrice(position.tpPrice * position.quantity)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Expected Profit</p>
+                    <p className="font-mono text-green-500">
+                      +${((position.tpPrice - position.entryPrice) * position.quantity).toFixed(2)}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -216,33 +212,11 @@ export function PositionDetailsModal({
             <h4 className="text-sm font-medium text-foreground">Timeline</h4>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Created</span>
-                <span className="text-foreground">{formatDate(position.createdAt)}</span>
+                <span className="text-muted-foreground">Opened At</span>
+                <span className="text-foreground">{formatDate(position.openedAt)}</span>
               </div>
-              {position.filledAt && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Filled</span>
-                  <span className="text-foreground">{formatDate(position.filledAt)}</span>
-                </div>
-              )}
-              {position.closedAt && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Closed</span>
-                  <span className="text-foreground">{formatDate(position.closedAt)}</span>
-                </div>
-              )}
             </div>
           </div>
-
-          {/* Exchange IDs */}
-          {position.exchangeTpOrderId && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-foreground">Exchange Reference</h4>
-              <div className="text-xs font-mono bg-muted/50 rounded p-2 break-all text-muted-foreground">
-                TP Order: {position.exchangeTpOrderId}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer */}

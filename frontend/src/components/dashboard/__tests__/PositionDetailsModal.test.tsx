@@ -41,11 +41,11 @@ describe('PositionDetailsModal', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
 
-    it('renders title and order ID', () => {
+    it('renders title and symbol', () => {
       render(<PositionDetailsModal {...defaultProps} />)
 
       expect(screen.getByText('Position Details')).toBeInTheDocument()
-      expect(screen.getByText(/Order ID:/)).toBeInTheDocument()
+      expect(screen.getByText(/BTC-USDT/)).toBeInTheDocument()
     })
   })
 
@@ -63,22 +63,16 @@ describe('PositionDetailsModal', () => {
       expect(screen.getByText('0.0010 BTC')).toBeInTheDocument()
     })
 
-    it('renders status badge for FILLED', () => {
+    it('renders leverage', () => {
       render(<PositionDetailsModal {...defaultProps} />)
 
-      expect(screen.getByText('Filled (Awaiting TP)')).toBeInTheDocument()
-    })
-
-    it('renders different status badges', () => {
-      const pendingPosition = { ...mockPositions[0], status: 'PENDING' as const }
-      render(<PositionDetailsModal {...defaultProps} position={pendingPosition} />)
-
-      expect(screen.getByText('Pending')).toBeInTheDocument()
+      expect(screen.getByText('Leverage:')).toBeInTheDocument()
+      expect(screen.getByText('10x')).toBeInTheDocument()
     })
   })
 
   describe('P&L display', () => {
-    it('shows unrealized P&L for filled positions', () => {
+    it('shows unrealized P&L', () => {
       render(<PositionDetailsModal {...defaultProps} />)
 
       expect(screen.getByText('Unrealized P&L')).toBeInTheDocument()
@@ -109,13 +103,6 @@ describe('PositionDetailsModal', () => {
       // Find the one with red class
       const redPnl = pnlElements.find(el => el.classList.contains('text-red-500'))
       expect(redPnl).toBeTruthy()
-    })
-
-    it('does not show P&L for pending positions', () => {
-      const pendingPosition = { ...mockPositions[0], status: 'PENDING' as const }
-      render(<PositionDetailsModal {...defaultProps} position={pendingPosition} />)
-
-      expect(screen.queryByText('Unrealized P&L')).not.toBeInTheDocument()
     })
   })
 
@@ -170,52 +157,10 @@ describe('PositionDetailsModal', () => {
   })
 
   describe('timeline', () => {
-    it('renders created timestamp', () => {
+    it('renders opened timestamp', () => {
       render(<PositionDetailsModal {...defaultProps} />)
 
-      expect(screen.getByText('Created')).toBeInTheDocument()
-    })
-
-    it('renders filled timestamp when available', () => {
-      render(<PositionDetailsModal {...defaultProps} />)
-
-      expect(screen.getByText('Filled')).toBeInTheDocument()
-    })
-
-    it('does not render closed timestamp when not available', () => {
-      render(<PositionDetailsModal {...defaultProps} />)
-
-      expect(screen.queryByText('Closed')).not.toBeInTheDocument()
-    })
-
-    it('renders closed timestamp when available', () => {
-      const closedPosition = {
-        ...mockPositions[0],
-        status: 'TP_HIT' as const,
-        closedAt: '2025-01-06T12:00:00Z',
-      }
-      render(<PositionDetailsModal {...defaultProps} position={closedPosition} />)
-
-      expect(screen.getByText('Closed')).toBeInTheDocument()
-    })
-  })
-
-  describe('exchange reference', () => {
-    it('renders exchange TP order ID when available', () => {
-      render(<PositionDetailsModal {...defaultProps} />)
-
-      expect(screen.getByText('Exchange Reference')).toBeInTheDocument()
-      expect(screen.getByText(/tp-123/)).toBeInTheDocument()
-    })
-
-    it('does not render exchange reference when not available', () => {
-      const positionWithoutExchange = {
-        ...mockPositions[0],
-        exchangeTpOrderId: null,
-      }
-      render(<PositionDetailsModal {...defaultProps} position={positionWithoutExchange} />)
-
-      expect(screen.queryByText('Exchange Reference')).not.toBeInTheDocument()
+      expect(screen.getByText('Opened At')).toBeInTheDocument()
     })
   })
 

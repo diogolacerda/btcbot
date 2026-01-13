@@ -15,7 +15,7 @@ import {
   mockMacdData,
   mockGridRange,
   mockPerformanceMetrics,
-  mockOrders,
+  mockPositions,
   mockActivityEvents,
 } from '@/test/mocks'
 
@@ -49,12 +49,8 @@ vi.mock('@/hooks/useDashboardData', () => ({
   }),
   usePositions: () => ({
     data: {
-      orders: mockOrders.filter(o => o.status === 'FILLED'),
-      total: 1,
-      limit: 20,
-      offset: 0,
-      pendingCount: 0,
-      filledCount: 1,
+      positions: mockPositions,
+      total: mockPositions.length,
     },
     isLoading: false,
     isError: false,
@@ -297,12 +293,13 @@ describe('DashboardPage', () => {
       render(<DashboardPage />)
 
       // Find and click on a position row in the table
-      const longElements = screen.getAllByText('LONG')
-      const positionRow = longElements[0].closest('div[class*="hover:bg-muted"]')
+      const longElements = await screen.findAllByText('LONG')
+      const positionRow = longElements[0].closest('div')
 
       if (positionRow) {
         await user.click(positionRow)
-        expect(screen.getByText('Position Details')).toBeInTheDocument()
+        // Wait for modal to appear
+        expect(await screen.findByText('Position Details')).toBeInTheDocument()
       }
     })
   })
