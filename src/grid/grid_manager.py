@@ -1736,8 +1736,31 @@ class GridManager:
             # If no position on exchange but we have filled orders in tracker, they were closed
             if current_position_amt == 0 and self.tracker.filled_orders:
                 for order in list(self.tracker.filled_orders):
-                    # Position was closed (TP hit or manual close)
-                    exit_price = self._current_price
+                    # Determine exit price: check if TP order was executed
+                    # If TP order doesn't exist in open_orders, it was executed -> use tp_price
+                    # If TP order still exists, it was manual close -> use current price
+                    tp_order_executed = True
+                    if order.exchange_tp_order_id:
+                        # Check if TP order still exists in open orders
+                        tp_order_exists = any(
+                            str(o.get("orderId")) == order.exchange_tp_order_id
+                            for o in exchange_orders
+                        )
+                        tp_order_executed = not tp_order_exists
+
+                    # Use TP price if TP was executed, otherwise use current price
+                    if tp_order_executed:
+                        exit_price = order.tp_price
+                        orders_logger.info(
+                            f"TP executado detectado: {order.order_id} @ ${exit_price:,.2f}"
+                        )
+                    else:
+                        exit_price = self._current_price
+                        orders_logger.warning(
+                            f"Fechamento manual detectado: {order.order_id} @ ${exit_price:,.2f} "
+                            f"(TP era ${order.tp_price:,.2f})"
+                        )
+
                     pnl = (exit_price - order.entry_price) * order.quantity
                     await self.tracker.order_tp_hit(order.order_id, exit_price)
 
@@ -1785,7 +1808,30 @@ class GridManager:
                     for order in list(self.tracker.filled_orders):
                         if excess <= 0:
                             break
-                        exit_price = self._current_price
+
+                        # Determine exit price: check if TP order was executed
+                        tp_order_executed = True
+                        if order.exchange_tp_order_id:
+                            # Check if TP order still exists in open orders
+                            tp_order_exists = any(
+                                str(o.get("orderId")) == order.exchange_tp_order_id
+                                for o in exchange_orders
+                            )
+                            tp_order_executed = not tp_order_exists
+
+                        # Use TP price if TP was executed, otherwise use current price
+                        if tp_order_executed:
+                            exit_price = order.tp_price
+                            orders_logger.info(
+                                f"TP executado detectado (parcial): {order.order_id} @ ${exit_price:,.2f}"
+                            )
+                        else:
+                            exit_price = self._current_price
+                            orders_logger.warning(
+                                f"Fechamento manual detectado (parcial): {order.order_id} @ ${exit_price:,.2f} "
+                                f"(TP era ${order.tp_price:,.2f})"
+                            )
+
                         pnl = (exit_price - order.entry_price) * order.quantity
                         await self.tracker.order_tp_hit(order.order_id, exit_price)
 
