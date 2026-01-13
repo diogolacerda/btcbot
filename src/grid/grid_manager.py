@@ -995,9 +995,10 @@ class GridManager:
                 quantity = float(open_order.get("origQty", 0))
 
                 # Match by TP price and quantity
+                # Note: BingX may round quantities, so use 0.0001 tolerance (not 0.00001)
                 if (
                     abs(tp_price - filled_order.tp_price) < 0.01
-                    and abs(quantity - filled_order.quantity) < 0.00001
+                    and abs(quantity - filled_order.quantity) < 0.0001
                 ):
                     tp_order_id = str(open_order.get("orderId", ""))
                     filled_order.exchange_tp_order_id = tp_order_id
