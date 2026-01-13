@@ -2,7 +2,7 @@
  * Positions Table Component
  *
  * Displays open positions from database awaiting take-profit.
- * Shows entry price, current price, unrealized P&L, and TP target.
+ * Shows entry price, opened date/duration, unrealized P&L, and TP target.
  */
 
 import type { Position } from '@/types'
@@ -27,6 +27,35 @@ function formatPnL(pnl: number): string {
 function formatPercent(percent: number): string {
   const sign = percent >= 0 ? '+' : ''
   return `${sign}${percent.toFixed(2)}%`
+}
+
+function formatOpenedAt(openedAt: string): string {
+  const date = new Date(openedAt)
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function calculateDuration(openedAt: string): string {
+  const now = new Date()
+  const opened = new Date(openedAt)
+  const diffMs = now.getTime() - opened.getTime()
+  const diffMinutes = Math.floor(diffMs / (1000 * 60))
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays > 0) {
+    const remainingHours = diffHours % 24
+    return `${diffDays}d ${remainingHours}h`
+  } else if (diffHours > 0) {
+    const remainingMinutes = diffMinutes % 60
+    return `${diffHours}h ${remainingMinutes}m`
+  } else {
+    return `${diffMinutes}m`
+  }
 }
 
 function calculateUnrealizedPnL(position: Position, currentPrice: number): { pnl: number; percent: number } {
@@ -147,8 +176,9 @@ export function PositionsTable({
                     <p className="font-mono text-foreground">{formatPrice(position.entryPrice)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Current</p>
-                    <p className="font-mono text-foreground">{currentPrice ? formatPrice(currentPrice) : '--'}</p>
+                    <p className="text-xs text-muted-foreground">Opened</p>
+                    <p className="text-xs text-foreground">{formatOpenedAt(position.openedAt)}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{calculateDuration(position.openedAt)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">TP Target</p>
