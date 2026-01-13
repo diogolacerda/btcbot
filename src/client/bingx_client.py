@@ -584,19 +584,25 @@ class BingXClient:
             )
 
             # BingX API can return either:
-            # 1. A dict with orderId field: {"orderId": "123", ...}
-            # 2. A nested dict: {"order": {"orderId": "123", ...}}
+            # 1. A dict with orderId field: {"orderId": "123" | 123, ...}
+            # 2. A nested dict: {"order": {"orderId": "123" | 123, ...}}
             # 3. A dict with int value: {"order": 123}
             # 4. Just the order ID as an integer: 123
+            # NOTE: orderId can be string OR int in any of these cases
             new_order_id: str | None = None
             if isinstance(new_tp_order, dict):
-                new_order_id = new_tp_order.get("orderId")
-                if not new_order_id:
+                # Try direct orderId field
+                order_id_value = new_tp_order.get("orderId")
+                if order_id_value:
+                    new_order_id = str(order_id_value)
+                else:
                     # Try nested "order" field
                     order_field = new_tp_order.get("order")
                     if isinstance(order_field, dict):
-                        # Nested dict case: {"order": {"orderId": "123"}}
-                        new_order_id = order_field.get("orderId")
+                        # Nested dict case: {"order": {"orderId": "123" | 123}}
+                        nested_id = order_field.get("orderId")
+                        if nested_id:
+                            new_order_id = str(nested_id)
                     elif order_field:
                         # Int value case: {"order": 123}
                         new_order_id = str(order_field)
