@@ -1000,6 +1000,15 @@ class GridManager:
                     orders_logger.info(
                         f"Captured TP order ID {tp_order_id[:8]} for filled order {filled_order.order_id[:8]}"
                     )
+
+                    # Update database with TP order ID (BUG #1 FIX)
+                    if filled_order.trade_id:
+                        await self._update_trade_tp_order_id(filled_order.trade_id, tp_order_id)
+                    else:
+                        orders_logger.warning(
+                            f"Cannot update TP order ID in database: trade_id is None for {filled_order.order_id[:8]}"
+                        )
+
                     return
 
             orders_logger.warning(
@@ -1009,6 +1018,45 @@ class GridManager:
             orders_logger.warning(
                 f"Failed to fetch TP order ID for {filled_order.order_id[:8]}: {e}"
             )
+
+    async def _update_trade_tp_order_id(self, trade_id: UUID, tp_order_id: str) -> None:
+        """Update trade's TP order ID in database.
+
+        This is called after capturing the TP order ID from the exchange
+        to ensure the database stays synchronized with in-memory state.
+
+        Args:
+            trade_id: Trade UUID
+            tp_order_id: Exchange TP order ID
+        """
+
+        from sqlalchemy import select
+
+        from src.database.engine import get_session
+        from src.database.models.trade import Trade
+        from src.database.repositories.trade_repository import TradeRepository
+
+        try:
+            async for session in get_session():
+                repo = TradeRepository(session)
+
+                # Get current trade to preserve tp_price
+                stmt = select(Trade).where(Trade.id == trade_id)
+                result = await session.execute(stmt)
+                trade = result.scalar_one_or_none()
+
+                if trade and trade.tp_price:
+                    await repo.update_tp(
+                        trade_id=trade_id,
+                        new_tp_price=trade.tp_price,  # Keep same TP price
+                        new_tp_order_id=tp_order_id,
+                    )
+                    orders_logger.debug(
+                        f"Updated TP order ID in database for trade {str(trade_id)[:8]}"
+                    )
+                break
+        except Exception as e:
+            orders_logger.warning(f"Failed to update TP order ID in database: {e}")
 
     def _on_ws_position_update(self, pos_data: dict) -> None:
         """Handle position update from WebSocket."""
@@ -2065,8 +2113,7 @@ class GridManager:
                 if any(stats.values()):
                     main_logger.info(
                         f"Reconciliation: {stats['tp_ids_fixed']} TP IDs fixed, "
-                        f"{stats['trades_closed']} trades closed, "
-                        f"{stats['trades_created']} trades created"
+                        f"{stats['trades_closed']} trades closed"
                     )
 
             except Exception as e:

@@ -7,7 +7,9 @@ This module provides periodic reconciliation to detect and fix drift between:
 Reconciliation fixes:
 1. Missing TP order IDs in database (BUG #1)
 2. Trades not closed when TP executed (BUG #2)
-3. Orphaned TPs on BingX without database records
+
+Note: Orphaned TPs on BingX without database records are logged as warnings
+but not automatically corrected to avoid creating artificial trade data.
 """
 
 from datetime import UTC, datetime
@@ -43,12 +45,10 @@ class TradeReconciliation:
             dict: Reconciliation statistics
                 - tp_ids_fixed: Number of NULL TP order IDs fixed
                 - trades_closed: Number of orphaned trades closed
-                - trades_created: Number of trades created for orphaned TPs
         """
         stats = {
             "tp_ids_fixed": 0,
             "trades_closed": 0,
-            "trades_created": 0,
         }
 
         try:
@@ -73,18 +73,12 @@ class TradeReconciliation:
                     repo, db_trades, tp_orders
                 )
 
-                # Fix 3: Create trades for orphaned TPs
-                stats["trades_created"] = await self._create_orphaned_trades(
-                    repo, db_trades, tp_orders
-                )
-
                 break
 
             if any(stats.values()):
                 logger.info(
                     f"Reconciliation completed: {stats['tp_ids_fixed']} TP IDs fixed, "
-                    f"{stats['trades_closed']} trades closed, "
-                    f"{stats['trades_created']} trades created"
+                    f"{stats['trades_closed']} trades closed"
                 )
 
         except Exception as e:
@@ -171,60 +165,6 @@ class TradeReconciliation:
                 )
 
         return closed_count
-
-    async def _create_orphaned_trades(
-        self, repo: TradeRepository, db_trades: list, tp_orders: dict
-    ) -> int:
-        """Create database trades for orphaned TPs on BingX.
-
-        Args:
-            repo: Trade repository
-            db_trades: List of open trades from database
-            tp_orders: Dict of TP orders from BingX {order_id: order_data}
-
-        Returns:
-            int: Number of trades created
-        """
-        created_count = 0
-
-        # Get set of TP order IDs that already have trades
-        db_tp_ids = {t.exchange_tp_order_id for t in db_trades if t.exchange_tp_order_id}
-
-        for tp_id, tp_order in tp_orders.items():
-            if tp_id in db_tp_ids:
-                continue  # Already has a trade
-
-            # Calculate entry price (reverse from TP price assuming 0.3% TP)
-            tp_price = Decimal(str(tp_order.get("stopPrice")))
-            entry_price = tp_price / Decimal("1.003")
-            quantity = Decimal(str(tp_order.get("origQty", 0)))
-
-            trade_data = {
-                "account_id": self.account_id,
-                "exchange_order_id": None,  # Don't know original order ID
-                "exchange_tp_order_id": tp_id,
-                "symbol": self.symbol,
-                "side": "LONG",
-                "leverage": 10,
-                "entry_price": entry_price,
-                "quantity": quantity,
-                "tp_price": tp_price,
-                "tp_percent": Decimal("0.3"),
-                "trading_fee": Decimal("0"),
-                "funding_fee": Decimal("0"),
-                "status": "OPEN",
-                "opened_at": datetime.now(UTC),
-                "filled_at": datetime.now(UTC),
-            }
-
-            trade_id = await repo.save_trade(trade_data)
-            created_count += 1
-            logger.warning(
-                f"Created trade for orphaned TP {str(trade_id)[:8]}: "
-                f"Entry ~${float(entry_price):,.2f} → TP ${float(tp_price):,.2f}"
-            )
-
-        return created_count
 
     def _find_matching_tp(
         self, trade: Any, tp_orders: list[dict[str, Any]]
