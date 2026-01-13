@@ -1,0 +1,140 @@
+{
+  "_meta": {
+    "models": {
+      "strategy": "Trading strategy configuration defining how the bot trades, including risk parameters (position size, max positions, grid spacing), filters (MACD), and execution state (running/paused/stopped).",
+      "currentMarket": "Real-time market data including BTC price and funding rate, used for calculations and grid preview.",
+      "riskSummary": "Calculated risk metrics based on current strategy settings, showing total capital at risk, liquidation risk level, and maximum loss per trade.",
+      "gridPreview": "Preview of grid order levels that would be placed based on current BTC price and grid settings, helping visualize the trading range."
+    },
+    "relationships": [
+      "Strategy belongs to Account (1-to-1 relationship in MVP)",
+      "Current Market data is used to calculate Grid Preview levels",
+      "Risk Summary is calculated from Strategy risk parameters and Current Market price",
+      "Grid Preview shows where orders would be placed based on Strategy grid settings"
+    ]
+  },
+  "strategy": {
+    "id": "strat-001",
+    "name": "MACD Strategy",
+    "status": "active",
+    "statusContext": "Trading enabled, MACD bullish",
+    "cycle": {
+      "startedAt": "2025-01-03T08:15:30Z",
+      "pnlSinceStart": 125.50,
+      "tradesSinceStart": 8,
+      "winRateSinceStart": 87.5
+    },
+    "lastUpdated": "2025-01-15T10:23:45Z",
+    "riskParameters": {
+      "positionSize": 100,
+      "maxTotalOrders": 10,
+      "leverage": 10,
+      "marginMode": "crossed"
+    },
+    "gridSettings": {
+      "spacingType": "fixed",
+      "spacingValue": 100,
+      "gridRange": 5.0,
+      "takeProfit": 1.0,
+      "gridAnchor": "none"
+    },
+    "macdFilter": {
+      "enabled": true,
+      "fastPeriod": 12,
+      "slowPeriod": 26,
+      "signalPeriod": 9,
+      "timeframe": "1h"
+    },
+    "advancedSettings": {
+      "dynamicTP": {
+        "enabled": false,
+        "baseTP": 0.5,
+        "minTP": 0.3,
+        "maxTP": 1.5,
+        "safetyMargin": 0.05,
+        "checkInterval": 60
+      },
+      "autoReactivationMode": "immediate"
+    }
+  },
+  "currentMarket": {
+    "btcPrice": 95000.00,
+    "fundingRate": 0.0001,
+    "lastUpdate": "2025-01-03T14:30:00Z"
+  },
+  "riskSummary": {
+    "totalCapital": 1000,
+    "capitalPerPosition": 100,
+    "liquidationRisk": "low",
+    "maxLossPerTrade": 10,
+    "maxLossPerTradePercent": 1.0
+  },
+  "gridPreview": [
+    {
+      "level": 1,
+      "price": 99750.00,
+      "type": "sell",
+      "distanceFromCurrent": 5.0
+    },
+    {
+      "level": 2,
+      "price": 99650.00,
+      "type": "sell",
+      "distanceFromCurrent": 4.89
+    },
+    {
+      "level": 3,
+      "price": 99550.00,
+      "type": "sell",
+      "distanceFromCurrent": 4.79
+    },
+    {
+      "level": 4,
+      "price": 99450.00,
+      "type": "sell",
+      "distanceFromCurrent": 4.68
+    },
+    {
+      "level": 5,
+      "price": 99350.00,
+      "type": "sell",
+      "distanceFromCurrent": 4.58
+    },
+    {
+      "level": 6,
+      "price": 95000.00,
+      "type": "current",
+      "distanceFromCurrent": 0.0
+    },
+    {
+      "level": 7,
+      "price": 94900.00,
+      "type": "buy",
+      "distanceFromCurrent": -0.11
+    },
+    {
+      "level": 8,
+      "price": 94800.00,
+      "type": "buy",
+      "distanceFromCurrent": -0.21
+    },
+    {
+      "level": 9,
+      "price": 94700.00,
+      "type": "buy",
+      "distanceFromCurrent": -0.32
+    },
+    {
+      "level": 10,
+      "price": 94600.00,
+      "type": "buy",
+      "distanceFromCurrent": -0.42
+    },
+    {
+      "level": 11,
+      "price": 94500.00,
+      "type": "buy",
+      "distanceFromCurrent": -0.53
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "_meta": {
+    "models": {
+      "accounts": "Each account represents a BingX exchange connection (demo or live) with API credentials that the bot can trade with.",
+      "systemConfig": "Bot state configuration settings that control how the bot operates (currently set via environment variables).",
+      "systemInfo": "Read-only information about the Btcbot system including software versions and uptime metrics."
+    },
+    "relationships": [
+      "One Account is marked as active - this is the account the bot is currently trading with",
+      "System Config applies globally to all bot operations regardless of which account is active",
+      "System Info is read-only and reflects the current state of the running bot instance"
+    ]
+  },
+  "accounts": [
+    {
+      "id": "acc-001",
+      "exchange": "BingX",
+      "mode": "demo",
+      "apiKey": "bx_demo_••••••••••••7k9f",
+      "apiSecretMasked": "••••••••••••••••",
+      "connectionStatus": "connected",
+      "isActive": true,
+      "createdAt": "2024-12-15T10:30:00Z",
+      "lastTestedAt": "2025-01-03T08:15:00Z"
+    },
+    {
+      "id": "acc-002",
+      "exchange": "BingX",
+      "mode": "live",
+      "apiKey": "bx_live_••••••••••••3m2p",
+      "apiSecretMasked": "••••••••••••••••",
+      "connectionStatus": "disconnected",
+      "isActive": false,
+      "createdAt": "2024-11-20T14:45:00Z",
+      "lastTestedAt": "2024-12-28T16:20:00Z"
+    }
+  ],
+  "systemConfig": {
+    "restoreMaxAge": 24,
+    "loadHistoryOnStart": true,
+    "historyLimit": 100
+  },
+  "systemInfo": {
+    "versions": {
+      "btcbot": "1.2.3",
+      "backend": "Python 3.11.5",
+      "database": "PostgreSQL 15.4"
+    },
+    "uptime": {
+      "runningTime": "5 days, 14 hours",
+      "lastRestartAt": "2024-12-29T02:30:00Z"
+    }
+  }
+}

@@ -27,6 +27,7 @@ from src.filters.registry import FilterRegistry
 from src.grid.dynamic_tp_manager import DynamicTPManager
 from src.grid.grid_calculator import GridCalculator, GridLevel
 from src.grid.order_tracker import OrderTracker, TrackedOrder
+from src.grid.reconciliation import TradeReconciliation
 from src.strategy.macd_strategy import GridState, MACDStrategy
 from src.utils.logger import main_logger, orders_logger
 
@@ -154,6 +155,9 @@ class GridManager:
 
         # Dynamic TP Manager
         self.dynamic_tp: DynamicTPManager | None = None
+
+        # Trade Reconciliation (sync database with BingX)
+        self._reconciliation_task: asyncio.Task | None = None
 
         # Cached DB strategy (database config has priority over env vars)
         self._db_strategy: Any = None
@@ -768,6 +772,11 @@ class GridManager:
         if self._get_dynamic_tp_config().enabled is True:
             await self.dynamic_tp.start()
             orders_logger.info("DynamicTPManager started")
+
+        # Start trade reconciliation (periodic sync with BingX)
+        if self._account_id is not None:
+            self._reconciliation_task = asyncio.create_task(self._reconciliation_loop())
+            main_logger.info("Trade Reconciliation started (runs every 5 minutes)")
 
         # Start WebSocket for real-time order updates
         await self._start_websocket()
@@ -2025,3 +2034,43 @@ class GridManager:
                 histogram=self._last_histogram,
                 signal_line=None,
             )
+
+    async def _reconciliation_loop(self) -> None:
+        """Periodic reconciliation loop to sync database with BingX state.
+
+        Runs every 5 minutes to detect and fix:
+        - Missing TP order IDs in database (BUG #1)
+        - Trades not closed when TP executed (BUG #2)
+        - Orphaned TPs on BingX without database records
+
+        This provides a safety net for WebSocket event loss and persistence failures.
+        """
+        # Wait 30 seconds before first reconciliation to let bot stabilize
+        await asyncio.sleep(30)
+
+        while self._running:
+            try:
+                if not self._account_id:
+                    break
+
+                reconciliation = TradeReconciliation(
+                    client=self.client,
+                    account_id=self._account_id,
+                    symbol=self.symbol,
+                )
+
+                stats = await reconciliation.reconcile()
+
+                # Log if any fixes were made
+                if any(stats.values()):
+                    main_logger.info(
+                        f"Reconciliation: {stats['tp_ids_fixed']} TP IDs fixed, "
+                        f"{stats['trades_closed']} trades closed, "
+                        f"{stats['trades_created']} trades created"
+                    )
+
+            except Exception as e:
+                main_logger.error(f"Reconciliation failed: {e}")
+
+            # Wait 5 minutes before next reconciliation
+            await asyncio.sleep(5 * 60)
