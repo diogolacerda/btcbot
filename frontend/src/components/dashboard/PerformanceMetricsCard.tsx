@@ -127,7 +127,9 @@ export function PerformanceMetricsCard({ data, isLoading, isError }: Performance
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Worst Trade</span>
-          <span className="font-mono text-red-500">{formatCurrency(totalMetrics.worstTrade)}</span>
+          <span className={`font-mono ${totalMetrics.worstTrade < 0 ? 'text-red-500' : 'text-green-500'}`}>
+            {formatCurrency(totalMetrics.worstTrade)}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Total Fees</span>

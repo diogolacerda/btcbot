@@ -95,14 +95,31 @@ export function PerformanceCards({ performanceMetrics }: PerformanceCardsProps) 
       </div>
 
       {/* Worst Trade */}
-      <div className="bg-red-50 dark:bg-red-950/50 rounded-lg border border-red-200 dark:border-red-800 p-4">
-        <p className="text-xs text-red-700 dark:text-red-400 uppercase tracking-wide mb-1">
+      <div className={`rounded-lg border p-4 ${
+        performanceMetrics.worstTrade.pnl < 0
+          ? 'bg-red-50 dark:bg-red-950/50 border-red-200 dark:border-red-800'
+          : 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800'
+      }`}>
+        <p className={`text-xs uppercase tracking-wide mb-1 ${
+          performanceMetrics.worstTrade.pnl < 0
+            ? 'text-red-700 dark:text-red-400'
+            : 'text-emerald-700 dark:text-emerald-400'
+        }`}>
           Worst Trade
         </p>
-        <p className="text-2xl font-bold font-mono text-red-600 dark:text-red-400">
+        <p className={`text-2xl font-bold font-mono ${
+          performanceMetrics.worstTrade.pnl < 0
+            ? 'text-red-600 dark:text-red-400'
+            : 'text-emerald-600 dark:text-emerald-400'
+        }`}>
+          {performanceMetrics.worstTrade.pnl > 0 ? '+' : ''}
           {formatCurrency(performanceMetrics.worstTrade.pnl)}
         </p>
-        <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+        <p className={`text-sm mt-1 ${
+          performanceMetrics.worstTrade.pnl < 0
+            ? 'text-red-700 dark:text-red-300'
+            : 'text-emerald-700 dark:text-emerald-300'
+        }`}>
           {formatDate(performanceMetrics.worstTrade.date)}
         </p>
       </div>
