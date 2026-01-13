@@ -9,7 +9,6 @@
 import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
-import type { TimePeriod } from '@/types/api'
 import type { Position } from '@/types'
 
 // Data hooks
@@ -27,7 +26,6 @@ import { useStrategies, useMACDFilterConfig } from '@/hooks/useStrategies'
 
 // Dashboard components
 import {
-  PeriodSelector,
   StrategyStatusCard,
   MarketOverviewCard,
   PerformanceMetricsCard,
@@ -42,10 +40,6 @@ type BotAction = 'start' | 'stop' | 'pause' | 'resume' | null
 export function DashboardPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
-
-  // Period selection state
-  const [period, setPeriod] = useState<TimePeriod>('today')
-  const [customDates, setCustomDates] = useState<{ start?: string; end?: string }>({})
 
   // Modal states
   const [confirmAction, setConfirmAction] = useState<BotAction>(null)
@@ -62,18 +56,9 @@ export function DashboardPage() {
     activeStrategy?.id ?? '',
     { enabled: !!activeStrategy?.id }
   )
-  const performanceMetrics = usePerformanceMetrics({
-    period,
-    startDate: customDates.start,
-    endDate: customDates.end,
-  })
+  const performanceMetrics = usePerformanceMetrics()
   const positions = usePositions({ limit: 20 })
-  const activityEvents = useActivityEvents({
-    period,
-    startDate: customDates.start,
-    endDate: customDates.end,
-    limit: 50,
-  })
+  const activityEvents = useActivityEvents({ limit: 50 })
 
   // WebSocket for real-time updates
   const { connectionState } = useDashboardWebSocket({
@@ -91,7 +76,7 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: dashboardKeys.price() })
     },
     onActivityEvent: () => {
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.activity(period) })
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.activity('today', 50) })
     },
   })
 
@@ -105,15 +90,6 @@ export function DashboardPage() {
   } = useBotControl()
 
   // Handlers
-  const handlePeriodChange = useCallback((newPeriod: TimePeriod, startDate?: string, endDate?: string) => {
-    setPeriod(newPeriod)
-    if (newPeriod === 'custom' && startDate && endDate) {
-      setCustomDates({ start: startDate, end: endDate })
-    } else {
-      setCustomDates({})
-    }
-  }, [])
-
   const handleBotAction = useCallback((action: BotAction) => {
     setConfirmAction(action)
   }, [])
@@ -199,17 +175,14 @@ export function DashboardPage() {
                 Welcome back, {user?.name || user?.email}
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              {/* WebSocket Status */}
-              <div className="flex items-center gap-2 text-sm">
-                <div className={`w-2 h-2 rounded-full ${
-                  connectionState === 'connected' ? 'bg-green-500' :
-                  connectionState === 'connecting' || connectionState === 'reconnecting' ? 'bg-yellow-500 animate-pulse' :
-                  'bg-red-500'
-                }`} />
-                <span className="text-muted-foreground capitalize">{connectionState}</span>
-              </div>
-              <PeriodSelector value={period} onChange={handlePeriodChange} />
+            {/* WebSocket Status */}
+            <div className="flex items-center gap-2 text-sm">
+              <div className={`w-2 h-2 rounded-full ${
+                connectionState === 'connected' ? 'bg-green-500' :
+                connectionState === 'connecting' || connectionState === 'reconnecting' ? 'bg-yellow-500 animate-pulse' :
+                'bg-red-500'
+              }`} />
+              <span className="text-muted-foreground capitalize">{connectionState}</span>
             </div>
           </div>
         </div>

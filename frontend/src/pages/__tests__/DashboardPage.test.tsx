@@ -70,7 +70,7 @@ vi.mock('@/hooks/useDashboardData', () => ({
     positions: () => ['dashboard', 'positions'],
     orders: () => ['dashboard', 'orders'],
     price: () => ['dashboard', 'price'],
-    activity: (period: string) => ['dashboard', 'activity', period],
+    activity: () => ['dashboard', 'activity'],
   },
 }))
 
@@ -172,13 +172,6 @@ describe('DashboardPage', () => {
 
       expect(screen.getByText('connected')).toBeInTheDocument()
     })
-
-    it('renders period selector', () => {
-      render(<DashboardPage />)
-
-      expect(screen.getByRole('button', { name: 'Today' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: '7 Days' })).toBeInTheDocument()
-    })
   })
 
   describe('dashboard sections', () => {
@@ -272,18 +265,6 @@ describe('DashboardPage', () => {
 
       // Dialog message should be gone (button remains)
       expect(screen.queryByText(/stop placing new grid orders/)).not.toBeInTheDocument()
-    })
-  })
-
-  describe('period selection', () => {
-    it('changes period when button is clicked', async () => {
-      const user = userEvent.setup()
-      render(<DashboardPage />)
-
-      await user.click(screen.getByRole('button', { name: '7 Days' }))
-
-      // The button should now be highlighted
-      expect(screen.getByRole('button', { name: '7 Days' })).toHaveClass('bg-primary')
     })
   })
 

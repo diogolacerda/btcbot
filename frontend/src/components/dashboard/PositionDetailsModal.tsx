@@ -22,6 +22,7 @@ function formatPrice(price: number): string {
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return '--'
   return new Date(dateStr).toLocaleString('en-US', {
+    timeZone: 'America/Sao_Paulo',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
