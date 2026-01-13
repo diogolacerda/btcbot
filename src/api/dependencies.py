@@ -12,7 +12,7 @@ This module provides dependency injection functions for:
 """
 
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -22,7 +22,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.api.schemas.auth import TokenData
 from src.database import get_session
@@ -132,7 +132,7 @@ def get_global_account_id() -> UUID | None:
     return _GLOBAL_ACCOUNT_ID
 
 
-async def get_account_id() -> UUID:
+def get_account_id() -> UUID:
     """Get current account ID for API endpoints.
 
     In single-account mode, returns the global account ID set at startup.
@@ -208,28 +208,28 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return encoded_jwt
 
 
-async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+def get_db_session() -> Generator[Session, None]:
     """Get async database session for dependency injection.
 
     Yields:
-        AsyncSession: Database session
+        Session: Database session
     """
-    async for session in get_session():
+    with get_session() as session:
         yield session
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+def get_db() -> Generator[Session, None]:
     """Get database session (alias for get_db_session for auth routes).
 
     Yields:
-        AsyncSession instance.
+        Session instance.
     """
-    async for session in get_session():
+    with get_session() as session:
         yield session
 
 
-async def get_trade_repository(
-    session: AsyncSession = Depends(get_db_session),
+def get_trade_repository(
+    session: Session = Depends(get_db_session),
 ) -> TradeRepository:
     """Get TradeRepository instance for dependency injection.
 
@@ -242,8 +242,8 @@ async def get_trade_repository(
     return TradeRepository(session)
 
 
-async def get_activity_event_repository(
-    session: AsyncSession = Depends(get_db_session),
+def get_activity_event_repository(
+    session: Session = Depends(get_db_session),
 ) -> ActivityEventRepository:
     """Get ActivityEventRepository instance for dependency injection.
 
@@ -256,8 +256,8 @@ async def get_activity_event_repository(
     return ActivityEventRepository(session)
 
 
-async def get_tp_adjustment_repository(
-    session: AsyncSession = Depends(get_db_session),
+def get_tp_adjustment_repository(
+    session: Session = Depends(get_db_session),
 ) -> TPAdjustmentRepository:
     """Get TPAdjustmentRepository instance for dependency injection.
 
@@ -270,9 +270,9 @@ async def get_tp_adjustment_repository(
     return TPAdjustmentRepository(session)
 
 
-async def get_current_user(
+def get_current_user(
     token: str = Depends(oauth2_scheme),
-    session: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_db),
 ) -> User:
     """Get current authenticated user from JWT token.
 
@@ -302,7 +302,7 @@ async def get_current_user(
         raise credentials_exception from None
 
     # Get user from database
-    result = await session.execute(select(User).where(User.email == token_data.email))
+    result = session.execute(select(User).where(User.email == token_data.email))
     user: User | None = result.scalar_one_or_none()
 
     if user is None:
@@ -311,7 +311,7 @@ async def get_current_user(
     return user
 
 
-async def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     """Get current active user.
 
     Args:
@@ -385,7 +385,7 @@ def get_grid_manager() -> "GridManager":
 _bingx_client: "BingXClient | None" = None
 
 
-async def get_bingx_client() -> "BingXClient":
+def get_bingx_client() -> "BingXClient":
     """Get BingXClient instance for API endpoints.
 
     Returns a singleton instance that is created on first call.

@@ -174,7 +174,9 @@ class TestAuthService:
             email="tokentest@example.com",
             password="password123",  # pragma: allowlist secret
         )
-        _, token = auth_service.login("tokentest@example.com", "password123")  # pragma: allowlist secret
+        _, token = auth_service.login(
+            "tokentest@example.com", "password123"
+        )  # pragma: allowlist secret
 
         # Act
         user = auth_service.verify_token(token)

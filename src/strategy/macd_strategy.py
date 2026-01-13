@@ -112,7 +112,7 @@ class MACDStrategy:
         self._macd_filter_config_repository = macd_filter_config_repository
         self._db_config_loaded = False
 
-    async def load_config_from_db(self) -> bool:
+    def load_config_from_db(self) -> bool:
         """Load MACD filter configuration from database.
 
         Fetches the active strategy for the account and its associated
@@ -138,7 +138,7 @@ class MACDStrategy:
 
         try:
             # Get active strategy for account
-            strategy = await self._strategy_repository.get_active_by_account(self._account_id)
+            strategy = self._strategy_repository.get_active_by_account(self._account_id)
             if not strategy:
                 macd_logger.info(
                     f"No active strategy for account {self._account_id}, using default MACD config"
@@ -147,7 +147,7 @@ class MACDStrategy:
                 return False
 
             # Get MACD filter config for strategy
-            macd_config = await self._macd_filter_config_repository.get_by_strategy(strategy.id)
+            macd_config = self._macd_filter_config_repository.get_by_strategy(strategy.id)
             if not macd_config:
                 macd_logger.info(
                     f"No MACDFilterConfig for strategy {strategy.id}, using default MACD config"
@@ -195,10 +195,10 @@ class MACDStrategy:
         if not self._bot_state_repository or not self._account_id:
             return
 
-        async def _do_persist():
+        def _do_persist():
             try:
                 activated_at = datetime.now(UTC) if cycle_activated else None
-                await self._bot_state_repository.save_state(
+                self._bot_state_repository.save_state(
                     account_id=self._account_id,
                     cycle_activated=cycle_activated,
                     last_state=last_state,
