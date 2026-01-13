@@ -307,7 +307,7 @@ class EMAFilter(Filter):
             True if config loaded successfully, False otherwise.
         """
         try:
-            config = await repository.get_by_strategy(strategy_id)
+            config = repository.get_by_strategy(strategy_id)
             if not config:
                 main_logger.debug(f"No EMA filter config found for strategy {strategy_id}")
                 return False

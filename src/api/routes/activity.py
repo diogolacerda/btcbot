@@ -133,7 +133,7 @@ async def get_activity_events(
         if event_type:
             # Filter by event type (uses get_events_by_type which doesn't support period)
             # We need to use get_events_by_period and filter locally
-            all_events = await repository.get_events_by_period(
+            all_events = repository.get_events_by_period(
                 account_id=account_id,
                 start=start,
                 end=end,
@@ -144,7 +144,7 @@ async def get_activity_events(
             events = filtered_events[offset : offset + limit]
         else:
             # Get all events in period
-            events = await repository.get_events_by_period(
+            events = repository.get_events_by_period(
                 account_id=account_id,
                 start=start,
                 end=end,
@@ -153,7 +153,7 @@ async def get_activity_events(
             # For total count, we need a separate query
             # The repository doesn't have count_by_period, so we estimate
             # In production, you might want to add a proper count method
-            all_in_period = await repository.get_events_by_period(
+            all_in_period = repository.get_events_by_period(
                 account_id=account_id,
                 start=start,
                 end=end,

@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.bot_state import BotState
 from src.database.repositories.base_repository import BaseRepository
@@ -21,7 +21,7 @@ class BotStateRepository(BaseRepository[BotState]):
     Provides methods to save and retrieve bot cycle state for accounts.
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
@@ -29,7 +29,7 @@ class BotStateRepository(BaseRepository[BotState]):
         """
         super().__init__(session, BotState)
 
-    async def get_by_account(self, account_id: UUID) -> BotState | None:
+    def get_by_account(self, account_id: UUID) -> BotState | None:
         """Get bot state for an account.
 
         Args:
@@ -40,14 +40,14 @@ class BotStateRepository(BaseRepository[BotState]):
         """
         try:
             stmt = select(BotState).where(BotState.account_id == account_id)
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             bot_state = result.scalar_one_or_none()
             return bot_state if isinstance(bot_state, BotState) else None
         except Exception as e:
             main_logger.error(f"Error fetching bot state for account {account_id}: {e}")
             raise
 
-    async def save_state(
+    def save_state(
         self,
         account_id: UUID,
         cycle_activated: bool,
@@ -72,7 +72,7 @@ class BotStateRepository(BaseRepository[BotState]):
         """
         try:
             # Try to get existing state
-            bot_state = await self.get_by_account(account_id)
+            bot_state = self.get_by_account(account_id)
 
             if bot_state:
                 # Update existing state
@@ -90,7 +90,7 @@ class BotStateRepository(BaseRepository[BotState]):
                     bot_state.activated_at = None
 
                 # Use inherited update method
-                return await super().update(bot_state)
+                return super().update(bot_state)
             else:
                 # Create new state
                 bot_state = BotState(
@@ -102,13 +102,13 @@ class BotStateRepository(BaseRepository[BotState]):
                     last_state_change_at=datetime.now(UTC),
                 )
                 # Use inherited create method
-                return await super().create(bot_state)
+                return super().create(bot_state)
 
         except Exception as e:
             main_logger.error(f"Error saving bot state for account {account_id}: {e}")
             raise
 
-    async def is_state_valid(
+    def is_state_valid(
         self,
         bot_state: BotState,
         max_age_hours: int = 24,
@@ -162,7 +162,7 @@ class BotStateRepository(BaseRepository[BotState]):
         main_logger.info(f"Restoring AUTOMATIC state (age: {age.total_seconds() / 3600:.1f}h)")
         return True
 
-    async def clear_state(self, account_id: UUID) -> None:
+    def clear_state(self, account_id: UUID) -> None:
         """Clear bot state for an account (delete from database).
 
         Uses BaseRepository.delete() internally.
@@ -171,10 +171,10 @@ class BotStateRepository(BaseRepository[BotState]):
             account_id: Account UUID
         """
         try:
-            bot_state = await self.get_by_account(account_id)
+            bot_state = self.get_by_account(account_id)
             if bot_state:
                 # Use inherited delete method
-                await super().delete(bot_state.id)
+                super().delete(bot_state.id)
                 main_logger.info(f"Cleared bot state for account {account_id}")
         except Exception as e:
             main_logger.error(f"Error clearing bot state for account {account_id}: {e}")

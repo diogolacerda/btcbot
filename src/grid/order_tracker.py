@@ -96,7 +96,7 @@ class OrderTracker:
         self._spacing = spacing  # Grid spacing for slot calculation
         self._position_side: str | None = None  # Cached position side from exchange
 
-    async def get_position_side(self) -> str:
+    def get_position_side(self) -> str:
         """
         Get the position side for creating/modifying orders.
 
@@ -112,7 +112,7 @@ class OrderTracker:
         # Get position mode from BingX client
         if self._bingx_client:
             try:
-                self._position_side = await self._bingx_client.get_position_mode(self._symbol)
+                self._position_side = self._bingx_client.get_position_mode(self._symbol)
                 orders_logger.info(f"Detected position mode: {self._position_side}")
             except Exception as e:
                 orders_logger.warning(f"Failed to detect position mode, defaulting to BOTH: {e}")
@@ -336,7 +336,7 @@ class OrderTracker:
             return self._orders.get(order_id)
         return None
 
-    async def order_filled(self, order_id: str) -> TrackedOrder | None:
+    def order_filled(self, order_id: str) -> TrackedOrder | None:
         """Mark order as filled and create OPEN trade in database.
 
         This method persists the trade synchronously with a fresh database session
@@ -352,10 +352,10 @@ class OrderTracker:
 
             # Persist OPEN trade to database synchronously
             if self._account_id:
-                await self._persist_open_trade(order)
+                self._persist_open_trade(order)
         return order
 
-    async def order_tp_hit(self, order_id: str, exit_price: float) -> TradeRecord | None:
+    def order_tp_hit(self, order_id: str, exit_price: float) -> TradeRecord | None:
         """Mark order as take profit hit and record trade.
 
         This method persists the trade synchronously with a fresh database session
@@ -388,7 +388,7 @@ class OrderTracker:
 
         # Persist trade to database synchronously
         if self._account_id:
-            await self._persist_trade_closed(order, exit_price, pnl, trade.pnl_percent)
+            self._persist_trade_closed(order, exit_price, pnl, trade.pnl_percent)
 
         # Remove from tracking
         del self._orders[order_id]
@@ -397,7 +397,7 @@ class OrderTracker:
 
         return trade
 
-    async def _persist_open_trade(self, order: TrackedOrder) -> None:
+    def _persist_open_trade(self, order: TrackedOrder) -> None:
         """Persist OPEN trade to database with a fresh session.
 
         Creates a new database session for each operation to avoid stale session issues.
@@ -437,20 +437,19 @@ class OrderTracker:
             }
 
             # Create fresh session and repository for this operation
-            async for session in get_session():
+            with get_session() as session:
                 trade_repo = TradeRepository(session)
-                trade_id = await trade_repo.save_trade(trade_data)
+                trade_id = trade_repo.save_trade(trade_data)
                 order.trade_id = trade_id  # Store ID in TrackedOrder for later update
 
                 trades_logger.info(
                     f"OPEN trade persisted: {order.order_id[:8]} (trade_id: {trade_id})"
                 )
-                break  # Only need one iteration
 
         except Exception as e:
             trades_logger.warning(f"Failed to persist OPEN trade: {e}")
 
-    async def _persist_trade_closed(
+    def _persist_trade_closed(
         self,
         order: TrackedOrder,
         exit_price: float,
@@ -475,7 +474,7 @@ class OrderTracker:
                 position_opened_at = int(order.filled_at.timestamp() * 1000)
                 position_closed_at = int(datetime.now().timestamp() * 1000)
 
-                funding_cost = await self._bingx_client.calculate_position_funding_cost(
+                funding_cost = self._bingx_client.calculate_position_funding_cost(
                     symbol=self._symbol,
                     position_opened_at=position_opened_at,
                     position_closed_at=position_closed_at,
@@ -489,12 +488,12 @@ class OrderTracker:
 
         try:
             # Create fresh session and repository for this operation
-            async for session in get_session():
+            with get_session() as session:
                 trade_repo = TradeRepository(session)
 
                 if order.trade_id:
                     # Update existing OPEN trade to CLOSED with funding fee
-                    await trade_repo.update_trade_exit(
+                    trade_repo.update_trade_exit(
                         trade_id=order.trade_id,
                         exit_price=Decimal(str(exit_price)),
                         pnl=Decimal(str(pnl)),
@@ -538,12 +537,11 @@ class OrderTracker:
                         "closed_at": datetime.now(UTC),
                     }
 
-                    await trade_repo.save_trade(trade_data)
+                    trade_repo.save_trade(trade_data)
                     trades_logger.info(
                         f"Trade persisted (CLOSED, no prior OPEN): {order.order_id[:8]}"
                         + (f" | Funding: ${funding_fee:.4f}" if funding_fee != 0 else "")
                     )
-                break  # Only need one iteration
 
         except Exception as e:
             trades_logger.error(f"Failed to persist CLOSED trade: {e}")
@@ -584,7 +582,7 @@ class OrderTracker:
             "recent_trades": self._trades[-10:] if self._trades else [],
         }
 
-    async def load_existing_positions(
+    def load_existing_positions(
         self,
         positions: list[dict],
         open_orders: list[dict],
@@ -623,7 +621,7 @@ class OrderTracker:
         tp_multiplier = 1 + (tp_percent / 100)
 
         # Pre-fetch existing trades from database for accurate filled_at times
-        trade_opened_at_map = await self._get_trades_opened_at_map()
+        trade_opened_at_map = self._get_trades_opened_at_map()
 
         loaded = 0
         for open_order in open_orders:
@@ -711,7 +709,7 @@ class OrderTracker:
 
         return loaded
 
-    async def _get_trades_opened_at_map(self) -> dict[str, datetime]:
+    def _get_trades_opened_at_map(self) -> dict[str, datetime]:
         """
         Get a map of exchange_tp_order_id -> opened_at from database.
 
@@ -733,8 +731,8 @@ class OrderTracker:
         result_map: dict[str, datetime] = {}
 
         try:
-            async for session in get_session():
-                result = await session.execute(
+            with get_session() as session:
+                result = session.execute(
                     select(Trade.exchange_tp_order_id, Trade.opened_at, Trade.filled_at).where(
                         Trade.account_id == self._account_id,
                         Trade.status == "OPEN",
@@ -752,8 +750,6 @@ class OrderTracker:
                             timestamp = timestamp.replace(tzinfo=None)
                         result_map[tp_order_id] = timestamp
 
-                break  # Only need one iteration
-
         except Exception as e:
             orders_logger.warning(f"Failed to fetch trades opened_at map: {e}")
 
@@ -764,7 +760,7 @@ class OrderTracker:
 
         return result_map
 
-    async def link_existing_trades(self) -> int:
+    def link_existing_trades(self) -> int:
         """
         Link existing positions in memory to trades in database.
 
@@ -805,8 +801,8 @@ class OrderTracker:
                 continue
 
             try:
-                async for session in get_session():
-                    result = await session.execute(
+                with get_session() as session:
+                    result = session.execute(
                         select(Trade).where(
                             Trade.exchange_tp_order_id == order.exchange_tp_order_id,
                             Trade.account_id == self._account_id,
@@ -833,7 +829,7 @@ class OrderTracker:
 
         return linked_count
 
-    async def persist_loaded_positions(self) -> int:
+    def persist_loaded_positions(self) -> int:
         """
         Persist loaded positions to database if they don't exist.
 
@@ -863,7 +859,7 @@ class OrderTracker:
                 continue
 
             try:
-                await self._persist_open_trade(order)
+                self._persist_open_trade(order)
                 created_count += 1
             except Exception as e:
                 orders_logger.warning(

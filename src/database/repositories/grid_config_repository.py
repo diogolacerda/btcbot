@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.grid_config import GridConfig
 from src.database.repositories.base_repository import BaseRepository
@@ -37,7 +37,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
     Provides methods to save and retrieve grid configuration for accounts.
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
@@ -52,7 +52,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
         super().__init__(session, GridConfig)
 
     @deprecated("Use StrategyRepository.get_active_by_account instead", version="2.0")
-    async def get_by_account(self, account_id: UUID) -> GridConfig | None:
+    def get_by_account(self, account_id: UUID) -> GridConfig | None:
         """Get grid config for an account.
 
         DEPRECATED: Use StrategyRepository.get_active_by_account instead.
@@ -65,7 +65,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
         """
         try:
             stmt = select(GridConfig).where(GridConfig.account_id == account_id)
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             grid_config = result.scalar_one_or_none()
             return grid_config if isinstance(grid_config, GridConfig) else None
         except Exception as e:
@@ -73,7 +73,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             raise
 
     @deprecated("Use StrategyRepository.get_or_create instead", version="2.0")
-    async def get_or_create(self, account_id: UUID) -> GridConfig:
+    def get_or_create(self, account_id: UUID) -> GridConfig:
         """Get existing grid config or create with defaults.
 
         DEPRECATED: Use StrategyRepository.get_or_create instead.
@@ -89,7 +89,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
         """
         try:
             # Try to get existing config
-            grid_config = await self.get_by_account(account_id)
+            grid_config = self.get_by_account(account_id)
 
             if grid_config:
                 return grid_config
@@ -106,7 +106,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             )
 
             # Use inherited create method
-            return await super().create(grid_config)
+            return super().create(grid_config)
 
         except Exception as e:
             main_logger.error(
@@ -115,7 +115,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
             raise
 
     @deprecated("Use StrategyRepository.update instead", version="2.0")
-    async def save_config(
+    def save_config(
         self,
         account_id: UUID,
         *,
@@ -146,7 +146,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
         """
         try:
             # Get existing config or create with defaults
-            grid_config = await self.get_or_create(account_id)
+            grid_config = self.get_or_create(account_id)
 
             # Update fields if provided
             if spacing_type is not None:
@@ -163,7 +163,7 @@ class GridConfigRepository(BaseRepository[GridConfig]):
                 grid_config.anchor_value = anchor_value
 
             # Use inherited update method
-            return await super().update(grid_config)
+            return super().update(grid_config)
 
         except Exception as e:
             main_logger.error(f"Error saving grid config for account {account_id}: {e}")

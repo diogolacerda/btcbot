@@ -127,14 +127,14 @@ class AuthService:
             raise ValueError("Password must be at least 8 characters long")
 
         # Check if email already exists
-        existing_user = await self.user_repository.get_by_email(email)
+        existing_user = self.user_repository.get_by_email(email)
         if existing_user:
             raise ValueError(f"User with email {email} already exists")
 
         # Hash password and create user
         password_hash = self.hash_password(password)
         try:
-            user = await self.user_repository.create_user(
+            user = self.user_repository.create_user(
                 email=email,
                 password_hash=password_hash,
                 name=name,
@@ -160,7 +160,7 @@ class AuthService:
             Exception: If database operation fails.
         """
         # Get user by email
-        user = await self.user_repository.get_by_email(email)
+        user = self.user_repository.get_by_email(email)
         if not user:
             raise ValueError("Invalid email or password")
 
@@ -198,7 +198,7 @@ class AuthService:
             user_id = UUID(user_id_str)
 
             # Get user from database
-            user = await self.user_repository.get_by_id(user_id)
+            user = self.user_repository.get_by_id(user_id)
 
             # Check if user exists and is active
             if not user or not user.is_active:
@@ -240,7 +240,7 @@ class AuthService:
             raise ValueError("New password must be at least 8 characters long")
 
         # Get user
-        user = await self.user_repository.get_by_id(user_id)
+        user = self.user_repository.get_by_id(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
 
@@ -251,7 +251,7 @@ class AuthService:
         # Hash new password and update
         new_password_hash = self.hash_password(new_password)
         try:
-            await self.user_repository.update_user(
+            self.user_repository.update_user(
                 user_id,
                 password_hash=new_password_hash,
             )

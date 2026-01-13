@@ -36,7 +36,7 @@ async def login(
         HTTPException: If credentials are invalid.
     """
     # Get user from database
-    result = await session.execute(select(User).where(User.email == form_data.username))
+    result = session.execute(select(User).where(User.email == form_data.username))
     user = result.scalar_one_or_none()
 
     # Verify credentials
@@ -78,7 +78,7 @@ async def register(
         HTTPException: If email already exists.
     """
     # Check if user already exists
-    result = await session.execute(select(User).where(User.email == user_data.email))
+    result = session.execute(select(User).where(User.email == user_data.email))
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
@@ -96,8 +96,8 @@ async def register(
     )
 
     session.add(new_user)
-    await session.commit()
-    await session.refresh(new_user)
+    session.commit()
+    session.refresh(new_user)
 
     # Create access token
     access_token = create_access_token(data={"sub": new_user.email})

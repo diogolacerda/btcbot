@@ -76,7 +76,7 @@ async def get_trading_config(
     logger.debug(f"GET /api/v1/configs/trading for account {account_id}")
 
     try:
-        config = await repo.get_by_account(account_id)
+        config = repo.get_by_account(account_id)
 
         if not config:
             raise HTTPException(
@@ -176,7 +176,7 @@ async def update_trading_config(
 
         if tp_min_val is not None or tp_base_val is not None or tp_max_val is not None:
             # Get current config to fill in missing values
-            current_config = await repo.get_by_account(account_id)
+            current_config = repo.get_by_account(account_id)
             if current_config:
                 final_min: Decimal = (
                     tp_min_val if tp_min_val is not None else current_config.tp_min_percent
@@ -196,7 +196,7 @@ async def update_trading_config(
                     )
 
         # Update config
-        config = await repo.create_or_update(
+        config = repo.create_or_update(
             account_id,
             **kwargs,  # type: ignore[arg-type]
         )
@@ -256,7 +256,7 @@ async def get_grid_config(
 
     try:
         # get_or_create will create with defaults if not exists
-        config = await repo.get_or_create(account_id)
+        config = repo.get_or_create(account_id)
 
         return GridConfigResponse(
             id=str(config.id),
@@ -327,7 +327,7 @@ async def update_grid_config(
             )
 
         # Update config
-        config = await repo.save_config(
+        config = repo.save_config(
             account_id,
             **kwargs,  # type: ignore[arg-type]
         )

@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import hmac
 import json
@@ -20,7 +19,7 @@ class BingXClient:
     def __init__(self, config: BingXConfig):
         self.config = config
         self.base_url = config.base_url
-        self.client = httpx.AsyncClient(timeout=30.0)
+        self.client = httpx.Client(timeout=30.0)
 
         # Cache com TTL (time to live) em segundos
         self._cache: dict[str, tuple[float, Any]] = {}
@@ -68,7 +67,7 @@ class BingXClient:
             "X-BX-APIKEY": self.config.api_key,
         }
 
-    async def _request(
+    def _request(
         self,
         method: str,
         endpoint: str,
@@ -111,14 +110,14 @@ class BingXClient:
 
             try:
                 if method.upper() == "GET":
-                    response = await self.client.get(url, headers=headers)
+                    response = self.client.get(url, headers=headers)
                 elif method.upper() == "POST":
                     # POST with params in query string, empty body
-                    response = await self.client.post(url, headers=headers)
+                    response = self.client.post(url, headers=headers)
                 elif method.upper() == "PUT":
-                    response = await self.client.put(url, headers=headers)
+                    response = self.client.put(url, headers=headers)
                 elif method.upper() == "DELETE":
-                    response = await self.client.delete(url, headers=headers)
+                    response = self.client.delete(url, headers=headers)
                 else:
                     raise ValueError(f"Unsupported HTTP method: {method}")
 
@@ -133,7 +132,7 @@ class BingXClient:
                         error_logger.warning(
                             f"Timestamp error (attempt {attempt + 1}/{max_retries}), retrying..."
                         )
-                        await asyncio.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                        time.sleep(0.5 * (attempt + 1))  # Exponential backoff
                         continue
 
                     error_logger.error(f"API Error: {error_msg}")
@@ -151,7 +150,7 @@ class BingXClient:
                     error_logger.warning(
                         f"Timestamp error (attempt {attempt + 1}/{max_retries}), retrying..."
                     )
-                    await asyncio.sleep(0.5 * (attempt + 1))
+                    time.sleep(0.5 * (attempt + 1))
                     continue
 
                 error_logger.error(f"Request Error: {e}")
@@ -160,14 +159,14 @@ class BingXClient:
         # Should not reach here, but just in case
         raise Exception("Max retries exceeded")
 
-    async def get_price(self, symbol: str) -> float:
+    def get_price(self, symbol: str) -> float:
         """Get current price for a symbol."""
         endpoint = "/openApi/swap/v2/quote/price"
         params = {"symbol": symbol}
-        data = await self._request("GET", endpoint, params, signed=False)
+        data = self._request("GET", endpoint, params, signed=False)
         return float(data["price"])
 
-    async def get_ticker_24h(self, symbol: str) -> dict[str, Any]:
+    def get_ticker_24h(self, symbol: str) -> dict[str, Any]:
         """
         Get 24-hour ticker data for a symbol (cached for 30s).
 
@@ -190,7 +189,7 @@ class BingXClient:
 
         endpoint = "/openApi/swap/v2/quote/ticker"
         params = {"symbol": symbol}
-        data = await self._request("GET", endpoint, params, signed=False)
+        data = self._request("GET", endpoint, params, signed=False)
 
         # Use `or 0` to handle both missing keys AND explicit null values from API
         result = {
@@ -210,7 +209,7 @@ class BingXClient:
         self._set_cache(cache_key, result)
         return result
 
-    async def get_klines(
+    def get_klines(
         self,
         symbol: str,
         interval: str = "1h",
@@ -238,7 +237,7 @@ class BingXClient:
             "interval": interval,
             "limit": limit,
         }
-        data = await self._request("GET", endpoint, params, signed=False)
+        data = self._request("GET", endpoint, params, signed=False)
 
         # BingX API v2 returns list of dicts with keys: open, close, high, low, volume, time
         # Create DataFrame from list of dicts
@@ -274,19 +273,19 @@ class BingXClient:
         self._set_cache(cache_key, df)
         return df
 
-    async def get_balance(self) -> dict[str, Any]:
+    def get_balance(self) -> dict[str, Any]:
         """Get account balance (cached for 30s)."""
         cached = self._get_cached("balance")
         if cached is not None:
             return cached  # type: ignore[no-any-return]
 
         endpoint = "/openApi/swap/v2/user/balance"
-        data = await self._request("GET", endpoint)
+        data = self._request("GET", endpoint)
 
         self._set_cache("balance", data)
         return data
 
-    async def get_positions(self, symbol: str | None = None) -> list[dict[str, Any]]:
+    def get_positions(self, symbol: str | None = None) -> list[dict[str, Any]]:
         """Get open positions (cached for 15s)."""
         cache_key = f"positions:{symbol or 'all'}"
         cached = self._get_cached(cache_key)
@@ -297,13 +296,13 @@ class BingXClient:
         params: dict[str, str] = {}
         if symbol:
             params["symbol"] = symbol
-        data = await self._request("GET", endpoint, params)
+        data = self._request("GET", endpoint, params)
         result: list[dict[str, Any]] = data if isinstance(data, list) else []
 
         self._set_cache(cache_key, result)
         return result
 
-    async def get_open_orders(self, symbol: str) -> list[dict[str, Any]]:
+    def get_open_orders(self, symbol: str) -> list[dict[str, Any]]:
         """Get open orders for a symbol (cached for 15s)."""
         cache_key = f"open_orders:{symbol}"
         cached = self._get_cached(cache_key)
@@ -312,13 +311,13 @@ class BingXClient:
 
         endpoint = "/openApi/swap/v2/trade/openOrders"
         params = {"symbol": symbol}
-        data = await self._request("GET", endpoint, params)
+        data = self._request("GET", endpoint, params)
         result: list[dict[str, Any]] = data.get("orders", []) if isinstance(data, dict) else data
 
         self._set_cache(cache_key, result)
         return result
 
-    async def create_order(
+    def create_order(
         self,
         symbol: str,
         side: str,
@@ -370,7 +369,7 @@ class BingXClient:
             params["stopLoss"] = json.dumps(stop_loss, separators=(",", ":"))
 
         try:
-            data = await self._request("POST", endpoint, params)
+            data = self._request("POST", endpoint, params)
 
             # Invalidate cache after order creation
             self._invalidate_cache("open_orders", "positions", "balance")
@@ -391,7 +390,7 @@ class BingXClient:
             )
             raise
 
-    async def create_limit_order_with_tp(
+    def create_limit_order_with_tp(
         self,
         symbol: str,
         side: str,
@@ -421,7 +420,7 @@ class BingXClient:
             "workingType": "MARK_PRICE",
         }
 
-        result = await self.create_order(
+        result = self.create_order(
             symbol=symbol,
             side=side,
             position_side=position_side,
@@ -485,7 +484,7 @@ class BingXClient:
 
         return result
 
-    async def cancel_order(self, symbol: str, order_id: str) -> dict:
+    def cancel_order(self, symbol: str, order_id: str) -> dict:
         """Cancel an open order."""
         endpoint = "/openApi/swap/v2/trade/order"
         params = {
@@ -495,7 +494,7 @@ class BingXClient:
 
         try:
             orders_logger.debug(f"Attempting to cancel order: {order_id[:8]} on {symbol}")
-            data = await self._request("DELETE", endpoint, params)
+            data = self._request("DELETE", endpoint, params)
 
             # Invalidate cache after cancellation
             self._invalidate_cache("open_orders", "positions", "balance")
@@ -509,11 +508,11 @@ class BingXClient:
             )
             raise
 
-    async def cancel_all_orders(self, symbol: str) -> dict:
+    def cancel_all_orders(self, symbol: str) -> dict:
         """Cancel all open orders for a symbol."""
         endpoint = "/openApi/swap/v2/trade/allOpenOrders"
         params = {"symbol": symbol}
-        data = await self._request("DELETE", endpoint, params)
+        data = self._request("DELETE", endpoint, params)
 
         # Invalidate cache after cancellation
         self._invalidate_cache("open_orders", "positions", "balance")
@@ -521,7 +520,7 @@ class BingXClient:
         orders_logger.info(f"All orders cancelled for {symbol}")
         return data
 
-    async def modify_tp_order(
+    def modify_tp_order(
         self,
         symbol: str,
         old_tp_order_id: str,
@@ -568,13 +567,13 @@ class BingXClient:
 
         try:
             # Step 1: Cancel the old TP order
-            await self.cancel_order(symbol, old_tp_order_id)
+            self.cancel_order(symbol, old_tp_order_id)
             orders_logger.info(
                 f"Old TP order canceled: {old_tp_order_id[:8]} (${new_tp_price:,.2f})"
             )
 
             # Step 2: Create new TP order with updated price
-            new_tp_order = await self.create_order(
+            new_tp_order = self.create_order(
                 symbol=symbol,
                 side=side,
                 position_side=position_side,
@@ -633,7 +632,7 @@ class BingXClient:
             )
             raise
 
-    async def set_leverage(self, symbol: str, leverage: int, side: str = "BOTH") -> dict:
+    def set_leverage(self, symbol: str, leverage: int, side: str = "BOTH") -> dict:
         """Set leverage for a symbol."""
         endpoint = "/openApi/swap/v2/trade/leverage"
         params = {
@@ -641,9 +640,9 @@ class BingXClient:
             "leverage": leverage,
             "side": side,
         }
-        return await self._request("POST", endpoint, params)
+        return self._request("POST", endpoint, params)
 
-    async def set_margin_mode(self, symbol: str, margin_type: str) -> dict:
+    def set_margin_mode(self, symbol: str, margin_type: str) -> dict:
         """
         Set margin mode for a symbol.
 
@@ -662,9 +661,9 @@ class BingXClient:
             "symbol": symbol,
             "marginType": margin_type,
         }
-        return await self._request("POST", endpoint, params)
+        return self._request("POST", endpoint, params)
 
-    async def get_margin_mode(self, symbol: str) -> str:
+    def get_margin_mode(self, symbol: str) -> str:
         """
         Get current margin mode for a symbol.
 
@@ -675,7 +674,7 @@ class BingXClient:
             Current margin mode: CROSSED or ISOLATED
         """
         # Get position info which includes margin mode
-        positions = await self.get_positions(symbol)
+        positions = self.get_positions(symbol)
 
         # If no positions, return CROSSED as default (BingX default)
         if not positions:
@@ -685,7 +684,7 @@ class BingXClient:
         margin_type = positions[0].get("marginType", "CROSSED")
         return str(margin_type)
 
-    async def get_position_mode(self, symbol: str) -> str:
+    def get_position_mode(self, symbol: str) -> str:
         """
         Get current position mode for the account.
 
@@ -709,7 +708,7 @@ class BingXClient:
             return str(cached)
 
         # Get position info which includes position mode indicator
-        positions = await self.get_positions(symbol)
+        positions = self.get_positions(symbol)
 
         # Default to BOTH (One-way mode) if no positions exist
         if not positions:
@@ -733,7 +732,7 @@ class BingXClient:
         self._set_cache(cache_key, position_mode)
         return position_mode
 
-    async def get_funding_rate(self, symbol: str) -> dict[str, Any]:
+    def get_funding_rate(self, symbol: str) -> dict[str, Any]:
         """
         Get current funding rate for a symbol (cached for 5 min).
 
@@ -750,7 +749,7 @@ class BingXClient:
 
         endpoint = "/openApi/swap/v2/quote/premiumIndex"
         params = {"symbol": symbol}
-        data = await self._request("GET", endpoint, params, signed=False)
+        data = self._request("GET", endpoint, params, signed=False)
 
         result = {
             "symbol": symbol,
@@ -762,7 +761,7 @@ class BingXClient:
         self._set_cache(cache_key, result)
         return result
 
-    async def get_income_history(
+    def get_income_history(
         self,
         symbol: str | None = None,
         income_type: str | None = None,
@@ -810,7 +809,7 @@ class BingXClient:
         if end_time:
             params["endTime"] = end_time
 
-        data = await self._request("GET", endpoint, params)
+        data = self._request("GET", endpoint, params)
 
         # API returns list directly or wrapped in data
         if isinstance(data, list):
@@ -820,7 +819,7 @@ class BingXClient:
             return result if isinstance(result, list) else []
         return []
 
-    async def get_funding_fees(
+    def get_funding_fees(
         self,
         symbol: str,
         start_time: int | None = None,
@@ -842,7 +841,7 @@ class BingXClient:
                 - income: Funding fee amount (negative = paid, positive = received)
                 - symbol: Trading pair
         """
-        return await self.get_income_history(
+        return self.get_income_history(
             symbol=symbol,
             income_type="FUNDING_FEE",
             start_time=start_time,
@@ -850,7 +849,7 @@ class BingXClient:
             limit=1000,  # Get max records for accurate calculation
         )
 
-    async def calculate_position_funding_cost(
+    def calculate_position_funding_cost(
         self,
         symbol: str,
         position_opened_at: int,
@@ -869,7 +868,7 @@ class BingXClient:
         """
         end_time = position_closed_at or int(time.time() * 1000)
 
-        funding_records = await self.get_funding_fees(
+        funding_records = self.get_funding_fees(
             symbol=symbol,
             start_time=position_opened_at,
             end_time=end_time,
@@ -882,7 +881,7 @@ class BingXClient:
         # Return as positive for costs (fees paid)
         return -total_funding if total_funding < 0 else total_funding
 
-    async def generate_listen_key(self) -> str:
+    def generate_listen_key(self) -> str:
         """Generate a listenKey for WebSocket account updates."""
         endpoint = "/openApi/user/auth/userDataStream"
         # This endpoint returns listenKey directly, not wrapped in "data"
@@ -894,7 +893,7 @@ class BingXClient:
         headers = self._get_headers()
 
         try:
-            response = await self.client.post(url, headers=headers)
+            response = self.client.post(url, headers=headers)
             data = response.json()
 
             if response.status_code != 200:
@@ -909,7 +908,7 @@ class BingXClient:
             error_logger.error(f"Erro ao gerar listenKey: {e}")
             return ""
 
-    async def keep_alive_listen_key(self, listen_key: str) -> bool:
+    def keep_alive_listen_key(self, listen_key: str) -> bool:
         """Keep listenKey alive (call every 30 minutes)."""
         endpoint = "/openApi/user/auth/userDataStream"
         params = {"listenKey": listen_key, "timestamp": int(time.time() * 1000)}
@@ -920,10 +919,10 @@ class BingXClient:
         url = f"{self.base_url}{endpoint}?{query_string}&signature={signature}"
         headers = self._get_headers()
 
-        response = await self.client.put(url, headers=headers)
+        response = self.client.put(url, headers=headers)
         return bool(response.status_code == 200)
 
-    async def close_listen_key(self, listen_key: str) -> bool:
+    def close_listen_key(self, listen_key: str) -> bool:
         """Close/invalidate a listenKey."""
         endpoint = "/openApi/user/auth/userDataStream"
         params = {"listenKey": listen_key, "timestamp": int(time.time() * 1000)}
@@ -934,9 +933,9 @@ class BingXClient:
         url = f"{self.base_url}{endpoint}?{query_string}&signature={signature}"
         headers = self._get_headers()
 
-        response = await self.client.delete(url, headers=headers)
+        response = self.client.delete(url, headers=headers)
         return bool(response.status_code == 200)
 
-    async def close(self):
+    def close(self):
         """Close the HTTP client."""
-        await self.client.aclose()
+        self.client.aclose()

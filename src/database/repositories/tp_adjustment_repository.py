@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.tp_adjustment import TPAdjustment
 from src.database.repositories.base_repository import BaseRepository
@@ -23,7 +23,7 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
             repo = TPAdjustmentRepository(session)
 
             # Save new adjustment
-            adjustment = await repo.save_adjustment(
+            adjustment = repo.save_adjustment(
                 trade_id=trade.id,
                 old_tp_price=Decimal("50000"),
                 new_tp_price=Decimal("50500"),
@@ -35,10 +35,10 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
             )
 
             # Get adjustment history for a trade
-            adjustments = await repo.get_by_trade(trade.id)
+            adjustments = repo.get_by_trade(trade.id)
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize TPAdjustmentRepository with database session.
 
         Args:
@@ -46,7 +46,7 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
         """
         super().__init__(session, TPAdjustment)
 
-    async def save_adjustment(
+    def save_adjustment(
         self,
         trade_id: UUID,
         old_tp_price: Decimal,
@@ -80,7 +80,7 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
             Exception: If database operation fails.
 
         Example:
-            adjustment = await repo.save_adjustment(
+            adjustment = repo.save_adjustment(
                 trade_id=uuid4(),
                 old_tp_price=Decimal("50000"),
                 new_tp_price=Decimal("50500"),
@@ -99,9 +99,9 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
             funding_accumulated=funding_accumulated,
             hours_open=hours_open,
         )
-        return await super().create(adjustment)
+        return super().create(adjustment)
 
-    async def get_by_trade(self, trade_id: UUID) -> list[TPAdjustment]:
+    def get_by_trade(self, trade_id: UUID) -> list[TPAdjustment]:
         """Get all adjustments for a trade.
 
         Retrieves complete adjustment history for a specific trade, ordered
@@ -118,12 +118,12 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
             Exception: If database operation fails.
 
         Example:
-            adjustments = await repo.get_by_trade(trade_id)
+            adjustments = repo.get_by_trade(trade_id)
             for adj in adjustments:
                 print(f"Adjusted from {adj.old_tp_percent}% to {adj.new_tp_percent}%")
         """
         try:
-            result = await self.session.execute(
+            result = self.session.execute(
                 select(TPAdjustment)
                 .where(TPAdjustment.trade_id == trade_id)
                 .order_by(TPAdjustment.adjusted_at.desc())
@@ -132,7 +132,7 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
         except Exception as e:
             raise Exception(f"Error fetching adjustments for trade {trade_id}: {e}") from e
 
-    async def get_recent(
+    def get_recent(
         self,
         limit: int = 100,
         start_date: datetime | None = None,
@@ -155,12 +155,12 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
 
         Example:
             # Get last 50 adjustments
-            recent = await repo.get_recent(limit=50)
+            recent = repo.get_recent(limit=50)
 
             # Get adjustments from last 24 hours
             from datetime import datetime, timedelta, UTC
             yesterday = datetime.now(UTC) - timedelta(days=1)
-            recent = await repo.get_recent(start_date=yesterday)
+            recent = repo.get_recent(start_date=yesterday)
         """
         try:
             query = select(TPAdjustment).order_by(TPAdjustment.adjusted_at.desc())
@@ -168,7 +168,7 @@ class TPAdjustmentRepository(BaseRepository[TPAdjustment]):
             if start_date:
                 query = query.where(TPAdjustment.adjusted_at >= start_date)
 
-            result = await self.session.execute(query.limit(limit))
+            result = self.session.execute(query.limit(limit))
             return list(result.scalars().all())
         except Exception as e:
             raise Exception(f"Error fetching recent adjustments: {e}") from e

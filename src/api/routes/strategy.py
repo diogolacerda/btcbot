@@ -125,7 +125,7 @@ async def list_strategies(
     logger.debug(f"GET /api/v1/strategies for account {account_id}")
 
     try:
-        strategies = await repo.get_by_account(account_id)
+        strategies = repo.get_by_account(account_id)
         return [_strategy_to_response(s) for s in strategies]
     except Exception as e:
         logger.error(f"Error listing strategies: {e}")
@@ -157,7 +157,7 @@ async def get_active_strategy(
     logger.debug(f"GET /api/v1/strategies/active for account {account_id}")
 
     try:
-        strategy = await repo.get_active_by_account(account_id)
+        strategy = repo.get_active_by_account(account_id)
         if not strategy:
             return None
         return _strategy_to_response(strategy)
@@ -193,7 +193,7 @@ async def get_strategy(
     logger.debug(f"GET /api/v1/strategies/{strategy_id}")
 
     try:
-        strategy = await repo.get_by_id(strategy_id)
+        strategy = repo.get_by_id(strategy_id)
 
         if not strategy:
             raise HTTPException(
@@ -275,9 +275,9 @@ async def create_strategy(
 
         # If creating as active, deactivate others first
         if data.is_active:
-            await repo.deactivate_all(account_id)
+            repo.deactivate_all(account_id)
 
-        strategy = await repo.create_strategy(strategy_data)
+        strategy = repo.create_strategy(strategy_data)
         logger.info(f"Strategy created: {strategy.id} ({strategy.name})")
 
         return _strategy_to_response(strategy)
@@ -322,7 +322,7 @@ async def update_strategy(
 
     try:
         # Verify strategy exists and belongs to account
-        strategy = await repo.get_by_id(strategy_id)
+        strategy = repo.get_by_id(strategy_id)
         if not strategy:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -379,9 +379,9 @@ async def update_strategy(
 
         # Handle activation (deactivate others first)
         if updates.get("is_active") is True and not strategy.is_active:
-            await repo.deactivate_all(account_id)
+            repo.deactivate_all(account_id)
 
-        updated_strategy = await repo.update_strategy(strategy_id, updates)
+        updated_strategy = repo.update_strategy(strategy_id, updates)
         logger.info(f"Strategy updated: {strategy_id} - fields: {list(updates.keys())}")
 
         return _strategy_to_response(updated_strategy)
@@ -423,7 +423,7 @@ async def delete_strategy(
 
     try:
         # Verify strategy exists and belongs to account
-        strategy = await repo.get_by_id(strategy_id)
+        strategy = repo.get_by_id(strategy_id)
         if not strategy:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -436,7 +436,7 @@ async def delete_strategy(
                 detail="Strategy does not belong to this account",
             )
 
-        await repo.delete(strategy_id)
+        repo.delete(strategy_id)
         logger.info(f"Strategy deleted: {strategy_id}")
 
     except HTTPException:
@@ -476,7 +476,7 @@ async def activate_strategy(
 
     try:
         # Verify strategy exists and belongs to account
-        strategy = await repo.get_by_id(strategy_id)
+        strategy = repo.get_by_id(strategy_id)
         if not strategy:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -489,7 +489,7 @@ async def activate_strategy(
                 detail="Strategy does not belong to this account",
             )
 
-        activated = await repo.activate_strategy(strategy_id)
+        activated = repo.activate_strategy(strategy_id)
         logger.info(f"Strategy activated: {strategy_id} ({activated.name})")
 
         return StrategyActivateResponse(
@@ -541,7 +541,7 @@ async def get_macd_filter_config(
     logger.debug(f"GET /api/v1/strategies/{strategy_id}/macd-filter for account {account_id}")
 
     try:
-        strategy = await strategy_repo.get_by_id(strategy_id)
+        strategy = strategy_repo.get_by_id(strategy_id)
 
         if not strategy:
             raise HTTPException(
@@ -555,7 +555,7 @@ async def get_macd_filter_config(
                 detail="Strategy does not belong to this account",
             )
 
-        config = await macd_repo.get_by_strategy(strategy_id)
+        config = macd_repo.get_by_strategy(strategy_id)
 
         if not config:
             raise HTTPException(
@@ -615,7 +615,7 @@ async def update_macd_filter_config(
     logger.debug(f"PATCH /api/v1/strategies/{strategy_id}/macd-filter for account {account_id}")
 
     try:
-        strategy = await strategy_repo.get_by_id(strategy_id)
+        strategy = strategy_repo.get_by_id(strategy_id)
 
         if not strategy:
             raise HTTPException(
@@ -648,7 +648,7 @@ async def update_macd_filter_config(
                 detail="No fields provided to update",
             )
 
-        config = await macd_repo.create_or_update(
+        config = macd_repo.create_or_update(
             strategy_id,
             enabled=update_data.enabled,
             fast_period=update_data.fast_period,
@@ -712,7 +712,7 @@ async def get_ema_filter_config(
     logger.debug(f"GET /api/v1/strategies/{strategy_id}/ema-filter for account {account_id}")
 
     try:
-        strategy = await strategy_repo.get_by_id(strategy_id)
+        strategy = strategy_repo.get_by_id(strategy_id)
 
         if not strategy:
             raise HTTPException(
@@ -726,7 +726,7 @@ async def get_ema_filter_config(
                 detail="Strategy does not belong to this account",
             )
 
-        config = await ema_repo.get_by_strategy(strategy_id)
+        config = ema_repo.get_by_strategy(strategy_id)
 
         if not config:
             raise HTTPException(
@@ -787,7 +787,7 @@ async def update_ema_filter_config(
     logger.debug(f"PATCH /api/v1/strategies/{strategy_id}/ema-filter for account {account_id}")
 
     try:
-        strategy = await strategy_repo.get_by_id(strategy_id)
+        strategy = strategy_repo.get_by_id(strategy_id)
 
         if not strategy:
             raise HTTPException(
@@ -813,7 +813,7 @@ async def update_ema_filter_config(
                 detail="No fields provided to update",
             )
 
-        config = await ema_repo.create_or_update(
+        config = ema_repo.create_or_update(
             strategy_id,
             enabled=update_data.enabled,
             period=update_data.period,

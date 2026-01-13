@@ -1,71 +1,80 @@
 """Database engine and session configuration."""
 
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import Generator
+from contextlib import contextmanager
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 
 def get_database_url() -> str:
     """Get database URL from environment.
 
-    Returns the DATABASE_URL environment variable, converting postgresql://
-    to postgresql+asyncpg:// for async driver support.
+    Returns the DATABASE_URL environment variable with psycopg2 driver.
     """
     url = os.getenv("DATABASE_URL", "postgresql://btcbot:btcbot_dev@localhost:5433/btcbot_dev")
 
-    # Convert to async driver URL
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    # Ensure we're using the standard psycopg2 driver (not asyncpg)
+    if url.startswith("postgresql+asyncpg://"):
+        url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
 
     return url
 
 
 def get_engine(echo: bool = False):
-    """Create async database engine.
+    """Create database engine.
 
     Args:
         echo: If True, log all SQL statements (useful for debugging).
 
     Returns:
-        AsyncEngine instance.
+        Engine instance.
     """
-    return create_async_engine(
+    return create_engine(
         get_database_url(),
         echo=echo,
         pool_pre_ping=True,
     )
 
 
-def get_session_maker(engine=None) -> async_sessionmaker[AsyncSession]:
-    """Create async session maker.
+def get_session_maker(engine=None) -> sessionmaker[Session]:
+    """Create session maker.
 
     Args:
         engine: Optional engine instance. If not provided, creates a new one.
 
     Returns:
-        Async session maker.
+        Session maker.
     """
     if engine is None:
         engine = get_engine()
 
-    return async_sessionmaker(
+    return sessionmaker(
         engine,
-        class_=AsyncSession,
+        class_=Session,
         expire_on_commit=False,
     )
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get async database session.
+@contextmanager
+def get_session() -> Generator[Session, None, None]:
+    """Get database session context manager.
 
     Yields:
-        AsyncSession instance.
+        Session instance.
 
     Usage:
-        async for session in get_session():
+        with get_session() as session:
             # use session
     """
     session_maker = get_session_maker()
-    async with session_maker() as session:
+    session = session_maker()
+    try:
         yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
