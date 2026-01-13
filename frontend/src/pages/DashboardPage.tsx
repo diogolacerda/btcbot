@@ -254,7 +254,7 @@ export function DashboardPage() {
 
           {/* Row 3: Open Positions (full width) */}
           <PositionsTable
-            positions={positions.data?.orders}
+            positions={positions.data?.positions}
             currentPrice={currentPrice}
             isLoading={positions.isLoading}
             isError={positions.isError}

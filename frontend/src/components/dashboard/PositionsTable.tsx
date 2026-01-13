@@ -1,18 +1,18 @@
 /**
  * Positions Table Component
  *
- * Displays filled orders (open positions) awaiting take-profit.
+ * Displays open positions from database awaiting take-profit.
  * Shows entry price, current price, unrealized P&L, and TP target.
  */
 
-import type { OrderSchema } from '@/types/api'
+import type { Position } from '@/types'
 
 interface PositionsTableProps {
-  positions: OrderSchema[] | undefined
+  positions: Position[] | undefined
   currentPrice: number | undefined
   isLoading: boolean
   isError: boolean
-  onPositionClick?: (position: OrderSchema) => void
+  onPositionClick?: (position: Position) => void
 }
 
 function formatPrice(price: number): string {
@@ -29,8 +29,8 @@ function formatPercent(percent: number): string {
   return `${sign}${percent.toFixed(2)}%`
 }
 
-function calculateUnrealizedPnL(position: OrderSchema, currentPrice: number): { pnl: number; percent: number } {
-  const entryValue = position.price * position.quantity
+function calculateUnrealizedPnL(position: Position, currentPrice: number): { pnl: number; percent: number } {
+  const entryValue = position.entryPrice * position.quantity
   const currentValue = currentPrice * position.quantity
 
   // For LONG positions: profit when price goes up
@@ -44,7 +44,8 @@ function calculateUnrealizedPnL(position: OrderSchema, currentPrice: number): { 
   return { pnl, percent }
 }
 
-function calculateDistanceToTP(position: OrderSchema, currentPrice: number): number {
+function calculateDistanceToTP(position: Position, currentPrice: number): number {
+  if (!position.tpPrice) return 0
   const distancePercent = ((position.tpPrice - currentPrice) / currentPrice) * 100
   return position.side === 'LONG' ? distancePercent : -distancePercent
 }
@@ -80,25 +81,25 @@ export function PositionsTable({
     )
   }
 
-  const filledPositions = positions?.filter(p => p.status === 'FILLED') ?? []
+  const openPositions = positions ?? []
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
         <h3 className="text-lg font-semibold text-foreground">Open Positions</h3>
         <span className="text-sm text-muted-foreground">
-          {filledPositions.length} {filledPositions.length === 1 ? 'position' : 'positions'}
+          {openPositions.length} {openPositions.length === 1 ? 'position' : 'positions'}
         </span>
       </div>
 
-      {filledPositions.length === 0 ? (
+      {openPositions.length === 0 ? (
         <div className="p-8 text-center">
           <p className="text-muted-foreground">No open positions</p>
           <p className="text-sm text-muted-foreground mt-1">Positions appear when orders are filled</p>
         </div>
       ) : (
         <div className="divide-y divide-border">
-          {filledPositions.map((position) => {
+          {openPositions.map((position) => {
             const { pnl, percent } = currentPrice
               ? calculateUnrealizedPnL(position, currentPrice)
               : { pnl: 0, percent: 0 }
@@ -109,7 +110,7 @@ export function PositionsTable({
 
             return (
               <div
-                key={position.orderId}
+                key={`${position.symbol}-${position.entryPrice}-${position.quantity}-${position.openedAt}`}
                 onClick={() => onPositionClick?.(position)}
                 className={`p-4 hover:bg-muted/30 transition-colors ${onPositionClick ? 'cursor-pointer' : ''}`}
               >
@@ -135,7 +136,7 @@ export function PositionsTable({
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Entry</p>
-                    <p className="font-mono text-foreground">{formatPrice(position.price)}</p>
+                    <p className="font-mono text-foreground">{formatPrice(position.entryPrice)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Current</p>
@@ -144,16 +145,18 @@ export function PositionsTable({
                   <div>
                     <p className="text-xs text-muted-foreground">TP Target</p>
                     <p className="font-mono text-foreground">
-                      {formatPrice(position.tpPrice)}
-                      <span className="text-xs text-muted-foreground ml-1">
-                        ({formatPercent(distanceToTP)})
-                      </span>
+                      {position.tpPrice ? formatPrice(position.tpPrice) : '--'}
+                      {position.tpPrice && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({formatPercent(distanceToTP)})
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
 
                 {/* Progress to TP */}
-                {currentPrice && (
+                {currentPrice && position.tpPrice && (
                   <div className="mt-3">
                     <div className="flex justify-between text-xs text-muted-foreground mb-1">
                       <span>Entry</span>
@@ -163,7 +166,7 @@ export function PositionsTable({
                       <div
                         className={`h-full transition-all ${isProfitable ? 'bg-green-500' : 'bg-red-500'}`}
                         style={{
-                          width: `${Math.min(100, Math.max(0, (1 - distanceToTP / (position.tpPrice - position.price) * currentPrice / 100) * 100))}%`,
+                          width: `${Math.min(100, Math.max(0, ((currentPrice - position.entryPrice) / (position.tpPrice - position.entryPrice)) * 100))}%`,
                         }}
                       />
                     </div>
