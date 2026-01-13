@@ -190,6 +190,16 @@ class DynamicTPManager:
 
         hours_open = (datetime.now() - order.filled_at).total_seconds() / 3600
 
+        # CRITICAL: Only adjust TP after position has been open for at least 8 hours
+        # This ensures the position has experienced at least one funding settlement
+        # and prevents premature TP adjustments on newly opened positions
+        if hours_open < 8.0:
+            orders_logger.debug(
+                f"Position {order.order_id[:8]}: {hours_open:.1f}h open, "
+                f"skipping TP adjustment (minimum 8h required)"
+            )
+            return
+
         # Calculate accumulated funding cost
         # Funding is charged every 8 hours
         funding_settlements = hours_open / self.FUNDING_SETTLEMENT_HOURS
