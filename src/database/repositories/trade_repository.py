@@ -443,3 +443,48 @@ class TradeRepository(BaseRepository[Trade]):
         except Exception as e:
             main_logger.error(f"Error fetching trade by exchange order {exchange_order_id}: {e}")
             raise
+
+    async def update_tp(
+        self,
+        trade_id: UUID,
+        new_tp_price: Decimal,
+        new_tp_order_id: str | None,
+    ) -> None:
+        """Update take profit price and exchange TP order ID for a trade.
+
+        This is used by Dynamic TP Manager to keep the database synchronized
+        with TP modifications made on the exchange.
+
+        Args:
+            trade_id: UUID of the trade to update.
+            new_tp_price: New take profit price.
+            new_tp_order_id: New exchange TP order ID (after modification).
+
+        Raises:
+            Exception: If database operation fails.
+        """
+        try:
+            stmt = select(Trade).where(Trade.id == trade_id)
+            result = await self.session.execute(stmt)
+            trade: Trade | None = result.scalar_one_or_none()
+
+            if not trade:
+                main_logger.warning(f"Trade {trade_id} not found, cannot update TP")
+                return
+
+            # Update TP fields
+            trade.tp_price = new_tp_price
+            if new_tp_order_id:
+                trade.exchange_tp_order_id = new_tp_order_id
+
+            # Recalculate tp_percent based on new tp_price
+            if trade.entry_price and trade.entry_price > 0:
+                trade.tp_percent = ((new_tp_price - trade.entry_price) / trade.entry_price) * 100
+
+            await self.session.commit()
+            main_logger.debug(f"Trade {trade_id} TP updated to ${new_tp_price}")
+
+        except Exception as e:
+            await self.session.rollback()
+            main_logger.error(f"Error updating TP for trade {trade_id}: {e}")
+            raise

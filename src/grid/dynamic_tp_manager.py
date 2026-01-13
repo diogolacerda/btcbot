@@ -313,6 +313,15 @@ class DynamicTPManager:
                     hours_open=hours_open,
                 )
 
+            # Update the trade in database with new TP price and order ID
+            # This ensures the dashboard shows accurate TP values
+            if order.trade_id:
+                self._schedule_trade_update(
+                    trade_id=order.trade_id,
+                    new_tp_price=new_tp_price,
+                    new_tp_order_id=order.exchange_tp_order_id,
+                )
+
             # Trim history
             if len(self._update_history) > 100:
                 self._update_history.pop(0)
@@ -429,3 +438,51 @@ class DynamicTPManager:
             loop.create_task(_persist_adjustment())
         except RuntimeError:
             orders_logger.warning("No event loop, skipping TP adjustment persistence")
+
+    def _schedule_trade_update(
+        self,
+        trade_id: UUID,
+        new_tp_price: float,
+        new_tp_order_id: str | None,
+    ) -> None:
+        """Schedule trade update in database (non-blocking).
+
+        Updates the trade record with new TP price and exchange_tp_order_id.
+        This ensures the dashboard shows accurate TP values.
+
+        Args:
+            trade_id: UUID of the trade to update
+            new_tp_price: New take profit price
+            new_tp_order_id: New exchange TP order ID
+        """
+        from decimal import Decimal
+
+        from src.database.engine import get_session
+        from src.database.repositories.trade_repository import TradeRepository
+
+        async def _persist_trade_update() -> None:
+            try:
+                async for session in get_session():
+                    trade_repo = TradeRepository(session)
+
+                    # Update tp_price and exchange_tp_order_id
+                    await trade_repo.update_tp(
+                        trade_id=trade_id,
+                        new_tp_price=Decimal(str(new_tp_price)),
+                        new_tp_order_id=new_tp_order_id,
+                    )
+
+                    orders_logger.debug(
+                        f"Trade {str(trade_id)[:8]} updated with new TP: ${new_tp_price:,.2f}, "
+                        f"TP order: {new_tp_order_id[:8] if new_tp_order_id else 'None'}"
+                    )
+                    break
+            except Exception as e:
+                orders_logger.error(f"Failed to update trade {str(trade_id)[:8]} in database: {e}")
+
+        # Schedule task in background (fire and forget)
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(_persist_trade_update())
+        except RuntimeError:
+            orders_logger.warning("No event loop, skipping trade update")
