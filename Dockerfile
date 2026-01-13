@@ -33,7 +33,26 @@ RUN pip install --no-cache-dir --upgrade pip && \
     find /opt/venv -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
-# Stage 2: Runtime - Imagem final otimizada
+# Stage 2: Frontend Builder - Build React/Vite frontend
+# -----------------------------------------------------------------------------
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /build
+
+# Copiar package files do frontend
+COPY frontend/package*.json ./
+
+# Instalar dependencias do frontend
+RUN npm ci --silent
+
+# Copiar codigo fonte do frontend
+COPY frontend/ ./
+
+# Build do frontend para producao
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# Stage 3: Runtime - Imagem final otimizada
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS runtime
 
@@ -63,6 +82,9 @@ WORKDIR /app
 
 # Copiar codigo da aplicacao
 COPY --chown=btcbot:btcbot . .
+
+# Copiar frontend buildado do frontend-builder stage
+COPY --from=frontend-builder --chown=btcbot:btcbot /build/dist /app/frontend/dist
 
 # Copiar e configurar entrypoint
 COPY --chown=btcbot:btcbot entrypoint.sh /app/entrypoint.sh
