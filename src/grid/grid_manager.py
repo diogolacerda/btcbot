@@ -1413,6 +1413,30 @@ class GridManager:
         # to know which levels are occupied, even after bot restart.
         occupied_entry_prices = self._get_entry_prices_from_tp_orders(exchange_orders)
 
+        # STEP 0: Check for grid drift and cancel furthest orders if needed
+        # This allows the grid to reposition when price moves significantly
+        drift_orders = self.calculator.get_orders_to_cancel_for_drift(
+            self._current_price,
+            exchange_orders,
+            filled_orders_count,
+        )
+        for order in drift_orders:
+            try:
+                order_price = float(order.get("price", 0))
+                order_id = str(order["orderId"])
+                await self.client.cancel_order(self.symbol, order_id)
+
+                # Log drift cancellation
+                orders_logger.info(
+                    f"Ordem cancelada (grid drift): ${order_price:,.2f} - ID: {order_id}"
+                )
+            except Exception as e:
+                orders_logger.error(f"Erro ao cancelar ordem (drift): {e}")
+
+        # Refresh orders after drift cancellations
+        if drift_orders:
+            exchange_orders = await self.client.get_open_orders(self.symbol)
+
         # STEP 1: Cancel orders outside range FIRST
         # This frees up slots for new orders in the same cycle
         orders_to_cancel = self.calculator.get_orders_to_cancel(
