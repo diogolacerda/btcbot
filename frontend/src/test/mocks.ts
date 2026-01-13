@@ -14,6 +14,7 @@ import type {
   OrderSchema,
   ActivityEventSchema,
 } from '@/types/api'
+import type { Position } from '@/types'
 
 // Bot Status Mock
 export const mockBotStatus: BotStatusResponse = {
@@ -176,31 +177,31 @@ export const mockOrders: OrderSchema[] = [
   },
 ]
 
-// Positions Mock (filtered from orders - status FILLED)
-export const mockPositions: OrderSchema[] = [
+// Positions Mock (from /trading/positions endpoint)
+export const mockPositions: Position[] = [
   {
-    orderId: 'pos-1',
-    price: 97500.00,
-    tpPrice: 98000.00,
-    quantity: 0.001,
+    symbol: 'BTC-USDT',
     side: 'LONG',
-    status: 'FILLED',
-    createdAt: '2025-01-06T09:00:00Z',
-    filledAt: '2025-01-06T09:30:00Z',
-    closedAt: null,
-    exchangeTpOrderId: 'tp-123',
+    leverage: 10,
+    entryPrice: 97500.00,
+    quantity: 0.001,
+    tpPrice: 98000.00,
+    tpPercent: 0.5,
+    unrealizedPnl: 0.50,
+    openedAt: '2025-01-06T09:30:00Z',
+    gridLevel: 1,
   },
   {
-    orderId: 'pos-2',
-    price: 98200.00,
-    tpPrice: 98700.00,
-    quantity: 0.002,
+    symbol: 'BTC-USDT',
     side: 'LONG',
-    status: 'FILLED',
-    createdAt: '2025-01-06T10:00:00Z',
-    filledAt: '2025-01-06T10:15:00Z',
-    closedAt: null,
-    exchangeTpOrderId: 'tp-124',
+    leverage: 10,
+    entryPrice: 98200.00,
+    quantity: 0.002,
+    tpPrice: 98700.00,
+    tpPercent: 0.5,
+    unrealizedPnl: -0.40,
+    openedAt: '2025-01-06T10:15:00Z',
+    gridLevel: 2,
   },
 ]
 

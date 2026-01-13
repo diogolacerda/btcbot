@@ -41,16 +41,6 @@ describe('PositionsTable', () => {
       expect(screen.getByText('No open positions')).toBeInTheDocument()
       expect(screen.getByText('Positions appear when orders are filled')).toBeInTheDocument()
     })
-
-    it('filters out non-FILLED positions', () => {
-      const mixedPositions = [
-        { ...mockPositions[0], status: 'PENDING' as const },
-        { ...mockPositions[1], status: 'TP_HIT' as const },
-      ]
-      render(<PositionsTable {...defaultProps} positions={mixedPositions} />)
-
-      expect(screen.getByText('No open positions')).toBeInTheDocument()
-    })
   })
 
   describe('header', () => {

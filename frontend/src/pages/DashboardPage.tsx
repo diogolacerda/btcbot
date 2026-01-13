@@ -9,7 +9,8 @@
 import { useState, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
-import type { TimePeriod, OrderSchema } from '@/types/api'
+import type { TimePeriod } from '@/types/api'
+import type { Position } from '@/types'
 
 // Data hooks
 import {
@@ -48,7 +49,7 @@ export function DashboardPage() {
 
   // Modal states
   const [confirmAction, setConfirmAction] = useState<BotAction>(null)
-  const [selectedPosition, setSelectedPosition] = useState<OrderSchema | null>(null)
+  const [selectedPosition, setSelectedPosition] = useState<Position | null>(null)
 
   // Data queries
   const botStatus = useBotStatus()
@@ -139,7 +140,7 @@ export function DashboardPage() {
     setConfirmAction(null)
   }, [])
 
-  const handlePositionClick = useCallback((position: OrderSchema) => {
+  const handlePositionClick = useCallback((position: Position) => {
     setSelectedPosition(position)
   }, [])
 
@@ -254,7 +255,7 @@ export function DashboardPage() {
 
           {/* Row 3: Open Positions (full width) */}
           <PositionsTable
-            positions={positions.data?.orders}
+            positions={positions.data?.positions}
             currentPrice={currentPrice}
             isLoading={positions.isLoading}
             isError={positions.isError}

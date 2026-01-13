@@ -16,6 +16,7 @@ import type {
   GridRangeResponse,
   PerformanceMetricsResponse,
   OrdersListResponse,
+  PositionsListResponse,
   ActivityEventsListResponse,
   TimePeriod,
   OrderStatusEnum,
@@ -226,15 +227,22 @@ export function useOrders(options?: OrdersOptions) {
 }
 
 /**
- * Fetch only filled orders (open positions awaiting TP).
- * Convenience wrapper around useOrders.
+ * Fetch open positions from database (trades with status OPEN).
+ * Returns persisted positions from database, not in-memory OrderTracker state.
  */
 export function usePositions(options?: { limit?: number; offset?: number; enabled?: boolean }) {
-  return useOrders({
-    status: 'FILLED',
-    limit: options?.limit,
-    offset: options?.offset,
-    enabled: options?.enabled,
+  return useQuery({
+    queryKey: dashboardKeys.positions(),
+    queryFn: async () => {
+      const params: Record<string, string | number> = {}
+      if (options?.limit) params.limit = options.limit
+      if (options?.offset) params.offset = options.offset
+
+      const response = await axiosInstance.get('/trading/positions', { params })
+      return parseApiResponse<PositionsListResponse>(response.data)
+    },
+    staleTime: 10 * 1000, // 10 seconds - positions change frequently
+    enabled: options?.enabled ?? true,
   })
 }
 
