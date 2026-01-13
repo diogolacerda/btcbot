@@ -134,12 +134,29 @@ describe('PerformanceMetricsCard', () => {
       expect(screen.getByText('+$125.50')).toBeInTheDocument()
     })
 
-    it('renders worst trade', () => {
+    it('renders worst trade with red color when negative', () => {
       render(<PerformanceMetricsCard {...defaultProps} />)
 
       expect(screen.getByText('Worst Trade')).toBeInTheDocument()
       // formatCurrency uses Math.abs, negative values shown without sign
-      expect(screen.getByText('$35.25')).toBeInTheDocument()
+      const worstTradeElement = screen.getByText('$35.25')
+      expect(worstTradeElement).toBeInTheDocument()
+      expect(worstTradeElement).toHaveClass('text-red-500')
+    })
+
+    it('renders worst trade with green color when positive', () => {
+      const positiveWorstTradeData: PerformanceMetricsResponse = {
+        ...mockPerformanceMetrics,
+        totalMetrics: {
+          ...mockPerformanceMetrics.totalMetrics,
+          worstTrade: 15.50,
+        },
+      }
+      render(<PerformanceMetricsCard {...defaultProps} data={positiveWorstTradeData} />)
+
+      const worstTradeElement = screen.getByText('+$15.50')
+      expect(worstTradeElement).toBeInTheDocument()
+      expect(worstTradeElement).toHaveClass('text-green-500')
     })
 
     it('renders total fees', () => {
