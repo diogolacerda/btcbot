@@ -25,6 +25,7 @@ export function TradesTable({
 
   const formatDateTime = (isoString: string) => {
     return new Date(isoString).toLocaleString('en-US', {
+      timeZone: 'America/Sao_Paulo',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',

@@ -32,6 +32,7 @@ function formatPercent(percent: number): string {
 function formatOpenedAt(openedAt: string): string {
   const date = new Date(openedAt)
   return date.toLocaleString('en-US', {
+    timeZone: 'America/Sao_Paulo',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
