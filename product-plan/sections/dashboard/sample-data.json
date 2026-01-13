@@ -1,0 +1,203 @@
+{
+  "_meta": {
+    "models": {
+      "botStatus": "Current execution state of the trading bot, including status (ACTIVE/PAUSED/STOPPED/WAIT), cycle information, and last update timestamp.",
+      "marketData": "Real-time market conditions including BTC price, funding rate, MACD signal, and configured grid trading range.",
+      "performanceMetrics": "Aggregated trading performance statistics showing today's performance and all-time totals derived from trade history.",
+      "positions": "Currently open positions on the exchange being managed by the bot. Real-time data showing active exposure and unrealized P&L.",
+      "orders": "Active buy or sell orders currently placed on the exchange as part of the grid strategy. Real-time data synchronized from the exchange.",
+      "activityEvents": "Recent trading events and bot actions including order fills, trades closed, strategy state changes, and take-profit adjustments."
+    },
+    "relationships": [
+      "Bot Status reflects the current execution state of the active Strategy",
+      "Positions and Orders belong to the Account and are managed by the Strategy",
+      "Activity Events track all trading actions, strategy changes, and system events",
+      "Performance Metrics are aggregated from completed Trade history over the selected time period"
+    ]
+  },
+  "botStatus": {
+    "status": "ACTIVE",
+    "stateDescription": "Grid trading enabled",
+    "cycleActivatedAt": "2024-01-02T17:26:00Z",
+    "lastUpdate": "2024-01-02T19:35:43Z"
+  },
+  "marketData": {
+    "btcPrice": 95432.50,
+    "priceChange24h": 2.3,
+    "fundingRate": 0.01,
+    "fundingInterval": "8h",
+    "macdSignal": "bullish",
+    "gridRangeLow": 94000,
+    "gridRangeHigh": 97000
+  },
+  "performanceMetrics": {
+    "today": {
+      "realizedPnl": 125.50,
+      "pnlPercent": 2.3,
+      "tradesClosed": 8
+    },
+    "total": {
+      "totalPnl": 3241.80,
+      "totalTrades": 234,
+      "avgProfitPerTrade": 13.85
+    }
+  },
+  "positions": [
+    {
+      "id": "pos-001",
+      "entryPrice": 95200.00,
+      "currentPrice": 95432.50,
+      "quantity": 0.05,
+      "side": "LONG",
+      "unrealizedPnl": 11.63,
+      "pnlPercent": 0.24,
+      "takeProfitPrice": 95960.00,
+      "liquidationPrice": 85680.00,
+      "openedAt": "2024-01-02T18:45:12Z"
+    },
+    {
+      "id": "pos-002",
+      "entryPrice": 94850.00,
+      "currentPrice": 95432.50,
+      "quantity": 0.08,
+      "side": "LONG",
+      "unrealizedPnl": 46.60,
+      "pnlPercent": 0.61,
+      "takeProfitPrice": 95608.00,
+      "liquidationPrice": 85365.00,
+      "openedAt": "2024-01-02T16:22:38Z"
+    },
+    {
+      "id": "pos-003",
+      "entryPrice": 95600.00,
+      "currentPrice": 95432.50,
+      "quantity": 0.03,
+      "side": "LONG",
+      "unrealizedPnl": -5.03,
+      "pnlPercent": -0.18,
+      "takeProfitPrice": 96368.00,
+      "liquidationPrice": 86040.00,
+      "openedAt": "2024-01-02T19:18:55Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "ord-001",
+      "price": 95100.00,
+      "side": "BUY",
+      "quantity": 0.05,
+      "status": "OPEN",
+      "createdAt": "2024-01-02T19:35:40Z"
+    },
+    {
+      "id": "ord-002",
+      "price": 94800.00,
+      "side": "BUY",
+      "quantity": 0.05,
+      "status": "OPEN",
+      "createdAt": "2024-01-02T19:35:40Z"
+    },
+    {
+      "id": "ord-003",
+      "price": 94500.00,
+      "side": "BUY",
+      "quantity": 0.05,
+      "status": "OPEN",
+      "createdAt": "2024-01-02T19:35:40Z"
+    },
+    {
+      "id": "ord-004",
+      "price": 95700.00,
+      "side": "SELL",
+      "quantity": 0.05,
+      "status": "OPEN",
+      "createdAt": "2024-01-02T19:35:40Z"
+    },
+    {
+      "id": "ord-005",
+      "price": 96000.00,
+      "side": "SELL",
+      "quantity": 0.05,
+      "status": "OPEN",
+      "createdAt": "2024-01-02T19:35:40Z"
+    },
+    {
+      "id": "ord-006",
+      "price": 96300.00,
+      "side": "SELL",
+      "quantity": 0.05,
+      "status": "OPEN",
+      "createdAt": "2024-01-02T19:35:40Z"
+    },
+    {
+      "id": "ord-007",
+      "price": 96600.00,
+      "side": "SELL",
+      "quantity": 0.05,
+      "status": "OPEN",
+      "createdAt": "2024-01-02T19:35:40Z"
+    }
+  ],
+  "activityEvents": [
+    {
+      "id": "evt-001",
+      "type": "ORDER_FILLED",
+      "description": "BUY order filled at $95,200",
+      "timestamp": "2024-01-02T19:33:15Z"
+    },
+    {
+      "id": "evt-002",
+      "type": "TRADE_CLOSED",
+      "description": "Position closed +$12.50 (+1.2%)",
+      "timestamp": "2024-01-02T19:15:42Z"
+    },
+    {
+      "id": "evt-003",
+      "type": "ORDER_FILLED",
+      "description": "SELL order filled at $95,850",
+      "timestamp": "2024-01-02T19:15:38Z"
+    },
+    {
+      "id": "evt-004",
+      "type": "TP_ADJUSTED",
+      "description": "TP updated to 0.8% (funding rate: +0.01%)",
+      "timestamp": "2024-01-02T19:00:12Z"
+    },
+    {
+      "id": "evt-005",
+      "type": "TRADE_CLOSED",
+      "description": "Position closed +$18.75 (+1.8%)",
+      "timestamp": "2024-01-02T18:52:28Z"
+    },
+    {
+      "id": "evt-006",
+      "type": "ORDER_FILLED",
+      "description": "BUY order filled at $94,850",
+      "timestamp": "2024-01-02T18:22:11Z"
+    },
+    {
+      "id": "evt-007",
+      "type": "TRADE_CLOSED",
+      "description": "Position closed +$9.20 (+0.9%)",
+      "timestamp": "2024-01-02T17:48:55Z"
+    },
+    {
+      "id": "evt-008",
+      "type": "CYCLE_ACTIVATED",
+      "description": "Strategy activated by MACD bullish cross",
+      "timestamp": "2024-01-02T17:26:00Z"
+    },
+    {
+      "id": "evt-009",
+      "type": "STRATEGY_PAUSED",
+      "description": "MACD turned bearish - strategy paused",
+      "timestamp": "2024-01-02T14:15:30Z"
+    },
+    {
+      "id": "evt-010",
+      "type": "TRADE_CLOSED",
+      "description": "Position closed +$22.40 (+2.1%)",
+      "timestamp": "2024-01-02T13:42:18Z"
+    }
+  ]
+}

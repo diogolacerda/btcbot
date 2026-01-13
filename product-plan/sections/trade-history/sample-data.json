@@ -1,0 +1,187 @@
+{
+  "_meta": {
+    "models": {
+      "performanceMetrics": "Aggregated trading performance statistics including total P&L, win rate, best/worst trades, and overall ROI.",
+      "trades": "Completed trading transactions with entry price, exit price, profit/loss, and timestamp. Represents the historical record of bot performance.",
+      "cumulativePnlData": "Daily cumulative profit/loss data points used to visualize the profit trajectory over time in the P&L chart.",
+      "tpAdjustments": "Records of take-profit percentage adjustments made during a trade's lifecycle, typically triggered by funding rate changes."
+    },
+    "relationships": [
+      "Trades belong to the Account and track the complete trading history",
+      "Each Trade may have zero or more TP Adjustments showing how take-profit targets were modified",
+      "Performance Metrics are calculated aggregations derived from all Trades in the selected time period",
+      "Cumulative P&L Data represents running totals of Trade profits over time for visualization"
+    ]
+  },
+  "performanceMetrics": {
+    "totalPnl": 3241.80,
+    "roi": 15.2,
+    "totalTrades": 234,
+    "winningTrades": 205,
+    "losingTrades": 29,
+    "winRate": 87.5,
+    "avgProfit": 13.85,
+    "bestTrade": {
+      "id": "trade-042",
+      "pnl": 87.50,
+      "date": "2024-12-15T14:23:15Z"
+    },
+    "worstTrade": {
+      "id": "trade-089",
+      "pnl": -32.10,
+      "date": "2024-12-08T09:15:42Z"
+    }
+  },
+  "cumulativePnlData": [
+    { "date": "2024-12-26", "cumulativePnl": 2850.30 },
+    { "date": "2024-12-27", "cumulativePnl": 2912.15 },
+    { "date": "2024-12-28", "cumulativePnl": 2975.80 },
+    { "date": "2024-12-29", "cumulativePnl": 3045.20 },
+    { "date": "2024-12-30", "cumulativePnl": 3098.50 },
+    { "date": "2024-12-31", "cumulativePnl": 3165.90 },
+    { "date": "2025-01-01", "cumulativePnl": 3208.30 },
+    { "date": "2025-01-02", "cumulativePnl": 3241.80 }
+  ],
+  "trades": [
+    {
+      "id": "trade-234",
+      "orderId": "order-12845",
+      "tpOrderId": "tp-67923",
+      "symbol": "BTC-USDT",
+      "side": "LONG",
+      "leverage": 10,
+      "entryPrice": 95200.00,
+      "exitPrice": 96152.00,
+      "quantity": 0.001,
+      "pnl": 9.52,
+      "pnlPercent": 1.0,
+      "status": "CLOSED",
+      "openedAt": "2025-01-02T10:23:45Z",
+      "filledAt": "2025-01-02T10:24:12Z",
+      "closedAt": "2025-01-02T13:58:33Z",
+      "duration": 9228,
+      "fees": {
+        "tradingFee": 0.19,
+        "fundingFee": 0.05,
+        "netPnl": 9.28
+      },
+      "tpAdjustments": [
+        {
+          "timestamp": "2025-01-02T10:30:15Z",
+          "oldTp": 1.0,
+          "newTp": 0.8,
+          "reason": "Funding rate: -0.01%"
+        },
+        {
+          "timestamp": "2025-01-02T11:45:30Z",
+          "oldTp": 0.8,
+          "newTp": 1.0,
+          "reason": "Funding rate: +0.01%"
+        }
+      ]
+    },
+    {
+      "id": "trade-233",
+      "orderId": "order-12844",
+      "tpOrderId": "tp-67922",
+      "symbol": "BTC-USDT",
+      "side": "LONG",
+      "leverage": 10,
+      "entryPrice": 94850.00,
+      "exitPrice": 95800.00,
+      "quantity": 0.002,
+      "pnl": 19.00,
+      "pnlPercent": 1.0,
+      "status": "CLOSED",
+      "openedAt": "2025-01-02T08:15:20Z",
+      "filledAt": "2025-01-02T08:15:45Z",
+      "closedAt": "2025-01-02T10:22:18Z",
+      "duration": 7618,
+      "fees": {
+        "tradingFee": 0.38,
+        "fundingFee": 0.08,
+        "netPnl": 18.54
+      },
+      "tpAdjustments": []
+    },
+    {
+      "id": "trade-232",
+      "orderId": "order-12843",
+      "tpOrderId": "tp-67921",
+      "symbol": "BTC-USDT",
+      "side": "LONG",
+      "leverage": 10,
+      "entryPrice": 95600.00,
+      "exitPrice": 94720.00,
+      "quantity": 0.0015,
+      "pnl": -13.20,
+      "pnlPercent": -0.92,
+      "status": "CLOSED",
+      "openedAt": "2025-01-02T06:30:10Z",
+      "filledAt": "2025-01-02T06:30:35Z",
+      "closedAt": "2025-01-02T08:14:50Z",
+      "duration": 6280,
+      "fees": {
+        "tradingFee": 0.29,
+        "fundingFee": 0.06,
+        "netPnl": -13.55
+      },
+      "tpAdjustments": []
+    },
+    {
+      "id": "trade-231",
+      "orderId": "order-12842",
+      "tpOrderId": "tp-67920",
+      "symbol": "BTC-USDT",
+      "side": "LONG",
+      "leverage": 10,
+      "entryPrice": 94200.00,
+      "exitPrice": 95142.00,
+      "quantity": 0.0025,
+      "pnl": 23.55,
+      "pnlPercent": 1.0,
+      "status": "CLOSED",
+      "openedAt": "2025-01-01T22:45:30Z",
+      "filledAt": "2025-01-01T22:46:05Z",
+      "closedAt": "2025-01-02T02:15:20Z",
+      "duration": 12955,
+      "fees": {
+        "tradingFee": 0.47,
+        "fundingFee": 0.12,
+        "netPnl": 22.96
+      },
+      "tpAdjustments": [
+        {
+          "timestamp": "2025-01-02T00:00:12Z",
+          "oldTp": 1.0,
+          "newTp": 0.9,
+          "reason": "Funding rate: -0.005%"
+        }
+      ]
+    },
+    {
+      "id": "trade-230",
+      "orderId": "order-12841",
+      "tpOrderId": "tp-67919",
+      "symbol": "BTC-USDT",
+      "side": "LONG",
+      "leverage": 10,
+      "entryPrice": 93850.00,
+      "exitPrice": 94788.50,
+      "quantity": 0.003,
+      "pnl": 28.16,
+      "pnlPercent": 1.0,
+      "status": "CLOSED",
+      "openedAt": "2025-01-01T18:20:15Z",
+      "filledAt": "2025-01-01T18:20:42Z",
+      "closedAt": "2025-01-01T22:44:55Z",
+      "duration": 15882,
+      "fees": {
+        "tradingFee": 0.56,
+        "fundingFee": 0.15,
+        "netPnl": 27.45
+      },
+      "tpAdjustments": []
+    }
+  ]
+}

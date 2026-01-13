@@ -1,0 +1,13 @@
+/* Design Tokens for Btcbot */
+
+:root {
+  /* Colors */
+  --color-primary: #10b981; /* emerald-500 */
+  --color-secondary: #f59e0b; /* amber-500 */
+  --color-neutral: #64748b; /* slate-500 */
+
+  /* Typography */
+  --font-heading: 'Inter', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}

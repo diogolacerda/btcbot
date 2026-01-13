@@ -27,6 +27,7 @@ from src.filters.registry import FilterRegistry
 from src.grid.dynamic_tp_manager import DynamicTPManager
 from src.grid.grid_calculator import GridCalculator, GridLevel
 from src.grid.order_tracker import OrderTracker, TrackedOrder
+from src.grid.reconciliation import TradeReconciliation
 from src.strategy.macd_strategy import GridState, MACDStrategy
 from src.utils.logger import main_logger, orders_logger
 
@@ -154,6 +155,9 @@ class GridManager:
 
         # Dynamic TP Manager
         self.dynamic_tp: DynamicTPManager | None = None
+
+        # Trade Reconciliation (sync database with BingX)
+        self._reconciliation_task: asyncio.Task | None = None
 
         # Cached DB strategy (database config has priority over env vars)
         self._db_strategy: Any = None
@@ -769,6 +773,11 @@ class GridManager:
             await self.dynamic_tp.start()
             orders_logger.info("DynamicTPManager started")
 
+        # Start trade reconciliation (periodic sync with BingX)
+        if self._account_id is not None:
+            self._reconciliation_task = asyncio.create_task(self._reconciliation_loop())
+            main_logger.info("Trade Reconciliation started (runs every 5 minutes)")
+
         # Start WebSocket for real-time order updates
         await self._start_websocket()
 
@@ -991,6 +1000,15 @@ class GridManager:
                     orders_logger.info(
                         f"Captured TP order ID {tp_order_id[:8]} for filled order {filled_order.order_id[:8]}"
                     )
+
+                    # Update database with TP order ID (BUG #1 FIX)
+                    if filled_order.trade_id:
+                        await self._update_trade_tp_order_id(filled_order.trade_id, tp_order_id)
+                    else:
+                        orders_logger.warning(
+                            f"Cannot update TP order ID in database: trade_id is None for {filled_order.order_id[:8]}"
+                        )
+
                     return
 
             orders_logger.warning(
@@ -1000,6 +1018,45 @@ class GridManager:
             orders_logger.warning(
                 f"Failed to fetch TP order ID for {filled_order.order_id[:8]}: {e}"
             )
+
+    async def _update_trade_tp_order_id(self, trade_id: UUID, tp_order_id: str) -> None:
+        """Update trade's TP order ID in database.
+
+        This is called after capturing the TP order ID from the exchange
+        to ensure the database stays synchronized with in-memory state.
+
+        Args:
+            trade_id: Trade UUID
+            tp_order_id: Exchange TP order ID
+        """
+
+        from sqlalchemy import select
+
+        from src.database.engine import get_session
+        from src.database.models.trade import Trade
+        from src.database.repositories.trade_repository import TradeRepository
+
+        try:
+            async for session in get_session():
+                repo = TradeRepository(session)
+
+                # Get current trade to preserve tp_price
+                stmt = select(Trade).where(Trade.id == trade_id)
+                result = await session.execute(stmt)
+                trade = result.scalar_one_or_none()
+
+                if trade and trade.tp_price:
+                    await repo.update_tp(
+                        trade_id=trade_id,
+                        new_tp_price=trade.tp_price,  # Keep same TP price
+                        new_tp_order_id=tp_order_id,
+                    )
+                    orders_logger.debug(
+                        f"Updated TP order ID in database for trade {str(trade_id)[:8]}"
+                    )
+                break
+        except Exception as e:
+            orders_logger.warning(f"Failed to update TP order ID in database: {e}")
 
     def _on_ws_position_update(self, pos_data: dict) -> None:
         """Handle position update from WebSocket."""
@@ -2025,3 +2082,42 @@ class GridManager:
                 histogram=self._last_histogram,
                 signal_line=None,
             )
+
+    async def _reconciliation_loop(self) -> None:
+        """Periodic reconciliation loop to sync database with BingX state.
+
+        Runs every 5 minutes to detect and fix:
+        - Missing TP order IDs in database (BUG #1)
+        - Trades not closed when TP executed (BUG #2)
+        - Orphaned TPs on BingX without database records
+
+        This provides a safety net for WebSocket event loss and persistence failures.
+        """
+        # Wait 30 seconds before first reconciliation to let bot stabilize
+        await asyncio.sleep(30)
+
+        while self._running:
+            try:
+                if not self._account_id:
+                    break
+
+                reconciliation = TradeReconciliation(
+                    client=self.client,
+                    account_id=self._account_id,
+                    symbol=self.symbol,
+                )
+
+                stats = await reconciliation.reconcile()
+
+                # Log if any fixes were made
+                if any(stats.values()):
+                    main_logger.info(
+                        f"Reconciliation: {stats['tp_ids_fixed']} TP IDs fixed, "
+                        f"{stats['trades_closed']} trades closed"
+                    )
+
+            except Exception as e:
+                main_logger.error(f"Reconciliation failed: {e}")
+
+            # Wait 5 minutes before next reconciliation
+            await asyncio.sleep(5 * 60)
