@@ -583,9 +583,17 @@ class BingXClient:
                 stop_price=new_tp_price,
             )
 
-            new_order_id = new_tp_order.get("orderId") or new_tp_order.get("order", {}).get(
-                "orderId"
-            )
+            # BingX API can return either:
+            # 1. A dict with orderId field: {"orderId": "123", ...}
+            # 2. Just the order ID as an integer: 123
+            if isinstance(new_tp_order, dict):
+                new_order_id = new_tp_order.get("orderId") or new_tp_order.get("order", {}).get(
+                    "orderId"
+                )
+            else:
+                # API returned just the order ID as int
+                new_order_id = str(new_tp_order)
+
             orders_logger.info(f"New TP order created: {new_order_id[:8]} at ${new_tp_price:,.2f}")
 
             # Invalidate cache after modification
