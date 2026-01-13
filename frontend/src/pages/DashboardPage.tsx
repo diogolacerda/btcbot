@@ -76,7 +76,7 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: dashboardKeys.price() })
     },
     onActivityEvent: () => {
-      queryClient.invalidateQueries({ queryKey: dashboardKeys.activity() })
+      queryClient.invalidateQueries({ queryKey: dashboardKeys.activity('today', 50) })
     },
   })
 
