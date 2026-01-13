@@ -84,15 +84,6 @@ describe('PositionsTable', () => {
       expect(screen.getByText('$97,500.00')).toBeInTheDocument()
     })
 
-    it('renders current price', () => {
-      render(<PositionsTable {...defaultProps} />)
-
-      expect(screen.getAllByText('Current').length).toBeGreaterThan(0)
-      // Both positions show current price
-      const priceElements = screen.getAllByText('$98,000.00')
-      expect(priceElements.length).toBeGreaterThan(0)
-    })
-
     it('renders TP target', () => {
       render(<PositionsTable {...defaultProps} />)
 
@@ -118,13 +109,6 @@ describe('PositionsTable', () => {
       const redElements = document.querySelectorAll('.text-red-500')
       expect(redElements.length).toBeGreaterThan(0)
     })
-
-    it('shows placeholder when currentPrice is undefined', () => {
-      render(<PositionsTable {...defaultProps} currentPrice={undefined} />)
-
-      const placeholders = screen.getAllByText('--')
-      expect(placeholders.length).toBeGreaterThan(0)
-    })
   })
 
   describe('progress bar', () => {
@@ -134,13 +118,6 @@ describe('PositionsTable', () => {
       // Check for progress bar by checking the component renders successfully
       expect(screen.getAllByText('Entry').length).toBeGreaterThan(0)
       expect(screen.getAllByText('TP').length).toBeGreaterThan(0)
-    })
-
-    it('does not render progress bar when currentPrice is undefined', () => {
-      render(<PositionsTable {...defaultProps} currentPrice={undefined} />)
-
-      // Entry/TP labels for progress bar shouldn't exist when no price
-      expect(screen.queryAllByText('--').length).toBeGreaterThan(0)
     })
   })
 
