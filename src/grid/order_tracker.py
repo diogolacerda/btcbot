@@ -818,17 +818,47 @@ class OrderTracker:
         self,
         orders: list[dict],
         tp_percent: float,
+        all_open_orders: list[dict] | None = None,
     ) -> int:
         """
         Load existing pending orders from exchange into tracker.
 
+        BUG-FIX-007: Link LIMIT orders with their corresponding TP orders to ensure
+        correct TP price and exchange_tp_order_id are tracked. This prevents P&L
+        calculation errors when TP configuration changes between order creation and execution.
+
         Args:
-            orders: List of open orders from exchange
-            tp_percent: Take profit percentage to calculate TP price
+            orders: List of LIMIT orders from exchange
+            tp_percent: Take profit percentage (fallback if TP order not found)
+            all_open_orders: Optional list of ALL open orders (including TPs) for linking
 
         Returns:
             Number of orders loaded
         """
+        # Build map of TP orders by quantity
+        # This allows linking LIMIT orders to their corresponding TP orders
+        # Group by quantity as LIMIT and TP orders should have matching quantities
+        tp_orders_by_qty: dict[float, list[dict]] = {}
+
+        if all_open_orders:
+            for open_order in all_open_orders:
+                order_type = open_order.get("type", "")
+
+                # Only process TP orders
+                if order_type not in ["TAKE_PROFIT_MARKET", "TAKE_PROFIT"]:
+                    continue
+
+                tp_price = float(open_order.get("stopPrice", 0))
+                quantity = float(open_order.get("origQty", 0))
+
+                if tp_price <= 0 or quantity <= 0:
+                    continue
+
+                # Group TP orders by quantity for later matching
+                if quantity not in tp_orders_by_qty:
+                    tp_orders_by_qty[quantity] = []
+                tp_orders_by_qty[quantity].append(open_order)
+
         loaded = 0
         for order_data in orders:
             order_id = str(order_data.get("orderId", ""))
@@ -845,8 +875,52 @@ class OrderTracker:
             if price == 0 or quantity == 0:
                 continue
 
-            # Calculate TP price
-            tp_price = price * (1 + tp_percent / 100)
+            # Try to find matching TP order for this LIMIT order
+            # Match by quantity and verify entry price relationship
+            tp_order_data = None
+            tp_candidates = tp_orders_by_qty.get(quantity, [])
+
+            for candidate in tp_candidates:
+                candidate_tp_price = float(candidate.get("stopPrice", 0))
+
+                # Calculate what the entry price would be for various TP percentages
+                # Try common TP percentages (0.1% to 2.0%)
+                for test_tp_pct in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0]:
+                    calculated_entry = candidate_tp_price / (1 + test_tp_pct / 100)
+
+                    # Check if calculated entry matches LIMIT order price (within 1% tolerance)
+                    if abs(calculated_entry - price) / price < 0.01:
+                        tp_order_data = candidate
+                        break
+
+                if tp_order_data:
+                    break
+
+            if tp_order_data:
+                # Use REAL TP price from exchange (source of truth)
+                tp_price = float(tp_order_data.get("stopPrice", 0))
+                tp_order_id = str(tp_order_data.get("orderId", ""))
+
+                # Calculate actual TP percentage for logging
+                actual_tp_pct = ((tp_price - price) / price) * 100
+
+                orders_logger.info(
+                    f"Vinculando ordem LIMIT {order_id[:8]} com TP {tp_order_id[:8]}: "
+                    f"${price:,.2f} → ${tp_price:,.2f} ({actual_tp_pct:.2f}%)"
+                )
+
+                # Remove from candidates to avoid duplicate matching
+                if quantity in tp_orders_by_qty and tp_order_data in tp_orders_by_qty[quantity]:
+                    tp_orders_by_qty[quantity].remove(tp_order_data)
+            else:
+                # Fallback: calculate TP price with current percentage
+                tp_price = price * (1 + tp_percent / 100)
+                tp_order_id = None
+
+                orders_logger.warning(
+                    f"Ordem LIMIT {order_id[:8]} sem TP vinculado - "
+                    f"usando TP calculado: ${tp_price:,.2f}"
+                )
 
             # Create tracked order as PENDING
             order = TrackedOrder(
@@ -855,6 +929,7 @@ class OrderTracker:
                 tp_price=tp_price,
                 quantity=quantity,
                 status=OrderStatus.PENDING,
+                exchange_tp_order_id=tp_order_id,
             )
             self._orders[order_id] = order
             self._orders_by_price[price] = order_id
