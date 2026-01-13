@@ -81,7 +81,15 @@ export function PositionsTable({
     )
   }
 
-  const openPositions = positions ?? []
+  const openPositions = (positions ?? []).sort((a, b) => {
+    // Positions without TP go to the end
+    if (!a.tpPrice && !b.tpPrice) return 0
+    if (!a.tpPrice) return 1
+    if (!b.tpPrice) return -1
+
+    // Sort by TP price ascending
+    return a.tpPrice - b.tpPrice
+  })
 
   return (
     <div className="bg-card border border-border rounded-lg overflow-hidden">

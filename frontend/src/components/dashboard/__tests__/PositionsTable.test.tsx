@@ -165,4 +165,121 @@ describe('PositionsTable', () => {
       expect(positionCards.length).toBeGreaterThan(0)
     })
   })
+
+  describe('sorting', () => {
+    it('sorts positions by TP price ascending', () => {
+      const unsortedPositions = [
+        {
+          symbol: 'BTC-USDT',
+          side: 'LONG' as const,
+          leverage: 10,
+          entryPrice: 98000.00,
+          quantity: 0.001,
+          tpPrice: 99000.00,
+          tpPercent: 1.0,
+          unrealizedPnl: 0,
+          openedAt: '2025-01-06T09:30:00Z',
+          gridLevel: 3,
+        },
+        {
+          symbol: 'BTC-USDT',
+          side: 'LONG' as const,
+          leverage: 10,
+          entryPrice: 97000.00,
+          quantity: 0.001,
+          tpPrice: 97500.00,
+          tpPercent: 0.5,
+          unrealizedPnl: 0,
+          openedAt: '2025-01-06T08:30:00Z',
+          gridLevel: 1,
+        },
+        {
+          symbol: 'BTC-USDT',
+          side: 'LONG' as const,
+          leverage: 10,
+          entryPrice: 97500.00,
+          quantity: 0.001,
+          tpPrice: 98200.00,
+          tpPercent: 0.7,
+          unrealizedPnl: 0,
+          openedAt: '2025-01-06T09:00:00Z',
+          gridLevel: 2,
+        },
+      ]
+
+      const { container } = render(<PositionsTable {...defaultProps} positions={unsortedPositions} />)
+
+      // Find all position cards
+      const positionCards = container.querySelectorAll('[class*="hover:bg-muted"]')
+
+      // Verify first position has lowest TP (97500)
+      expect(positionCards[0]).toHaveTextContent('$97,000.00') // Entry
+      expect(positionCards[0]).toHaveTextContent('$97,500.00') // TP
+
+      // Verify second position has middle TP (98200)
+      expect(positionCards[1]).toHaveTextContent('$97,500.00') // Entry
+      expect(positionCards[1]).toHaveTextContent('$98,200.00') // TP
+
+      // Verify third position has highest TP (99000)
+      expect(positionCards[2]).toHaveTextContent('$98,000.00') // Entry
+      expect(positionCards[2]).toHaveTextContent('$99,000.00') // TP
+    })
+
+    it('places positions without TP at the end', () => {
+      const positionsWithoutTP = [
+        {
+          symbol: 'BTC-USDT',
+          side: 'LONG' as const,
+          leverage: 10,
+          entryPrice: 98000.00,
+          quantity: 0.001,
+          tpPrice: 99000.00,
+          tpPercent: 1.0,
+          unrealizedPnl: 0,
+          openedAt: '2025-01-06T09:30:00Z',
+          gridLevel: 2,
+        },
+        {
+          symbol: 'BTC-USDT',
+          side: 'LONG' as const,
+          leverage: 10,
+          entryPrice: 97000.00,
+          quantity: 0.001,
+          tpPrice: null,
+          tpPercent: 0,
+          unrealizedPnl: 0,
+          openedAt: '2025-01-06T08:30:00Z',
+          gridLevel: 0,
+        },
+        {
+          symbol: 'BTC-USDT',
+          side: 'LONG' as const,
+          leverage: 10,
+          entryPrice: 97500.00,
+          quantity: 0.001,
+          tpPrice: 98000.00,
+          tpPercent: 0.5,
+          unrealizedPnl: 0,
+          openedAt: '2025-01-06T09:00:00Z',
+          gridLevel: 1,
+        },
+      ]
+
+      const { container } = render(<PositionsTable {...defaultProps} positions={positionsWithoutTP} />)
+
+      const positionCards = container.querySelectorAll('[class*="hover:bg-muted"]')
+
+      // Verify first position has lowest TP (98000)
+      expect(positionCards[0]).toHaveTextContent('$97,500.00') // Entry
+      expect(positionCards[0]).toHaveTextContent('$98,000.00') // TP
+
+      // Verify second position has middle TP (99000)
+      expect(positionCards[1]).toHaveTextContent('$98,000.00') // Entry
+      expect(positionCards[1]).toHaveTextContent('$99,000.00') // TP
+
+      // Verify third position has no TP (should be last)
+      expect(positionCards[2]).toHaveTextContent('$97,000.00') // Entry
+      expect(positionCards[2]).toHaveTextContent('--') // No TP
+    })
+  })
 })
