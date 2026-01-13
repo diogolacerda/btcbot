@@ -585,14 +585,27 @@ class BingXClient:
 
             # BingX API can return either:
             # 1. A dict with orderId field: {"orderId": "123", ...}
-            # 2. Just the order ID as an integer: 123
+            # 2. A nested dict: {"order": {"orderId": "123", ...}}
+            # 3. A dict with int value: {"order": 123}
+            # 4. Just the order ID as an integer: 123
+            new_order_id: str | None = None
             if isinstance(new_tp_order, dict):
-                new_order_id = new_tp_order.get("orderId") or new_tp_order.get("order", {}).get(
-                    "orderId"
-                )
+                new_order_id = new_tp_order.get("orderId")
+                if not new_order_id:
+                    # Try nested "order" field
+                    order_field = new_tp_order.get("order")
+                    if isinstance(order_field, dict):
+                        # Nested dict case: {"order": {"orderId": "123"}}
+                        new_order_id = order_field.get("orderId")
+                    elif order_field:
+                        # Int value case: {"order": 123}
+                        new_order_id = str(order_field)
             else:
                 # API returned just the order ID as int
                 new_order_id = str(new_tp_order)
+
+            if not new_order_id:
+                raise ValueError(f"Failed to extract order ID from response: {new_tp_order}")
 
             orders_logger.info(f"New TP order created: {new_order_id[:8]} at ${new_tp_price:,.2f}")
 
