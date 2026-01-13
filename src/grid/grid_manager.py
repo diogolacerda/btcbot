@@ -109,6 +109,7 @@ class GridManager:
             account_id=account_id,
             bingx_client=client,
             symbol=self._symbol_from_config,
+            spacing=config.grid.spacing_value,
         )
 
         # Filter system
@@ -565,6 +566,9 @@ class GridManager:
 
             # Update take_profit_percent from strategy
             self.calculator.tp_percent = float(strategy.take_profit_percent)
+
+            # Update tracker spacing for slot calculation
+            self.tracker._spacing = float(strategy.spacing_value)
 
             main_logger.info(
                 f"Grid config loaded from DB: spacing={self.calculator.spacing_value} "
@@ -1529,15 +1533,17 @@ class GridManager:
         )
 
         # Also check local tracker AND TP-derived entry prices (BUG-003 + BUG-004 FIX)
-        # This triple-check ensures no duplicates:
+        # This quadruple-check ensures no duplicates:
         # 1. get_levels_to_create() already filters by exchange LIMIT orders
         # 2. has_order_at_price() filters by local tracker (pending + filled)
         # 3. occupied_entry_prices filters by reverse-calculated entry prices from TPs
+        # 4. is_slot_occupied() prevents multiple positions in same spacing range
         levels = [
             level
             for level in levels
             if not self.tracker.has_order_at_price(level.entry_price)
             and round(level.entry_price, 2) not in occupied_entry_prices
+            and not self.tracker.is_slot_occupied(level.entry_price)
         ]
 
         if not levels:
