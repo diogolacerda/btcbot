@@ -1,65 +1,55 @@
 """Pytest fixtures for database tests."""
 
-import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import Generator
 
 import pytest
-import pytest_asyncio
-from sqlalchemy import event
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.database.base import Base
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create event loop for async tests."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def async_engine():
-    """Create async test database engine.
+@pytest.fixture(scope="function")
+def engine():
+    """Create test database engine.
 
     Uses in-memory SQLite for fast isolated tests.
     Foreign key constraints are enabled for proper FK testing.
     """
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
+    engine = create_engine(
+        "sqlite:///:memory:",
         echo=False,
+        connect_args={"check_same_thread": False},
     )
 
     # Enable foreign key constraints for SQLite
-    @event.listens_for(engine.sync_engine, "connect")
+    @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
     # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    Base.metadata.create_all(engine)
 
     yield engine
 
     # Drop all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    Base.metadata.drop_all(engine)
 
-    await engine.dispose()
+    engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def async_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create async test database session."""
-    session_maker = async_sessionmaker(
-        async_engine,
-        class_=AsyncSession,
+@pytest.fixture(scope="function")
+def session(engine) -> Generator[Session, None, None]:
+    """Create test database session."""
+    session_maker = sessionmaker(
+        engine,
+        class_=Session,
         expire_on_commit=False,
     )
 
-    async with session_maker() as session:
-        yield session
-        await session.rollback()
+    session = session_maker()
+    yield session
+    session.rollback()
+    session.close()

@@ -2,13 +2,13 @@
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.api.dependencies import get_account_id, get_current_active_user, get_db, get_session
 from src.api.main import app
@@ -18,29 +18,30 @@ from src.database.models.strategy import Strategy
 from src.database.models.user import User
 
 # Test database URL
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
 @pytest.fixture
-async def async_engine():
+def engine():
     """Create async test database engine."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    engine = create_engine(TEST_DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
     yield engine
-    await engine.dispose()
+    engine.dispose()
 
 
 @pytest.fixture
-async def async_session(async_engine):
-    """Create async test database session."""
-    async_session_maker = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session_maker() as session:
-        yield session
+def session(engine):
+    """Create test database session."""
+    session_maker = sessionmaker(engine, class_=Session, expire_on_commit=False)
+    session = session_maker()
+    yield session
+    session.rollback()
+    session.close()
 
 
 @pytest.fixture
-async def test_user(async_session):
+def test_user(session):
     """Create a test user in the database."""
     from src.api.dependencies import get_password_hash
 
@@ -50,10 +51,10 @@ async def test_user(async_session):
         name="Test User",
         is_active=True,
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
-    async_session.expunge_all()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    session.expunge_all()
     return user
 
 
@@ -103,14 +104,14 @@ def sample_strategy(account_id):
 def mock_strategy_repo(sample_strategy):
     """Create a mock StrategyRepository."""
     mock = MagicMock()
-    mock.get_by_account = AsyncMock(return_value=[sample_strategy])
-    mock.get_active_by_account = AsyncMock(return_value=None)
-    mock.get_by_id = AsyncMock(return_value=sample_strategy)
-    mock.create_strategy = AsyncMock(return_value=sample_strategy)
-    mock.update_strategy = AsyncMock(return_value=sample_strategy)
-    mock.delete = AsyncMock(return_value=True)
-    mock.activate_strategy = AsyncMock(return_value=sample_strategy)
-    mock.deactivate_all = AsyncMock()
+    mock.get_by_account = MagicMock(return_value=[sample_strategy])
+    mock.get_active_by_account = MagicMock(return_value=None)
+    mock.get_by_id = MagicMock(return_value=sample_strategy)
+    mock.create_strategy = MagicMock(return_value=sample_strategy)
+    mock.update_strategy = MagicMock(return_value=sample_strategy)
+    mock.delete = MagicMock(return_value=True)
+    mock.activate_strategy = MagicMock(return_value=sample_strategy)
+    mock.deactivate_all = MagicMock()
     return mock
 
 
@@ -129,22 +130,22 @@ def mock_user(account_id):
 
 
 @pytest.fixture
-def client(async_session, mock_strategy_repo, mock_user, account_id):
+def client(session, mock_strategy_repo, mock_user, account_id):
     """Create test client with overridden dependencies."""
 
-    async def override_get_db():
-        yield async_session
+    def override_get_db():
+        yield session
 
-    async def override_get_session():
-        yield async_session
+    def override_get_session():
+        yield session
 
-    async def override_get_current_user():
+    def override_get_current_user():
         return mock_user
 
-    async def override_get_account_id():
+    def override_get_account_id():
         return account_id
 
-    async def override_get_strategy_repo(session=None):
+    def override_get_strategy_repo(session=None):
         return mock_strategy_repo
 
     app.dependency_overrides[get_db] = override_get_db

@@ -3,10 +3,9 @@
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 import pytest_asyncio
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.migrations.migrate_to_strategy import (
     create_default_macd_config,
@@ -24,21 +23,21 @@ from src.database.models.user import User
 
 
 @pytest_asyncio.fixture
-async def user(async_session: AsyncSession) -> User:
+def user(session: Session) -> User:
     """Create a test user."""
     user = User(
         id=uuid4(),
         email="test@example.com",
         password_hash="hashed_password_123",  # pragma: allowlist secret
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user
 
 
 @pytest_asyncio.fixture
-async def account(async_session: AsyncSession, user: User) -> Account:
+def account(session: Session, user: User) -> Account:
     """Create a test account."""
     account = Account(
         id=uuid4(),
@@ -47,14 +46,14 @@ async def account(async_session: AsyncSession, user: User) -> Account:
         name="Test Account",
         is_demo=True,
     )
-    async_session.add(account)
-    await async_session.commit()
-    await async_session.refresh(account)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
     return account
 
 
 @pytest_asyncio.fixture
-async def trading_config(async_session: AsyncSession, account: Account) -> TradingConfig:
+def trading_config(session: Session, account: Account) -> TradingConfig:
     """Create a test trading config."""
     config = TradingConfig(
         id=uuid4(),
@@ -71,14 +70,14 @@ async def trading_config(async_session: AsyncSession, account: Account) -> Tradi
         tp_safety_margin=Decimal("0.05"),
         tp_check_interval_min=60,
     )
-    async_session.add(config)
-    await async_session.commit()
-    await async_session.refresh(config)
+    session.add(config)
+    session.commit()
+    session.refresh(config)
     return config
 
 
 @pytest_asyncio.fixture
-async def grid_config(async_session: AsyncSession, account: Account) -> GridConfig:
+def grid_config(session: Session, account: Account) -> GridConfig:
     """Create a test grid config."""
     config = GridConfig(
         id=uuid4(),
@@ -88,9 +87,9 @@ async def grid_config(async_session: AsyncSession, account: Account) -> GridConf
         range_percent=Decimal("5.0"),
         max_total_orders=10,
     )
-    async_session.add(config)
-    await async_session.commit()
-    await async_session.refresh(config)
+    session.add(config)
+    session.commit()
+    session.refresh(config)
     return config
 
 
@@ -113,10 +112,9 @@ class TestMapMarginMode:
 class TestCreateStrategyFromConfigs:
     """Tests for create_strategy_from_configs function."""
 
-    @pytest.mark.asyncio
-    async def test_creates_strategy_with_correct_values(
+    def test_creates_strategy_with_correct_values(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         trading_config: TradingConfig,
         grid_config: GridConfig,
@@ -152,18 +150,17 @@ class TestCreateStrategyFromConfigs:
 class TestCreateDefaultMacdConfig:
     """Tests for create_default_macd_config function."""
 
-    @pytest.mark.asyncio
-    async def test_creates_default_config(
+    def test_creates_default_config(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         trading_config: TradingConfig,
         grid_config: GridConfig,
     ):
         """Should create MACD config with default values."""
         strategy = create_strategy_from_configs(account, trading_config, grid_config)
-        async_session.add(strategy)
-        await async_session.flush()
+        session.add(strategy)
+        session.flush()
 
         macd_config = create_default_macd_config(strategy)
 
@@ -178,45 +175,40 @@ class TestCreateDefaultMacdConfig:
 class TestHasExistingStrategy:
     """Tests for has_existing_strategy function."""
 
-    @pytest.mark.asyncio
-    async def test_returns_false_when_no_strategy(
-        self, async_session: AsyncSession, account: Account
-    ):
+    def test_returns_false_when_no_strategy(self, session: Session, account: Account):
         """Should return False when account has no strategy."""
-        result = await has_existing_strategy(async_session, account.id)
+        result = has_existing_strategy(session, account.id)
         assert result is False
 
-    @pytest.mark.asyncio
-    async def test_returns_true_when_strategy_exists(
+    def test_returns_true_when_strategy_exists(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         trading_config: TradingConfig,
         grid_config: GridConfig,
     ):
         """Should return True when account has a strategy."""
         strategy = create_strategy_from_configs(account, trading_config, grid_config)
-        async_session.add(strategy)
-        await async_session.flush()
+        session.add(strategy)
+        session.flush()
 
-        result = await has_existing_strategy(async_session, account.id)
+        result = has_existing_strategy(session, account.id)
         assert result is True
 
 
 class TestMigrateAccount:
     """Tests for migrate_account function."""
 
-    @pytest.mark.asyncio
-    async def test_migrates_account_successfully(
+    def test_migrates_account_successfully(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         trading_config: TradingConfig,
         grid_config: GridConfig,
     ):
         """Should migrate account and create Strategy + MACDFilterConfig."""
-        result = await migrate_account(
-            session=async_session,
+        result = migrate_account(
+            session=session,
             account=account,
             trading_config=trading_config,
             grid_config=grid_config,
@@ -229,7 +221,7 @@ class TestMigrateAccount:
 
         # Verify Strategy was created
         stmt = select(Strategy).where(Strategy.id == result.strategy_id)
-        strategy = await async_session.scalar(stmt)
+        strategy = session.scalar(stmt)
         assert strategy is not None
         assert strategy.account_id == account.id
 
@@ -237,20 +229,19 @@ class TestMigrateAccount:
         macd_stmt = select(MACDFilterConfig).where(
             MACDFilterConfig.strategy_id == result.strategy_id
         )
-        macd_config = await async_session.scalar(macd_stmt)
+        macd_config = session.scalar(macd_stmt)
         assert macd_config is not None
 
-    @pytest.mark.asyncio
-    async def test_dry_run_does_not_create_records(
+    def test_dry_run_does_not_create_records(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         trading_config: TradingConfig,
         grid_config: GridConfig,
     ):
         """Should not create records in dry run mode."""
-        result = await migrate_account(
-            session=async_session,
+        result = migrate_account(
+            session=session,
             account=account,
             trading_config=trading_config,
             grid_config=grid_config,
@@ -262,21 +253,20 @@ class TestMigrateAccount:
 
         # Verify no Strategy was created
         stmt = select(Strategy).where(Strategy.account_id == account.id)
-        strategy = await async_session.scalar(stmt)
+        strategy = session.scalar(stmt)
         assert strategy is None
 
-    @pytest.mark.asyncio
-    async def test_skips_when_strategy_exists(
+    def test_skips_when_strategy_exists(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         trading_config: TradingConfig,
         grid_config: GridConfig,
     ):
         """Should skip migration when Strategy already exists (idempotent)."""
         # First migration
-        await migrate_account(
-            session=async_session,
+        migrate_account(
+            session=session,
             account=account,
             trading_config=trading_config,
             grid_config=grid_config,
@@ -284,8 +274,8 @@ class TestMigrateAccount:
         )
 
         # Second migration should skip
-        result = await migrate_account(
-            session=async_session,
+        result = migrate_account(
+            session=session,
             account=account,
             trading_config=trading_config,
             grid_config=grid_config,
@@ -296,16 +286,15 @@ class TestMigrateAccount:
         assert result.error_message is not None
         assert "already exists" in result.error_message
 
-    @pytest.mark.asyncio
-    async def test_skips_when_missing_trading_config(
+    def test_skips_when_missing_trading_config(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         grid_config: GridConfig,
     ):
         """Should skip migration when TradingConfig is missing."""
-        result = await migrate_account(
-            session=async_session,
+        result = migrate_account(
+            session=session,
             account=account,
             trading_config=None,
             grid_config=grid_config,
@@ -316,16 +305,15 @@ class TestMigrateAccount:
         assert result.error_message is not None
         assert "TradingConfig" in result.error_message
 
-    @pytest.mark.asyncio
-    async def test_skips_when_missing_grid_config(
+    def test_skips_when_missing_grid_config(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
         trading_config: TradingConfig,
     ):
         """Should skip migration when GridConfig is missing."""
-        result = await migrate_account(
-            session=async_session,
+        result = migrate_account(
+            session=session,
             account=account,
             trading_config=trading_config,
             grid_config=None,
@@ -336,15 +324,14 @@ class TestMigrateAccount:
         assert result.error_message is not None
         assert "GridConfig" in result.error_message
 
-    @pytest.mark.asyncio
-    async def test_skips_when_missing_both_configs(
+    def test_skips_when_missing_both_configs(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
     ):
         """Should skip migration when both configs are missing."""
-        result = await migrate_account(
-            session=async_session,
+        result = migrate_account(
+            session=session,
             account=account,
             trading_config=None,
             grid_config=None,

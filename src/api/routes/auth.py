@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.api.dependencies import (
     create_access_token,
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 @router.post("/login", response_model=Token)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_db),
 ) -> Token:
     """Authenticate user and return JWT access token.
 
@@ -63,7 +63,7 @@ async def login(
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
-    session: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_db),
 ) -> Token:
     """Register a new user and return JWT access token.
 

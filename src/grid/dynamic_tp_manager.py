@@ -60,7 +60,6 @@ class DynamicTPManager:
         self._account_id = account_id
         self._activity_event_repository = activity_event_repository
         self._running = False
-        self._task: asyncio.Task | None = None
         self._last_update: dict[str, datetime] = {}  # order_id -> last update time
         self._update_history: list[PositionTPUpdate] = []
 
@@ -88,27 +87,16 @@ class DynamicTPManager:
         if not self._activity_event_repository or not self._account_id:
             return
 
-        # Capture values for closure (type narrowing)
-        repo = self._activity_event_repository
-        account_id = self._account_id
-
-        def _persist_event() -> None:
-            try:
-                repo.create_event(
-                    account_id=account_id,
-                    event_type=event_type,
-                    description=description,
-                    event_data=event_data,
-                )
-            except Exception as e:
-                orders_logger.warning(f"Failed to log activity event: {e}")
-
-        # Schedule task in background (fire and forget)
+        # Persist event directly (sync)
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_event())
-        except RuntimeError:
-            orders_logger.debug("No event loop, skipping activity event logging")
+            self._activity_event_repository.create_event(
+                account_id=self._account_id,
+                event_type=event_type,
+                description=description,
+                event_data=event_data,
+            )
+        except Exception as e:
+            orders_logger.warning(f"Failed to log activity event: {e}")
 
     def start(self) -> None:
         """Start the dynamic TP monitoring task."""
@@ -417,33 +405,26 @@ class DynamicTPManager:
         """
         from decimal import Decimal
 
-        def _persist_adjustment() -> None:
-            if not self._tp_adjustment_repository or not order.trade_id:
-                return
+        # Persist adjustment directly (sync)
+        if not self._tp_adjustment_repository or not order.trade_id:
+            return
 
-            try:
-                self._tp_adjustment_repository.save_adjustment(
-                    trade_id=order.trade_id,
-                    old_tp_price=Decimal(str(old_tp_price)),
-                    new_tp_price=Decimal(str(new_tp_price)),
-                    old_tp_percent=Decimal(str(old_tp_percent)),
-                    new_tp_percent=Decimal(str(new_tp_percent)),
-                    funding_rate=Decimal(str(funding_rate)),
-                    funding_accumulated=Decimal(str(funding_accumulated)),
-                    hours_open=Decimal(str(hours_open)),
-                )
-                orders_logger.info(f"TP adjustment persisted: {order.order_id[:8]}")
-            except Exception as e:
-                orders_logger.warning(
-                    f"Failed to persist TP adjustment: {e}. Adjustment kept in memory only."
-                )
-
-        # Schedule task in background (fire and forget)
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_adjustment())
-        except RuntimeError:
-            orders_logger.warning("No event loop, skipping TP adjustment persistence")
+            self._tp_adjustment_repository.save_adjustment(
+                trade_id=order.trade_id,
+                old_tp_price=Decimal(str(old_tp_price)),
+                new_tp_price=Decimal(str(new_tp_price)),
+                old_tp_percent=Decimal(str(old_tp_percent)),
+                new_tp_percent=Decimal(str(new_tp_percent)),
+                funding_rate=Decimal(str(funding_rate)),
+                funding_accumulated=Decimal(str(funding_accumulated)),
+                hours_open=Decimal(str(hours_open)),
+            )
+            orders_logger.info(f"TP adjustment persisted: {order.order_id[:8]}")
+        except Exception as e:
+            orders_logger.warning(
+                f"Failed to persist TP adjustment: {e}. Adjustment kept in memory only."
+            )
 
     def _schedule_trade_update(
         self,
@@ -466,28 +447,21 @@ class DynamicTPManager:
         from src.database.engine import get_session
         from src.database.repositories.trade_repository import TradeRepository
 
-        def _persist_trade_update() -> None:
-            try:
-                with get_session() as session:
-                    trade_repo = TradeRepository(session)
-
-                    # Update tp_price and exchange_tp_order_id
-                    trade_repo.update_tp(
-                        trade_id=trade_id,
-                        new_tp_price=Decimal(str(new_tp_price)),
-                        new_tp_order_id=new_tp_order_id,
-                    )
-
-                    orders_logger.debug(
-                        f"Trade {str(trade_id)[:8]} updated with new TP: ${new_tp_price:,.2f}, "
-                        f"TP order: {new_tp_order_id[:8] if new_tp_order_id else 'None'}"
-                    )
-            except Exception as e:
-                orders_logger.error(f"Failed to update trade {str(trade_id)[:8]} in database: {e}")
-
-        # Schedule task in background (fire and forget)
+        # Persist trade update directly (sync)
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_trade_update())
-        except RuntimeError:
-            orders_logger.warning("No event loop, skipping trade update")
+            with get_session() as session:
+                trade_repo = TradeRepository(session)
+
+                # Update tp_price and exchange_tp_order_id
+                trade_repo.update_tp(
+                    trade_id=trade_id,
+                    new_tp_price=Decimal(str(new_tp_price)),
+                    new_tp_order_id=new_tp_order_id,
+                )
+
+                orders_logger.debug(
+                    f"Trade {str(trade_id)[:8]} updated with new TP: ${new_tp_price:,.2f}, "
+                    f"TP order: {new_tp_order_id[:8] if new_tp_order_id else 'None'}"
+                )
+        except Exception as e:
+            orders_logger.error(f"Failed to update trade {str(trade_id)[:8]} in database: {e}")

@@ -1,7 +1,7 @@
 """Integration tests for trade persistence in OrderTracker."""
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models import Account, User
 from src.database.repositories.trade_repository import TradeRepository
@@ -9,21 +9,21 @@ from src.grid.order_tracker import OrderTracker
 
 
 @pytest.fixture
-async def user(async_session: AsyncSession) -> User:
+def user(session: Session) -> User:
     """Create a test user."""
     user = User(
         email="test@example.com",
         password_hash="hashed_password",  # pragma: allowlist secret
         name="Test User",
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user
 
 
 @pytest.fixture
-async def account(async_session: AsyncSession, user: User) -> Account:
+def account(session: Session, user: User) -> Account:
     """Create a test account."""
     account = Account(
         user_id=user.id,
@@ -31,23 +31,22 @@ async def account(async_session: AsyncSession, user: User) -> Account:
         name="Test Account",
         is_demo=True,
     )
-    async_session.add(account)
-    await async_session.commit()
-    await async_session.refresh(account)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
     return account
 
 
 @pytest.fixture
-async def trade_repository(async_session: AsyncSession) -> TradeRepository:
+def trade_repository(session: Session) -> TradeRepository:
     """Create TradeRepository instance."""
-    return TradeRepository(async_session)
+    return TradeRepository(session)
 
 
 class TestTradePersistenceIntegration:
     """Integration tests for trade persistence."""
 
-    @pytest.mark.asyncio
-    async def test_tracker_accepts_account_id(
+    def test_tracker_accepts_account_id(
         self,
         account: Account,
     ):
@@ -58,8 +57,7 @@ class TestTradePersistenceIntegration:
         # Assert
         assert tracker._account_id == account.id
 
-    @pytest.mark.asyncio
-    async def test_tracker_without_account_works(self):
+    def test_tracker_without_account_works(self):
         """Test that OrderTracker works without account_id (backward compatible)."""
         # Arrange
         tracker = OrderTracker()  # No account_id passed
@@ -71,18 +69,17 @@ class TestTradePersistenceIntegration:
             tp_price=50500.0,
             quantity=0.001,
         )
-        await tracker.order_filled("order_123")
+        tracker.order_filled("order_123")
 
         # Act - Hit TP (should not crash without account_id)
-        trade = await tracker.order_tp_hit("order_123", exit_price=50500.0)
+        trade = tracker.order_tp_hit("order_123", exit_price=50500.0)
 
         # Assert - Trade should be recorded in memory
         assert trade is not None
         assert trade.pnl > 0
         assert len(tracker._trades) == 1
 
-    @pytest.mark.asyncio
-    async def test_tracker_stores_exchange_tp_order_id(self):
+    def test_tracker_stores_exchange_tp_order_id(self):
         """Test that exchange_tp_order_id is stored in TrackedOrder."""
         # Arrange
         tracker = OrderTracker()
@@ -102,8 +99,7 @@ class TestTradePersistenceIntegration:
         # Assert
         assert order.exchange_tp_order_id == "tp_order_456"
 
-    @pytest.mark.asyncio
-    async def test_persist_methods_exist(
+    def test_persist_methods_exist(
         self,
         account: Account,
     ):
@@ -117,8 +113,7 @@ class TestTradePersistenceIntegration:
         assert hasattr(tracker, "_persist_open_trade")
         assert callable(tracker._persist_open_trade)
 
-    @pytest.mark.asyncio
-    async def test_order_filled_is_async(
+    def test_order_filled_is_async(
         self,
         account: Account,
     ):
@@ -132,24 +127,23 @@ class TestTradePersistenceIntegration:
             quantity=0.001,
         )
 
-        # Act - order_filled should be awaitable
+        # Act - order_filled should be sync (not async)
         import inspect
 
-        assert inspect.iscoroutinefunction(tracker.order_filled)
+        assert not inspect.iscoroutinefunction(tracker.order_filled)
 
         # Call it
-        result = await tracker.order_filled("order_123")
+        result = tracker.order_filled("order_123")
 
         # Assert
         assert result is not None
         assert result.entry_price == 50000.0
 
-    @pytest.mark.asyncio
-    async def test_order_tp_hit_is_async(
+    def test_order_tp_hit_is_sync(
         self,
         account: Account,
     ):
-        """Test that order_tp_hit is an async method."""
+        """Test that order_tp_hit is a sync method."""
         # Arrange
         tracker = OrderTracker(account_id=account.id)
         tracker.add_order(
@@ -158,22 +152,21 @@ class TestTradePersistenceIntegration:
             tp_price=50500.0,
             quantity=0.001,
         )
-        await tracker.order_filled("order_123")
+        tracker.order_filled("order_123")
 
-        # Act - order_tp_hit should be awaitable
+        # Act - order_tp_hit should be sync (not async)
         import inspect
 
-        assert inspect.iscoroutinefunction(tracker.order_tp_hit)
+        assert not inspect.iscoroutinefunction(tracker.order_tp_hit)
 
         # Call it
-        trade = await tracker.order_tp_hit("order_123", exit_price=50500.0)
+        trade = tracker.order_tp_hit("order_123", exit_price=50500.0)
 
         # Assert
         assert trade is not None
         assert trade.pnl > 0
 
-    @pytest.mark.asyncio
-    async def test_trade_record_created_in_memory(self):
+    def test_trade_record_created_in_memory(self):
         """Test that trade records are created in memory."""
         # Arrange
         tracker = OrderTracker()
@@ -186,8 +179,8 @@ class TestTradePersistenceIntegration:
         )
 
         # Act
-        await tracker.order_filled("order_123")
-        trade = await tracker.order_tp_hit("order_123", exit_price=50500.0)
+        tracker.order_filled("order_123")
+        trade = tracker.order_tp_hit("order_123", exit_price=50500.0)
 
         # Assert
         assert trade is not None
@@ -197,8 +190,7 @@ class TestTradePersistenceIntegration:
         assert trade.pnl == 0.5  # (50500 - 50000) * 0.001 = 0.5
         assert len(tracker._trades) == 1
 
-    @pytest.mark.asyncio
-    async def test_multiple_trades_tracked(self):
+    def test_multiple_trades_tracked(self):
         """Test that multiple trades are tracked correctly."""
         # Arrange
         tracker = OrderTracker()
@@ -214,8 +206,8 @@ class TestTradePersistenceIntegration:
 
         # Fill and close all
         for i in range(3):
-            await tracker.order_filled(f"order_{i}")
-            await tracker.order_tp_hit(f"order_{i}", exit_price=50050.0 + i * 100)
+            tracker.order_filled(f"order_{i}")
+            tracker.order_tp_hit(f"order_{i}", exit_price=50050.0 + i * 100)
 
         # Assert
         assert len(tracker._trades) == 3
@@ -223,8 +215,7 @@ class TestTradePersistenceIntegration:
         total_pnl = sum(t.pnl for t in tracker._trades)
         assert total_pnl > 0
 
-    @pytest.mark.asyncio
-    async def test_win_rate_calculation(self):
+    def test_win_rate_calculation(self):
         """Test win rate is calculated correctly."""
         # Arrange
         tracker = OrderTracker()
@@ -243,8 +234,8 @@ class TestTradePersistenceIntegration:
                 tp_price=entry + 100,
                 quantity=0.001,
             )
-            await tracker.order_filled(f"order_{i}")
-            await tracker.order_tp_hit(f"order_{i}", exit_price=exit)
+            tracker.order_filled(f"order_{i}")
+            tracker.order_tp_hit(f"order_{i}", exit_price=exit)
 
         # Assert - 2/3 = 66.67% win rate
         assert tracker.win_rate == pytest.approx(66.67, rel=0.01)

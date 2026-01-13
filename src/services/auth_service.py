@@ -101,7 +101,7 @@ class AuthService:
         token = jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
         return token  # type: ignore[no-any-return]
 
-    async def register(
+    def register(
         self,
         email: str,
         password: str,
@@ -145,7 +145,7 @@ class AuthService:
             main_logger.error(f"Error registering user {email}: {e}")
             raise
 
-    async def login(self, email: str, password: str) -> tuple[User, str]:
+    def login(self, email: str, password: str) -> tuple[User, str]:
         """Authenticate a user and generate JWT token.
 
         Args:
@@ -177,7 +177,7 @@ class AuthService:
         main_logger.info(f"User logged in: {user.email}")
         return user, token
 
-    async def verify_token(self, token: str) -> User | None:
+    def verify_token(self, token: str) -> User | None:
         """Verify JWT token and return associated user.
 
         Args:
@@ -215,7 +215,7 @@ class AuthService:
             main_logger.error(f"Error verifying token: {e}")
             return None
 
-    async def change_password(
+    def change_password(
         self,
         user_id: UUID,
         old_password: str,

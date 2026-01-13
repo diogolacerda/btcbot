@@ -1,7 +1,7 @@
 """Tests for market data API endpoints."""
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,7 +13,7 @@ from src.api.main import app
 @pytest.fixture
 def mock_bingx_client():
     """Create a mock BingXClient."""
-    mock = AsyncMock()
+    mock = MagicMock()
 
     # Mock get_ticker_24h response
     mock.get_ticker_24h.return_value = {

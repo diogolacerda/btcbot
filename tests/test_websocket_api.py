@@ -10,12 +10,12 @@ This module provides comprehensive tests for:
 
 import asyncio
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 from starlette.websockets import WebSocketDisconnect
 
 from src.api.dependencies import create_access_token, get_db, get_password_hash
@@ -34,33 +34,34 @@ from src.database.base import Base
 from src.database.models.user import User
 
 # Test database URL
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
 @pytest.fixture
-async def async_engine():
+def engine():
     """Create async test database engine."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    engine = create_engine(TEST_DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
     yield engine
-    await engine.dispose()
+    engine.dispose()
 
 
 @pytest.fixture
-async def async_session(async_engine):
-    """Create async test database session."""
-    async_session_maker = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session_maker() as session:
-        yield session
+def session(engine):
+    """Create test database session."""
+    session_maker = sessionmaker(engine, class_=Session, expire_on_commit=False)
+    session = session_maker()
+    yield session
+    session.rollback()
+    session.close()
 
 
 @pytest.fixture
-def client(async_session):
+def client(session):
     """Create test client with overridden database dependency."""
 
-    async def override_get_db():
-        yield async_session
+    def override_get_db():
+        yield session
 
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
@@ -68,7 +69,7 @@ def client(async_session):
 
 
 @pytest.fixture
-async def test_user(async_session):
+def test_user(session):
     """Create a test user in the database."""
     user = User(
         email="wstest@example.com",
@@ -76,15 +77,15 @@ async def test_user(async_session):
         name="WebSocket Test User",
         is_active=True,
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
-    async_session.expunge_all()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    session.expunge_all()
     return user
 
 
 @pytest.fixture
-async def inactive_user(async_session):
+def inactive_user(session):
     """Create an inactive test user."""
     user = User(
         email="inactive@example.com",
@@ -92,10 +93,10 @@ async def inactive_user(async_session):
         name="Inactive User",
         is_active=False,
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
-    async_session.expunge_all()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    session.expunge_all()
     return user
 
 
@@ -389,16 +390,15 @@ class TestConnectionManagerBroadcast:
     def mock_websocket(self):
         """Create a mock WebSocket."""
         ws = MagicMock()
-        ws.send_text = AsyncMock()
-        ws.send_json = AsyncMock()
-        ws.accept = AsyncMock()
+        ws.send_text = MagicMock()
+        ws.send_json = MagicMock()
+        ws.accept = MagicMock()
         return ws
 
-    @pytest.mark.asyncio
-    async def test_broadcast_to_single_client(self, fresh_manager, mock_websocket):
+    def test_broadcast_to_single_client(self, fresh_manager, mock_websocket):
         """Test broadcasting event to a single connected client."""
         # Connect a client
-        await fresh_manager.connect(mock_websocket, "test@example.com")
+        fresh_manager.connect(mock_websocket, "test@example.com")
 
         # Create and broadcast an event
         status = BotStatusEvent(
@@ -410,7 +410,7 @@ class TestConnectionManagerBroadcast:
         )
         event = WebSocketEvent.bot_status(status)
 
-        await fresh_manager.broadcast(event)
+        fresh_manager.broadcast(event)
 
         # Verify send_text was called
         mock_websocket.send_text.assert_called_once()
@@ -418,76 +418,72 @@ class TestConnectionManagerBroadcast:
         assert "bot_status" in sent_message
         assert "ACTIVE" in sent_message
 
-    @pytest.mark.asyncio
-    async def test_broadcast_to_multiple_clients(self, fresh_manager):
+    def test_broadcast_to_multiple_clients(self, fresh_manager):
         """Test broadcasting event to multiple connected clients."""
         # Create multiple mock websockets
         ws1 = MagicMock()
-        ws1.send_text = AsyncMock()
-        ws1.accept = AsyncMock()
+        ws1.send_text = MagicMock()
+        ws1.accept = MagicMock()
 
         ws2 = MagicMock()
-        ws2.send_text = AsyncMock()
-        ws2.accept = AsyncMock()
+        ws2.send_text = MagicMock()
+        ws2.accept = MagicMock()
 
         ws3 = MagicMock()
-        ws3.send_text = AsyncMock()
-        ws3.accept = AsyncMock()
+        ws3.send_text = MagicMock()
+        ws3.accept = MagicMock()
 
         # Connect all clients
-        await fresh_manager.connect(ws1, "user1@example.com")
-        await fresh_manager.connect(ws2, "user2@example.com")
-        await fresh_manager.connect(ws3, "user3@example.com")
+        fresh_manager.connect(ws1, "user1@example.com")
+        fresh_manager.connect(ws2, "user2@example.com")
+        fresh_manager.connect(ws3, "user3@example.com")
 
         assert fresh_manager.active_connections_count == 3
 
         # Broadcast an event
         event = WebSocketEvent.heartbeat()
-        await fresh_manager.broadcast(event)
+        fresh_manager.broadcast(event)
 
         # All clients should have received the message
         ws1.send_text.assert_called_once()
         ws2.send_text.assert_called_once()
         ws3.send_text.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_broadcast_with_no_connections(self, fresh_manager):
+    def test_broadcast_with_no_connections(self, fresh_manager):
         """Test broadcasting when there are no connected clients."""
         event = WebSocketEvent.heartbeat()
 
         # Should not raise any exception
-        await fresh_manager.broadcast(event)
+        fresh_manager.broadcast(event)
 
-    @pytest.mark.asyncio
-    async def test_broadcast_json_raw_data(self, fresh_manager, mock_websocket):
+    def test_broadcast_json_raw_data(self, fresh_manager, mock_websocket):
         """Test broadcasting raw JSON data."""
-        await fresh_manager.connect(mock_websocket, "test@example.com")
+        fresh_manager.connect(mock_websocket, "test@example.com")
 
         data = {"type": "custom", "data": {"value": 123}}
-        await fresh_manager.broadcast_json(data)
+        fresh_manager.broadcast_json(data)
 
         mock_websocket.send_json.assert_called_once_with(data)
 
-    @pytest.mark.asyncio
-    async def test_broadcast_handles_failed_send(self, fresh_manager):
+    def test_broadcast_handles_failed_send(self, fresh_manager):
         """Test that broadcast handles failed sends and disconnects dead clients."""
         # Create a healthy and a broken websocket
         ws_healthy = MagicMock()
-        ws_healthy.send_text = AsyncMock()
-        ws_healthy.accept = AsyncMock()
+        ws_healthy.send_text = MagicMock()
+        ws_healthy.accept = MagicMock()
 
         ws_broken = MagicMock()
-        ws_broken.send_text = AsyncMock(side_effect=Exception("Connection lost"))
-        ws_broken.accept = AsyncMock()
+        ws_broken.send_text = MagicMock(side_effect=Exception("Connection lost"))
+        ws_broken.accept = MagicMock()
 
-        await fresh_manager.connect(ws_healthy, "healthy@example.com")
-        await fresh_manager.connect(ws_broken, "broken@example.com")
+        fresh_manager.connect(ws_healthy, "healthy@example.com")
+        fresh_manager.connect(ws_broken, "broken@example.com")
 
         assert fresh_manager.active_connections_count == 2
 
         # Broadcast should clean up the broken connection
         event = WebSocketEvent.heartbeat()
-        await fresh_manager.broadcast(event)
+        fresh_manager.broadcast(event)
 
         # Broken client should be disconnected
         assert fresh_manager.active_connections_count == 1
@@ -509,18 +505,17 @@ class TestConcurrentConnections:
         ConnectionManager._instance = None
         ConnectionManager._initialized = False
 
-    @pytest.mark.asyncio
-    async def test_multiple_simultaneous_connections(self, fresh_manager):
+    def test_multiple_simultaneous_connections(self, fresh_manager):
         """Test handling multiple simultaneous connections."""
         websockets = []
         for _ in range(10):
             ws = MagicMock()
-            ws.accept = AsyncMock()
-            ws.send_text = AsyncMock()
+            ws.accept = MagicMock()
+            ws.send_text = MagicMock()
             websockets.append(ws)
 
         # Connect all simultaneously using asyncio.gather
-        await asyncio.gather(
+        asyncio.gather(
             *[fresh_manager.connect(ws, f"user{i}@example.com") for i, ws in enumerate(websockets)]
         )
 
@@ -531,14 +526,13 @@ class TestConcurrentConnections:
         assert stats["total_connections"] == 10
         assert len(stats["connections"]) == 10
 
-    @pytest.mark.asyncio
-    async def test_connection_stats_contain_user_info(self, fresh_manager):
+    def test_connection_stats_contain_user_info(self, fresh_manager):
         """Test that connection stats contain correct user information."""
         ws = MagicMock()
-        ws.accept = AsyncMock()
-        ws.send_text = AsyncMock()
+        ws.accept = MagicMock()
+        ws.send_text = MagicMock()
 
-        await fresh_manager.connect(ws, "detailed@example.com")
+        fresh_manager.connect(ws, "detailed@example.com")
 
         stats = fresh_manager.get_connection_stats()
         connection = stats["connections"][0]
@@ -547,26 +541,25 @@ class TestConcurrentConnections:
         assert "connected_at" in connection
         assert "last_heartbeat" in connection
 
-    @pytest.mark.asyncio
-    async def test_same_user_multiple_connections(self, fresh_manager):
+    def test_same_user_multiple_connections(self, fresh_manager):
         """Test that same user can have multiple connections."""
         ws1 = MagicMock()
-        ws1.accept = AsyncMock()
-        ws1.send_text = AsyncMock()
+        ws1.accept = MagicMock()
+        ws1.send_text = MagicMock()
 
         ws2 = MagicMock()
-        ws2.accept = AsyncMock()
-        ws2.send_text = AsyncMock()
+        ws2.accept = MagicMock()
+        ws2.send_text = MagicMock()
 
         # Same user connecting from different devices/tabs
-        await fresh_manager.connect(ws1, "multidevice@example.com")
-        await fresh_manager.connect(ws2, "multidevice@example.com")
+        fresh_manager.connect(ws1, "multidevice@example.com")
+        fresh_manager.connect(ws2, "multidevice@example.com")
 
         assert fresh_manager.active_connections_count == 2
 
         # Both should receive broadcasts
         event = WebSocketEvent.heartbeat()
-        await fresh_manager.broadcast(event)
+        fresh_manager.broadcast(event)
 
         ws1.send_text.assert_called_once()
         ws2.send_text.assert_called_once()
@@ -585,66 +578,62 @@ class TestConnectionCleanup:
         ConnectionManager._instance = None
         ConnectionManager._initialized = False
 
-    @pytest.mark.asyncio
-    async def test_disconnect_removes_connection(self, fresh_manager):
+    def test_disconnect_removes_connection(self, fresh_manager):
         """Test that disconnect properly removes connection."""
         ws = MagicMock()
-        ws.accept = AsyncMock()
+        ws.accept = MagicMock()
 
-        await fresh_manager.connect(ws, "disconnect@example.com")
+        fresh_manager.connect(ws, "disconnect@example.com")
         assert fresh_manager.active_connections_count == 1
 
-        await fresh_manager.disconnect(ws)
+        fresh_manager.disconnect(ws)
         assert fresh_manager.active_connections_count == 0
 
-    @pytest.mark.asyncio
-    async def test_disconnect_nonexistent_connection(self, fresh_manager):
+    def test_disconnect_nonexistent_connection(self, fresh_manager):
         """Test disconnecting a non-existent connection doesn't raise."""
         ws = MagicMock()
 
         # Should not raise any exception
-        await fresh_manager.disconnect(ws)
+        fresh_manager.disconnect(ws)
         assert fresh_manager.active_connections_count == 0
 
-    @pytest.mark.asyncio
-    async def test_send_personal_disconnects_on_failure(self, fresh_manager):
+    def test_send_personal_disconnects_on_failure(self, fresh_manager):
         """Test that personal send disconnects client on failure."""
         ws = MagicMock()
-        ws.accept = AsyncMock()
-        ws.send_text = AsyncMock(side_effect=Exception("Connection closed"))
+        ws.accept = MagicMock()
+        ws.send_text = MagicMock(side_effect=Exception("Connection closed"))
 
-        await fresh_manager.connect(ws, "failing@example.com")
+        fresh_manager.connect(ws, "failing@example.com")
         assert fresh_manager.active_connections_count == 1
 
         event = WebSocketEvent.heartbeat()
-        await fresh_manager.send_personal(ws, event)
+        fresh_manager.send_personal(ws, event)
 
         # Client should be disconnected after failure
         assert fresh_manager.active_connections_count == 0
 
-    @pytest.mark.asyncio
-    async def test_broadcast_cleans_multiple_dead_connections(self, fresh_manager):
+    def test_broadcast_cleans_multiple_dead_connections(self, fresh_manager):
         """Test broadcast cleans up multiple dead connections."""
         healthy = MagicMock()
-        healthy.accept = AsyncMock()
-        healthy.send_text = AsyncMock()
+        healthy.accept = MagicMock()
+        healthy.send_text = MagicMock()
 
         dead1 = MagicMock()
-        dead1.accept = AsyncMock()
-        dead1.send_text = AsyncMock(side_effect=Exception("Dead 1"))
+        dead1.accept = MagicMock()
+        dead1.send_text = MagicMock(side_effect=Exception("Dead 1"))
 
         dead2 = MagicMock()
-        dead2.accept = AsyncMock()
-        dead2.send_text = AsyncMock(side_effect=Exception("Dead 2"))
+        dead2.accept = MagicMock()
+        dead2.send_text = MagicMock(side_effect=Exception("Dead 2"))
 
-        await fresh_manager.connect(healthy, "healthy@example.com")
-        await fresh_manager.connect(dead1, "dead1@example.com")
-        await fresh_manager.connect(dead2, "dead2@example.com")
+        fresh_manager.connect(healthy, "healthy@example.com")
+        fresh_manager.connect(dead1, "dead1@example.com")
+        fresh_manager.connect(dead2, "dead2@example.com")
 
         assert fresh_manager.active_connections_count == 3
 
         event = WebSocketEvent.heartbeat()
-        await fresh_manager.broadcast(event)
+        fresh_manager.broadcast(event)
 
         # Only healthy connection should remain
         assert fresh_manager.active_connections_count == 1
@@ -666,19 +655,18 @@ class TestHeartbeatFunctionality:
         ConnectionManager._instance = None
         ConnectionManager._initialized = False
 
-    @pytest.mark.asyncio
-    async def test_update_heartbeat_timestamp(self, fresh_manager):
+    def test_update_heartbeat_timestamp(self, fresh_manager):
         """Test that update_heartbeat updates the timestamp."""
         ws = MagicMock()
-        ws.accept = AsyncMock()
+        ws.accept = MagicMock()
 
-        await fresh_manager.connect(ws, "heartbeat@example.com")
+        fresh_manager.connect(ws, "heartbeat@example.com")
 
         # Get initial heartbeat time
         initial_time = fresh_manager._active_connections[ws].last_heartbeat
 
         # Wait a tiny bit to ensure time difference
-        await asyncio.sleep(0.01)
+        asyncio.sleep(0.01)
 
         # Update heartbeat
         fresh_manager.update_heartbeat(ws)
@@ -687,72 +675,68 @@ class TestHeartbeatFunctionality:
         new_time = fresh_manager._active_connections[ws].last_heartbeat
         assert new_time > initial_time
 
-    @pytest.mark.asyncio
-    async def test_heartbeat_starts_on_first_connection(self, fresh_manager):
+    def test_heartbeat_starts_on_first_connection(self, fresh_manager):
         """Test that heartbeat task starts with first connection."""
         assert fresh_manager._heartbeat_task is None
 
         ws = MagicMock()
-        ws.accept = AsyncMock()
-        ws.send_text = AsyncMock()
+        ws.accept = MagicMock()
+        ws.send_text = MagicMock()
 
-        await fresh_manager.connect(ws, "first@example.com")
+        fresh_manager.connect(ws, "first@example.com")
 
         # Heartbeat task should be started
         assert fresh_manager._heartbeat_task is not None
         assert not fresh_manager._heartbeat_task.done()
 
-    @pytest.mark.asyncio
-    async def test_heartbeat_stops_on_last_disconnect(self, fresh_manager):
+    def test_heartbeat_stops_on_last_disconnect(self, fresh_manager):
         """Test that heartbeat task stops when last client disconnects."""
         ws = MagicMock()
-        ws.accept = AsyncMock()
-        ws.send_text = AsyncMock()
+        ws.accept = MagicMock()
+        ws.send_text = MagicMock()
 
-        await fresh_manager.connect(ws, "last@example.com")
+        fresh_manager.connect(ws, "last@example.com")
         assert fresh_manager._heartbeat_task is not None
 
-        await fresh_manager.disconnect(ws)
+        fresh_manager.disconnect(ws)
 
         # Give the cancel time to process
-        await asyncio.sleep(0.01)
+        asyncio.sleep(0.01)
 
         # Heartbeat task should be cancelled/done
         assert fresh_manager._heartbeat_task is None or fresh_manager._heartbeat_task.done()
 
-    @pytest.mark.asyncio
-    async def test_manual_start_stop_heartbeat(self, fresh_manager):
+    def test_manual_start_stop_heartbeat(self, fresh_manager):
         """Test manual start and stop of heartbeat."""
         # Manually start heartbeat
-        await fresh_manager.start_heartbeat()
+        fresh_manager.start_heartbeat()
         assert fresh_manager._heartbeat_task is not None
         assert not fresh_manager._heartbeat_task.done()
 
         # Manually stop heartbeat
-        await fresh_manager.stop_heartbeat()
-        await asyncio.sleep(0.01)  # Give time for cancellation
+        fresh_manager.stop_heartbeat()
+        asyncio.sleep(0.01)  # Give time for cancellation
 
         assert fresh_manager._heartbeat_task.done()
 
-    @pytest.mark.asyncio
-    async def test_heartbeat_broadcasts_to_all_clients(self, fresh_manager):
+    def test_heartbeat_broadcasts_to_all_clients(self, fresh_manager):
         """Test that heartbeat broadcasts to all connected clients."""
         # Set a very short heartbeat interval for testing
         fresh_manager._heartbeat_interval = 0.1  # 100ms
 
         ws1 = MagicMock()
-        ws1.accept = AsyncMock()
-        ws1.send_text = AsyncMock()
+        ws1.accept = MagicMock()
+        ws1.send_text = MagicMock()
 
         ws2 = MagicMock()
-        ws2.accept = AsyncMock()
-        ws2.send_text = AsyncMock()
+        ws2.accept = MagicMock()
+        ws2.send_text = MagicMock()
 
-        await fresh_manager.connect(ws1, "user1@example.com")
-        await fresh_manager.connect(ws2, "user2@example.com")
+        fresh_manager.connect(ws1, "user1@example.com")
+        fresh_manager.connect(ws2, "user2@example.com")
 
         # Wait for at least one heartbeat
-        await asyncio.sleep(0.15)
+        asyncio.sleep(0.15)
 
         # Both clients should have received at least one heartbeat
         assert ws1.send_text.called
@@ -880,8 +864,7 @@ class TestEventSerialization:
 class TestWebSocketAuthentication:
     """Tests for WebSocket authentication using mocks."""
 
-    @pytest.mark.asyncio
-    async def test_authenticate_with_valid_token(self):
+    def test_authenticate_with_valid_token(self):
         """Test authentication with a valid JWT token."""
         from src.api.websocket.dashboard_ws import authenticate_websocket
 
@@ -897,26 +880,24 @@ class TestWebSocketAuthentication:
             mock_result = MagicMock()
             mock_result.scalar_one_or_none.return_value = mock_user
 
-            mock_session_instance = AsyncMock()
-            mock_session_instance.execute = AsyncMock(return_value=mock_result)
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
+            mock_session_instance = MagicMock()
+            mock_session_instance.execute = MagicMock(return_value=mock_result)
+            mock_session_instance.__aenter__ = MagicMock(return_value=mock_session_instance)
+            mock_session_instance.__aexit__ = MagicMock(return_value=None)
 
             mock_session.return_value = MagicMock(return_value=mock_session_instance)
 
-            result = await authenticate_websocket(token)
+            result = authenticate_websocket(token)
             assert result == "auth_test@example.com"
 
-    @pytest.mark.asyncio
-    async def test_authenticate_with_invalid_token(self):
+    def test_authenticate_with_invalid_token(self):
         """Test authentication with an invalid JWT token."""
         from src.api.websocket.dashboard_ws import authenticate_websocket
 
-        result = await authenticate_websocket("invalid.token.here")
+        result = authenticate_websocket("invalid.token.here")
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_authenticate_with_expired_token(self):
+    def test_authenticate_with_expired_token(self):
         """Test authentication with an expired JWT token."""
         from src.api.websocket.dashboard_ws import authenticate_websocket
 
@@ -926,11 +907,10 @@ class TestWebSocketAuthentication:
             expires_delta=timedelta(minutes=-1),
         )
 
-        result = await authenticate_websocket(token)
+        result = authenticate_websocket(token)
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_authenticate_with_missing_subject(self):
+    def test_authenticate_with_missing_subject(self):
         """Test authentication with token missing subject claim."""
         import jwt
 
@@ -942,11 +922,10 @@ class TestWebSocketAuthentication:
             {"exp": datetime.now() + timedelta(hours=1)}, SECRET_KEY, algorithm=ALGORITHM
         )
 
-        result = await authenticate_websocket(token)
+        result = authenticate_websocket(token)
         assert result is None
 
-    @pytest.mark.asyncio
-    async def test_authenticate_with_inactive_user(self):
+    def test_authenticate_with_inactive_user(self):
         """Test authentication with inactive user."""
         from src.api.websocket.dashboard_ws import authenticate_websocket
 
@@ -960,18 +939,17 @@ class TestWebSocketAuthentication:
             mock_result = MagicMock()
             mock_result.scalar_one_or_none.return_value = mock_user
 
-            mock_session_instance = AsyncMock()
-            mock_session_instance.execute = AsyncMock(return_value=mock_result)
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
+            mock_session_instance = MagicMock()
+            mock_session_instance.execute = MagicMock(return_value=mock_result)
+            mock_session_instance.__aenter__ = MagicMock(return_value=mock_session_instance)
+            mock_session_instance.__aexit__ = MagicMock(return_value=None)
 
             mock_session.return_value = MagicMock(return_value=mock_session_instance)
 
-            result = await authenticate_websocket(token)
+            result = authenticate_websocket(token)
             assert result is None
 
-    @pytest.mark.asyncio
-    async def test_authenticate_with_nonexistent_user(self):
+    def test_authenticate_with_nonexistent_user(self):
         """Test authentication with non-existent user."""
         from src.api.websocket.dashboard_ws import authenticate_websocket
 
@@ -981,12 +959,12 @@ class TestWebSocketAuthentication:
             mock_result = MagicMock()
             mock_result.scalar_one_or_none.return_value = None
 
-            mock_session_instance = AsyncMock()
-            mock_session_instance.execute = AsyncMock(return_value=mock_result)
-            mock_session_instance.__aenter__ = AsyncMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = AsyncMock(return_value=None)
+            mock_session_instance = MagicMock()
+            mock_session_instance.execute = MagicMock(return_value=mock_result)
+            mock_session_instance.__aenter__ = MagicMock(return_value=mock_session_instance)
+            mock_session_instance.__aexit__ = MagicMock(return_value=None)
 
             mock_session.return_value = MagicMock(return_value=mock_session_instance)
 
-            result = await authenticate_websocket(token)
+            result = authenticate_websocket(token)
             assert result is None

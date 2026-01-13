@@ -5,7 +5,7 @@ from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from config import BingXConfig, TradingConfig
 from src.database.models.account import Account
@@ -13,8 +13,8 @@ from src.database.models.user import User
 from src.utils.logger import main_logger
 
 
-async def get_or_create_account(
-    session: AsyncSession,
+def get_or_create_account(
+    session: Session,
     bingx_config: BingXConfig,
     trading_config: TradingConfig,
     user_email: str = "default@btcbot.local",
@@ -40,7 +40,7 @@ async def get_or_create_account(
     try:
         # Get or create default user
         stmt = select(User).where(User.email == user_email)
-        result = await session.execute(stmt)
+        result = session.execute(stmt)
         user = result.scalar_one_or_none()
 
         if not user:
@@ -50,7 +50,7 @@ async def get_or_create_account(
                 password_hash="not_used_for_bot",  # pragma: allowlist secret
             )
             session.add(user)
-            await session.flush()
+            session.flush()
             main_logger.info(f"Created default user: {user_email}")
 
         # Hash API key for identification
@@ -67,7 +67,7 @@ async def get_or_create_account(
             Account.name == account_name,
             Account.is_demo == is_demo,
         )
-        account_result = await session.execute(account_stmt)
+        account_result = session.execute(account_stmt)
         account = account_result.scalar_one_or_none()
 
         if not account:
@@ -79,7 +79,7 @@ async def get_or_create_account(
                 api_key_hash=api_key_hash,
             )
             session.add(account)
-            await session.flush()
+            session.flush()
             main_logger.info(f"Created account: {account_name} (id={account.id})")
         else:
             # Update API key hash if changed
@@ -87,10 +87,10 @@ async def get_or_create_account(
                 account.api_key_hash = api_key_hash
                 main_logger.info("Updated account API key hash")
 
-        await session.commit()
+        session.commit()
         return cast(UUID, account.id)
 
     except Exception as e:
-        await session.rollback()
+        session.rollback()
         main_logger.error(f"Error getting/creating account: {e}")
         raise

@@ -24,7 +24,7 @@ class AccountService:
         """
         self.repository = repository
 
-    async def add_account(
+    def add_account(
         self,
         user_id: UUID,
         exchange: str,
@@ -69,7 +69,7 @@ class AccountService:
             api_key_hash=api_key_hash,
         )
 
-    async def validate_api_credentials(
+    def validate_api_credentials(
         self,
         exchange: str,
         api_key: str,
@@ -97,7 +97,7 @@ class AccountService:
         msg = f"Unsupported exchange: {exchange}"
         raise ValueError(msg)
 
-    async def _validate_bingx_credentials(
+    def _validate_bingx_credentials(
         self,
         api_key: str,
         api_secret: str,
@@ -125,7 +125,7 @@ class AccountService:
         except Exception:  # noqa: BLE001
             return False
 
-    async def get_user_accounts(self, user_id: UUID) -> list[Account]:
+    def get_user_accounts(self, user_id: UUID) -> list[Account]:
         """Get all accounts for a user.
 
         Args:
@@ -136,7 +136,7 @@ class AccountService:
         """
         return self.repository.get_by_user(user_id)
 
-    async def get_active_account(self, user_id: UUID, exchange: str) -> Account | None:
+    def get_active_account(self, user_id: UUID, exchange: str) -> Account | None:
         """Get the first active account for a user and exchange.
 
         Args:

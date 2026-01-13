@@ -151,7 +151,7 @@ class TestSlotBasedPositionControl:
         """Create OrderTracker instance with spacing=100."""
         return OrderTracker(spacing=100.0)
 
-    async def test_order_filled_marks_slot_occupied(self, tracker):
+    def test_order_filled_marks_slot_occupied(self, tracker):
         """When an order is filled, its slot should be marked as occupied."""
         # Add and fill an order
         tracker.add_order(
@@ -161,14 +161,14 @@ class TestSlotBasedPositionControl:
             quantity=0.01,
         )
 
-        await tracker.order_filled("test_order_1")
+        tracker.order_filled("test_order_1")
 
         # Slot should be marked as occupied
         assert tracker.is_slot_occupied(93972.30)
         assert tracker.is_slot_occupied(93900.00)
         assert tracker.is_slot_occupied(93999.99)
 
-    async def test_tp_hit_releases_slot(self, tracker):
+    def test_tp_hit_releases_slot(self, tracker):
         """When TP is hit, the slot should be released."""
         # Add, fill, and close an order
         tracker.add_order(
@@ -178,16 +178,16 @@ class TestSlotBasedPositionControl:
             quantity=0.01,
         )
 
-        await tracker.order_filled("test_order_1")
+        tracker.order_filled("test_order_1")
         assert tracker.is_slot_occupied(93972.30)
 
-        await tracker.order_tp_hit("test_order_1", exit_price=94254.60)
+        tracker.order_tp_hit("test_order_1", exit_price=94254.60)
 
         # Slot should be released
         assert not tracker.is_slot_occupied(93972.30)
         assert not tracker.is_slot_occupied(93900.00)
 
-    async def test_multiple_positions_different_slots(self, tracker):
+    def test_multiple_positions_different_slots(self, tracker):
         """Multiple positions can exist in different slots."""
         # Add and fill orders in different slots
         tracker.add_order(
@@ -203,8 +203,8 @@ class TestSlotBasedPositionControl:
             quantity=0.01,
         )
 
-        await tracker.order_filled("order_1")
-        await tracker.order_filled("order_2")
+        tracker.order_filled("order_1")
+        tracker.order_filled("order_2")
 
         # Both slots should be occupied
         assert tracker.is_slot_occupied(93972.30)
@@ -214,7 +214,7 @@ class TestSlotBasedPositionControl:
         assert not tracker.is_slot_occupied(93850.00)  # Slot 93800
         assert not tracker.is_slot_occupied(94150.00)  # Slot 94100
 
-    async def test_cannot_have_multiple_positions_in_same_slot(self, tracker):
+    def test_cannot_have_multiple_positions_in_same_slot(self, tracker):
         """Slot occupancy check should prevent multiple positions in same range."""
         # Fill first order in slot 93900
         tracker.add_order(
@@ -223,17 +223,17 @@ class TestSlotBasedPositionControl:
             tp_price=94254.60,
             quantity=0.01,
         )
-        await tracker.order_filled("order_1")
+        tracker.order_filled("order_1")
 
         # Check that slot is occupied for other prices in same range
         assert tracker.is_slot_occupied(93950.00)  # Should be blocked
         assert tracker.is_slot_occupied(93931.80)  # Should be blocked
         assert tracker.is_slot_occupied(93937.20)  # Should be blocked
 
-    async def test_loaded_position_marks_slot_occupied(self, tracker):
+    def test_loaded_position_marks_slot_occupied(self, tracker):
         """Positions loaded from exchange should mark slots as occupied."""
         # Simulate loading existing position
-        await tracker.load_existing_positions(
+        tracker.load_existing_positions(
             positions=[{"symbol": "BTC-USDT", "positionAmt": "0.01"}],
             open_orders=[
                 {

@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import jwt
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.services.auth_service import AuthService
 
@@ -17,10 +17,10 @@ def jwt_secret() -> str:
 
 
 @pytest.fixture
-async def auth_service(async_session: AsyncSession, jwt_secret: str) -> AuthService:
+def auth_service(session: Session, jwt_secret: str) -> AuthService:
     """Create AuthService instance."""
     return AuthService(
-        async_session,
+        session,
         jwt_secret=jwt_secret,
         jwt_expiration_hours=24,
     )
@@ -29,8 +29,7 @@ async def auth_service(async_session: AsyncSession, jwt_secret: str) -> AuthServ
 class TestAuthService:
     """Test cases for AuthService."""
 
-    @pytest.mark.asyncio
-    async def test_hash_password(self, auth_service: AuthService):
+    def test_hash_password(self, auth_service: AuthService):
         """Test password hashing."""
         # Act
         hashed = auth_service.hash_password("mypassword123")
@@ -40,8 +39,7 @@ class TestAuthService:
         assert len(hashed) > 20  # bcrypt hashes are typically 60 chars
         assert hashed.startswith("$2b$")  # bcrypt hash format
 
-    @pytest.mark.asyncio
-    async def test_hash_password_different_salts(self, auth_service: AuthService):
+    def test_hash_password_different_salts(self, auth_service: AuthService):
         """Test that same password produces different hashes."""
         # Act
         hash1 = auth_service.hash_password("samepassword")
@@ -50,8 +48,7 @@ class TestAuthService:
         # Assert
         assert hash1 != hash2  # Different salts produce different hashes
 
-    @pytest.mark.asyncio
-    async def test_verify_password_correct(self, auth_service: AuthService):
+    def test_verify_password_correct(self, auth_service: AuthService):
         """Test password verification with correct password."""
         # Arrange
         password = "testpassword123"  # pragma: allowlist secret
@@ -63,8 +60,7 @@ class TestAuthService:
         # Assert
         assert is_valid is True
 
-    @pytest.mark.asyncio
-    async def test_verify_password_incorrect(self, auth_service: AuthService):
+    def test_verify_password_incorrect(self, auth_service: AuthService):
         """Test password verification with incorrect password."""
         # Arrange
         hashed = auth_service.hash_password("correctpassword")
@@ -75,11 +71,10 @@ class TestAuthService:
         # Assert
         assert is_valid is False
 
-    @pytest.mark.asyncio
-    async def test_register_success(self, auth_service: AuthService):
+    def test_register_success(self, auth_service: AuthService):
         """Test successful user registration."""
         # Act
-        user = await auth_service.register(
+        user = auth_service.register(
             email="newuser@example.com",
             password="password123",  # pragma: allowlist secret
             name="New User",
@@ -98,43 +93,40 @@ class TestAuthService:
             user.password_hash,
         )
 
-    @pytest.mark.asyncio
-    async def test_register_password_too_short(self, auth_service: AuthService):
+    def test_register_password_too_short(self, auth_service: AuthService):
         """Test registration with too short password."""
         # Act & Assert
         with pytest.raises(ValueError, match="at least 8 characters"):
-            await auth_service.register(
+            auth_service.register(
                 email="short@example.com",
                 password="short",  # pragma: allowlist secret
             )
 
-    @pytest.mark.asyncio
-    async def test_register_duplicate_email(self, auth_service: AuthService):
+    def test_register_duplicate_email(self, auth_service: AuthService):
         """Test registration with duplicate email."""
         # Arrange
-        await auth_service.register(
+        auth_service.register(
             email="duplicate@example.com",
             password="password123",  # pragma: allowlist secret
         )
 
         # Act & Assert
         with pytest.raises(ValueError, match="already exists"):
-            await auth_service.register(
+            auth_service.register(
                 email="duplicate@example.com",
                 password="anotherpass123",  # pragma: allowlist secret
             )
 
-    @pytest.mark.asyncio
-    async def test_login_success(self, auth_service: AuthService):
+    def test_login_success(self, auth_service: AuthService):
         """Test successful login."""
         # Arrange
-        await auth_service.register(
+        auth_service.register(
             email="login@example.com",
             password="mypassword123",  # pragma: allowlist secret
         )
 
         # Act
-        user, token = await auth_service.login(
+        user, token = auth_service.login(
             "login@example.com", "mypassword123"
         )  # pragma: allowlist secret
 
@@ -143,77 +135,67 @@ class TestAuthService:
         assert isinstance(token, str)
         assert len(token) > 20  # JWT tokens are long
 
-    @pytest.mark.asyncio
-    async def test_login_wrong_email(self, auth_service: AuthService):
+    def test_login_wrong_email(self, auth_service: AuthService):
         """Test login with non-existent email."""
         # Act & Assert
         with pytest.raises(ValueError, match="Invalid email or password"):
-            await auth_service.login("notfound@example.com", "password123")
+            auth_service.login("notfound@example.com", "password123")
 
-    @pytest.mark.asyncio
-    async def test_login_wrong_password(self, auth_service: AuthService):
+    def test_login_wrong_password(self, auth_service: AuthService):
         """Test login with incorrect password."""
         # Arrange
-        await auth_service.register(
+        auth_service.register(
             email="wrongpass@example.com",
             password="correctpass123",  # pragma: allowlist secret
         )
 
         # Act & Assert
         with pytest.raises(ValueError, match="Invalid email or password"):
-            await auth_service.login(
-                "wrongpass@example.com", "wrongpass123"
-            )  # pragma: allowlist secret
+            auth_service.login("wrongpass@example.com", "wrongpass123")  # pragma: allowlist secret
 
-    @pytest.mark.asyncio
-    async def test_login_inactive_account(self, auth_service: AuthService):
+    def test_login_inactive_account(self, auth_service: AuthService):
         """Test login with inactive account."""
         # Arrange
-        user = await auth_service.register(
+        user = auth_service.register(
             email="inactive@example.com",
             password="password123",  # pragma: allowlist secret
         )
         # Deactivate user
-        await auth_service.user_repository.deactivate_user(user.id)
+        auth_service.user_repository.deactivate_user(user.id)
 
         # Act & Assert
         with pytest.raises(ValueError, match="inactive"):
-            await auth_service.login(
-                "inactive@example.com", "password123"
-            )  # pragma: allowlist secret
+            auth_service.login("inactive@example.com", "password123")  # pragma: allowlist secret
 
-    @pytest.mark.asyncio
-    async def test_verify_token_valid(self, auth_service: AuthService):
+    def test_verify_token_valid(self, auth_service: AuthService):
         """Test verifying valid token."""
         # Arrange
-        registered_user = await auth_service.register(
+        registered_user = auth_service.register(
             email="tokentest@example.com",
-            password="password123",
+            password="password123",  # pragma: allowlist secret
         )
-        _, token = await auth_service.login("tokentest@example.com", "password123")
+        _, token = auth_service.login("tokentest@example.com", "password123")  # pragma: allowlist secret
 
         # Act
-        user = await auth_service.verify_token(token)
+        user = auth_service.verify_token(token)
 
         # Assert
         assert user is not None
         assert user.id == registered_user.id
         assert user.email == "tokentest@example.com"
 
-    @pytest.mark.asyncio
-    async def test_verify_token_invalid(self, auth_service: AuthService):
+    def test_verify_token_invalid(self, auth_service: AuthService):
         """Test verifying invalid token."""
         # Act
-        user = await auth_service.verify_token("invalid.token.here")
+        user = auth_service.verify_token("invalid.token.here")
 
         # Assert
         assert user is None
 
-    @pytest.mark.asyncio
-    async def test_verify_token_expired(self, auth_service: AuthService, jwt_secret: str):
+    def test_verify_token_expired(self, auth_service: AuthService, jwt_secret: str):
         """Test verifying expired token."""
         # Arrange
-        user = await auth_service.register(
+        user = auth_service.register(
             email="expired@example.com",
             password="password123",
         )
@@ -226,41 +208,39 @@ class TestAuthService:
         )
 
         # Act
-        verified_user = await auth_service.verify_token(expired_token)
+        verified_user = auth_service.verify_token(expired_token)
 
         # Assert
         assert verified_user is None
 
-    @pytest.mark.asyncio
-    async def test_verify_token_inactive_user(self, auth_service: AuthService):
+    def test_verify_token_inactive_user(self, auth_service: AuthService):
         """Test verifying token for inactive user."""
         # Arrange
-        user = await auth_service.register(
+        user = auth_service.register(
             email="deactivated@example.com",
             password="password123",
         )
-        _, token = await auth_service.login("deactivated@example.com", "password123")
+        _, token = auth_service.login("deactivated@example.com", "password123")
 
         # Deactivate user
-        await auth_service.user_repository.deactivate_user(user.id)
+        auth_service.user_repository.deactivate_user(user.id)
 
         # Act
-        verified_user = await auth_service.verify_token(token)
+        verified_user = auth_service.verify_token(token)
 
         # Assert
         assert verified_user is None  # Inactive users should not be verified
 
-    @pytest.mark.asyncio
-    async def test_change_password_success(self, auth_service: AuthService):
+    def test_change_password_success(self, auth_service: AuthService):
         """Test changing password successfully."""
         # Arrange
-        user = await auth_service.register(
+        user = auth_service.register(
             email="changepass@example.com",
             password="oldpassword123",  # pragma: allowlist secret
         )
 
         # Act
-        success = await auth_service.change_password(
+        success = auth_service.change_password(
             user.id,
             "oldpassword123",  # pragma: allowlist secret
             "newpassword456",  # pragma: allowlist secret
@@ -270,65 +250,61 @@ class TestAuthService:
         assert success is True
 
         # Verify new password works
-        logged_user, _ = await auth_service.login(
+        logged_user, _ = auth_service.login(
             "changepass@example.com", "newpassword456"
         )  # pragma: allowlist secret
         assert logged_user.id == user.id
 
-    @pytest.mark.asyncio
-    async def test_change_password_wrong_old_password(self, auth_service: AuthService):
+    def test_change_password_wrong_old_password(self, auth_service: AuthService):
         """Test changing password with incorrect old password."""
         # Arrange
-        user = await auth_service.register(
+        user = auth_service.register(
             email="wrongold@example.com",
             password="correctold123",  # pragma: allowlist secret
         )
 
         # Act & Assert
         with pytest.raises(ValueError, match="Current password is incorrect"):
-            await auth_service.change_password(
+            auth_service.change_password(
                 user.id,
                 "wrongold123",  # pragma: allowlist secret
                 "newpassword456",  # pragma: allowlist secret
             )
 
-    @pytest.mark.asyncio
-    async def test_change_password_new_too_short(self, auth_service: AuthService):
+    def test_change_password_new_too_short(self, auth_service: AuthService):
         """Test changing password with too short new password."""
         # Arrange
-        user = await auth_service.register(
+        user = auth_service.register(
             email="shortNew@example.com",
             password="oldpassword123",  # pragma: allowlist secret
         )
 
         # Act & Assert
         with pytest.raises(ValueError, match="at least 8 characters"):
-            await auth_service.change_password(
+            auth_service.change_password(
                 user.id,
                 "oldpassword123",  # pragma: allowlist secret
                 "short",  # pragma: allowlist secret
             )
 
-    @pytest.mark.asyncio
-    async def test_change_password_user_not_found(self, auth_service: AuthService):
+    def test_change_password_user_not_found(self, auth_service: AuthService):
         """Test changing password for non-existent user."""
         # Act & Assert
         with pytest.raises(ValueError, match="not found"):
-            await auth_service.change_password(
+            auth_service.change_password(
                 uuid4(),
                 "oldpass123",
                 "newpass123",
             )
 
-    @pytest.mark.asyncio
-    async def test_jwt_secret_from_env_var(self, async_session: AsyncSession):
+    def test_jwt_secret_from_env_var(self, session: Session):
         """Test JWT secret loaded from environment variable."""
         # Arrange
         os.environ["JWT_SECRET_KEY"] = "env-secret-key-for-testing"  # pragma: allowlist secret
 
         try:
             # Act
-            service = AuthService(async_session)
+            service = AuthService(session)
 
             # Assert
             assert service.jwt_secret == "env-secret-key-for-testing"  # pragma: allowlist secret
@@ -336,8 +312,7 @@ class TestAuthService:
             # Cleanup
             del os.environ["JWT_SECRET_KEY"]
 
-    @pytest.mark.asyncio
-    async def test_missing_jwt_secret_raises_error(self, async_session: AsyncSession):
+    def test_missing_jwt_secret_raises_error(self, session: Session):
         """Test that missing JWT secret raises ValueError."""
         # Ensure env var is not set
         if "JWT_SECRET_KEY" in os.environ:
@@ -345,21 +320,20 @@ class TestAuthService:
 
         # Act & Assert
         with pytest.raises(ValueError, match="JWT secret key is required"):
-            AuthService(async_session)
+            AuthService(session)
 
-    @pytest.mark.asyncio
-    async def test_generate_token_contains_correct_payload(
+    def test_generate_token_contains_correct_payload(
         self,
         auth_service: AuthService,
         jwt_secret: str,
     ):
         """Test that generated token contains correct user information."""
         # Arrange
-        user = await auth_service.register(
+        user = auth_service.register(
             email="payload@example.com",
             password="password123",
         )
-        _, token = await auth_service.login("payload@example.com", "password123")
+        _, token = auth_service.login("payload@example.com", "password123")
 
         # Act
         payload = jwt.decode(token, jwt_secret, algorithms=["HS256"])

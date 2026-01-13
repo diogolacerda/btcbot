@@ -13,7 +13,7 @@ from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepos
 
 
 @pytest.fixture
-async def test_account(async_session):
+def test_account(session):
     """Create a test account for trade foreign key."""
     # Create user first
     user = User(
@@ -21,8 +21,8 @@ async def test_account(async_session):
         name="Test User",
         password_hash="hashed_password",  # pragma: allowlist secret
     )
-    async_session.add(user)
-    await async_session.flush()
+    session.add(user)
+    session.flush()
 
     # Create account
     account = Account(
@@ -31,13 +31,13 @@ async def test_account(async_session):
         name="Test Account",
         is_demo=True,
     )
-    async_session.add(account)
-    await async_session.commit()
+    session.add(account)
+    session.commit()
     return account
 
 
 @pytest.fixture
-async def test_trade(async_session, test_account):
+def test_trade(session, test_account):
     """Create a test trade for TP adjustments."""
     trade = Trade(
         account_id=test_account.id,
@@ -51,17 +51,16 @@ async def test_trade(async_session, test_account):
         tp_percent=Decimal("0.5"),
         status="OPEN",
     )
-    async_session.add(trade)
-    await async_session.commit()
+    session.add(trade)
+    session.commit()
     return trade
 
 
-@pytest.mark.asyncio
-async def test_save_adjustment(async_session, test_trade):
+def test_save_adjustment(session, test_trade):
     """Test saving a new TP adjustment."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
-    adjustment = await repo.save_adjustment(
+    adjustment = repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -85,12 +84,11 @@ async def test_save_adjustment(async_session, test_trade):
     assert adjustment.adjusted_at is not None
 
 
-@pytest.mark.asyncio
-async def test_save_adjustment_minimal(async_session, test_trade):
+def test_save_adjustment_minimal(session, test_trade):
     """Test saving adjustment with only required fields."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
-    adjustment = await repo.save_adjustment(
+    adjustment = repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -105,17 +103,16 @@ async def test_save_adjustment_minimal(async_session, test_trade):
     assert adjustment.hours_open is None
 
 
-@pytest.mark.asyncio
-async def test_get_by_trade(async_session, test_trade):
+def test_get_by_trade(session, test_trade):
     """Test retrieving all adjustments for a trade."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Initially empty
-    adjustments = await repo.get_by_trade(test_trade.id)
+    adjustments = repo.get_by_trade(test_trade.id)
     assert len(adjustments) == 0
 
     # Create first adjustment
-    await repo.save_adjustment(
+    repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -124,7 +121,7 @@ async def test_get_by_trade(async_session, test_trade):
     )
 
     # Create second adjustment
-    await repo.save_adjustment(
+    repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50600.00"),
         new_tp_price=Decimal("50700.00"),
@@ -133,30 +130,28 @@ async def test_get_by_trade(async_session, test_trade):
     )
 
     # Retrieve all
-    adjustments = await repo.get_by_trade(test_trade.id)
+    adjustments = repo.get_by_trade(test_trade.id)
     assert len(adjustments) == 2
     # Should be ordered by most recent first
     assert adjustments[0].new_tp_percent == Decimal("0.7")
     assert adjustments[1].new_tp_percent == Decimal("0.6")
 
 
-@pytest.mark.asyncio
-async def test_get_by_trade_nonexistent(async_session):
+def test_get_by_trade_nonexistent(session):
     """Test retrieving adjustments for nonexistent trade."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
-    adjustments = await repo.get_by_trade(uuid4())
+    adjustments = repo.get_by_trade(uuid4())
     assert len(adjustments) == 0
 
 
-@pytest.mark.asyncio
-async def test_get_recent(async_session, test_trade):
+def test_get_recent(session, test_trade):
     """Test retrieving recent adjustments."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Create multiple adjustments
     for i in range(5):
-        await repo.save_adjustment(
+        repo.save_adjustment(
             trade_id=test_trade.id,
             old_tp_price=Decimal(f"5050{i}.00"),
             new_tp_price=Decimal(f"5060{i}.00"),
@@ -165,24 +160,23 @@ async def test_get_recent(async_session, test_trade):
         )
 
     # Get all recent
-    adjustments = await repo.get_recent(limit=100)
+    adjustments = repo.get_recent(limit=100)
     assert len(adjustments) == 5
 
     # Get limited
-    adjustments = await repo.get_recent(limit=3)
+    adjustments = repo.get_recent(limit=3)
     assert len(adjustments) == 3
 
     # Should be ordered by most recent first
     assert adjustments[0].new_tp_percent == Decimal("0.5")
 
 
-@pytest.mark.asyncio
-async def test_get_recent_with_date_filter(async_session, test_trade):
+def test_get_recent_with_date_filter(session, test_trade):
     """Test retrieving recent adjustments with date filter."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Create adjustment in the past
-    old_adjustment = await repo.save_adjustment(
+    old_adjustment = repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -192,10 +186,10 @@ async def test_get_recent_with_date_filter(async_session, test_trade):
 
     # Manually set adjusted_at to 2 days ago
     old_adjustment.adjusted_at = datetime.now(UTC) - timedelta(days=2)
-    await async_session.commit()
+    session.commit()
 
     # Create recent adjustment
-    await repo.save_adjustment(
+    repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50600.00"),
         new_tp_price=Decimal("50700.00"),
@@ -204,32 +198,30 @@ async def test_get_recent_with_date_filter(async_session, test_trade):
     )
 
     # Get all
-    all_adjustments = await repo.get_recent(limit=100)
+    all_adjustments = repo.get_recent(limit=100)
     assert len(all_adjustments) == 2
 
     # Get only from last 24 hours
     yesterday = datetime.now(UTC) - timedelta(days=1)
-    recent_adjustments = await repo.get_recent(limit=100, start_date=yesterday)
+    recent_adjustments = repo.get_recent(limit=100, start_date=yesterday)
     assert len(recent_adjustments) == 1
     assert recent_adjustments[0].new_tp_percent == Decimal("0.7")
 
 
-@pytest.mark.asyncio
-async def test_get_recent_empty(async_session):
+def test_get_recent_empty(session):
     """Test retrieving recent adjustments when none exist."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
-    adjustments = await repo.get_recent(limit=100)
+    adjustments = repo.get_recent(limit=100)
     assert len(adjustments) == 0
 
 
-@pytest.mark.asyncio
-async def test_inherited_get_by_id(async_session, test_trade):
+def test_inherited_get_by_id(session, test_trade):
     """Test inherited get_by_id method from BaseRepository."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Create adjustment
-    saved = await repo.save_adjustment(
+    saved = repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -238,20 +230,19 @@ async def test_inherited_get_by_id(async_session, test_trade):
     )
 
     # Retrieve by ID
-    found = await repo.get_by_id(saved.id)
+    found = repo.get_by_id(saved.id)
     assert found is not None
     assert found.id == saved.id
     assert found.trade_id == test_trade.id
 
 
-@pytest.mark.asyncio
-async def test_inherited_get_all(async_session, test_trade):
+def test_inherited_get_all(session, test_trade):
     """Test inherited get_all method from BaseRepository."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Create multiple adjustments
     for i in range(5):
-        await repo.save_adjustment(
+        repo.save_adjustment(
             trade_id=test_trade.id,
             old_tp_price=Decimal(f"5050{i}.00"),
             new_tp_price=Decimal(f"5060{i}.00"),
@@ -260,24 +251,23 @@ async def test_inherited_get_all(async_session, test_trade):
         )
 
     # Get all
-    all_adjustments = await repo.get_all(skip=0, limit=100)
+    all_adjustments = repo.get_all(skip=0, limit=100)
     assert len(all_adjustments) == 5
 
     # Test pagination
-    page1 = await repo.get_all(skip=0, limit=2)
+    page1 = repo.get_all(skip=0, limit=2)
     assert len(page1) == 2
 
-    page2 = await repo.get_all(skip=2, limit=2)
+    page2 = repo.get_all(skip=2, limit=2)
     assert len(page2) == 2
 
 
-@pytest.mark.asyncio
-async def test_inherited_delete(async_session, test_trade):
+def test_inherited_delete(session, test_trade):
     """Test inherited delete method from BaseRepository."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Create adjustment
-    adjustment = await repo.save_adjustment(
+    adjustment = repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -286,21 +276,20 @@ async def test_inherited_delete(async_session, test_trade):
     )
 
     # Delete
-    deleted = await repo.delete(adjustment.id)
+    deleted = repo.delete(adjustment.id)
     assert deleted is True
 
     # Verify deleted
-    found = await repo.get_by_id(adjustment.id)
+    found = repo.get_by_id(adjustment.id)
     assert found is None
 
 
-@pytest.mark.asyncio
-async def test_inherited_exists(async_session, test_trade):
+def test_inherited_exists(session, test_trade):
     """Test inherited exists method from BaseRepository."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Create adjustment
-    adjustment = await repo.save_adjustment(
+    adjustment = repo.save_adjustment(
         trade_id=test_trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -309,18 +298,17 @@ async def test_inherited_exists(async_session, test_trade):
     )
 
     # Check exists
-    exists = await repo.exists(adjustment.id)
+    exists = repo.exists(adjustment.id)
     assert exists is True
 
     # Check non-existent
-    exists = await repo.exists(uuid4())
+    exists = repo.exists(uuid4())
     assert exists is False
 
 
-@pytest.mark.asyncio
-async def test_cascade_delete_with_trade(async_session, test_account):
+def test_cascade_delete_with_trade(session, test_account):
     """Test that adjustments are deleted when trade is deleted (CASCADE)."""
-    repo = TPAdjustmentRepository(async_session)
+    repo = TPAdjustmentRepository(session)
 
     # Create trade
     trade = Trade(
@@ -333,11 +321,11 @@ async def test_cascade_delete_with_trade(async_session, test_account):
         quantity=Decimal("0.001"),
         status="OPEN",
     )
-    async_session.add(trade)
-    await async_session.commit()
+    session.add(trade)
+    session.commit()
 
     # Create adjustment for this trade
-    adjustment = await repo.save_adjustment(
+    adjustment = repo.save_adjustment(
         trade_id=trade.id,
         old_tp_price=Decimal("50500.00"),
         new_tp_price=Decimal("50600.00"),
@@ -346,13 +334,13 @@ async def test_cascade_delete_with_trade(async_session, test_account):
     )
 
     # Verify adjustment exists
-    found = await repo.get_by_id(adjustment.id)
+    found = repo.get_by_id(adjustment.id)
     assert found is not None
 
     # Delete the trade
-    await async_session.delete(trade)
-    await async_session.commit()
+    session.delete(trade)
+    session.commit()
 
     # Adjustment should be cascade deleted
-    found = await repo.get_by_id(adjustment.id)
+    found = repo.get_by_id(adjustment.id)
     assert found is None

@@ -10,7 +10,7 @@ Tests:
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -79,64 +79,59 @@ class TestDynamicTPManagerBasic:
         manager = self._create_manager(enabled=False)
         assert manager.is_enabled is False
 
-    @pytest.mark.asyncio
-    async def test_start_when_disabled(self):
+    def test_start_when_disabled(self):
         """Test that start does nothing when disabled."""
         manager = self._create_manager(enabled=False)
 
-        await manager.start()
+        manager.start()
 
         assert manager._running is False
         assert manager._task is None
 
-    @pytest.mark.asyncio
-    async def test_start_when_enabled(self):
+    def test_start_when_enabled(self):
         """Test that start creates monitoring task when enabled."""
         manager = self._create_manager(enabled=True)
 
-        await manager.start()
+        manager.start()
 
         assert manager._running is True
         assert manager._task is not None
 
         # Cleanup
-        await manager.stop()
+        manager.stop()
 
-    @pytest.mark.asyncio
-    async def test_stop(self):
+    def test_stop(self):
         """Test that stop cancels monitoring task."""
         manager = self._create_manager(enabled=True)
 
-        await manager.start()
+        manager.start()
         assert manager._running is True
 
-        await manager.stop()
+        manager.stop()
         assert manager._running is False
         assert manager._task is None
 
-    @pytest.mark.asyncio
-    async def test_double_start(self):
+    def test_double_start(self):
         """Test that starting twice doesn't create multiple tasks."""
         manager = self._create_manager(enabled=True)
 
-        await manager.start()
+        manager.start()
         task1 = manager._task
 
-        await manager.start()
+        manager.start()
         task2 = manager._task
 
         assert task1 is task2
 
-        await manager.stop()
+        manager.stop()
 
-    @pytest.mark.asyncio
-    async def test_double_stop(self):
+    def test_double_stop(self):
         """Test that stopping twice doesn't cause issues."""
         manager = self._create_manager(enabled=True)
 
-        await manager.start()
-        await manager.stop()
-        await manager.stop()  # Should not raise
+        manager.start()
+        manager.stop()
+        manager.stop()  # Should not raise
 
         assert manager._running is False
 
@@ -273,35 +268,32 @@ class TestPositionChecking:
         order.filled_at = datetime.now() - timedelta(hours=hours_ago)
         return order
 
-    @pytest.mark.asyncio
-    async def test_check_positions_no_filled_orders(self):
+    def test_check_positions_no_filled_orders(self):
         """Test that no action is taken when there are no filled orders."""
         manager, client, order_tracker = self._create_manager_with_mocks()
         order_tracker.filled_orders = []
 
-        await manager._check_and_update_positions()
+        manager._check_and_update_positions()
 
         # Should not call get_funding_rate if no orders
         client.get_funding_rate.assert_not_called()
 
-    @pytest.mark.asyncio
-    async def test_check_positions_fetches_funding_rate(self):
+    def test_check_positions_fetches_funding_rate(self):
         """Test that funding rate is fetched when there are filled orders."""
         manager, client, order_tracker = self._create_manager_with_mocks()
 
         order = self._create_tracked_order()
         order_tracker.filled_orders = [order]
-        client.get_funding_rate = AsyncMock(
+        client.get_funding_rate = MagicMock(
             return_value={"lastFundingRate": 0.0001, "markPrice": 95000}
         )
-        client.get_price = AsyncMock(return_value=95000.0)
+        client.get_price = MagicMock(return_value=95000.0)
 
-        await manager._check_and_update_positions()
+        manager._check_and_update_positions()
 
         client.get_funding_rate.assert_called_once_with("BTC-USDT")
 
-    @pytest.mark.asyncio
-    async def test_check_position_rate_limit(self):
+    def test_check_position_rate_limit(self):
         """Test that positions aren't updated too frequently."""
         manager, client, order_tracker = self._create_manager_with_mocks()
 
@@ -310,13 +302,12 @@ class TestPositionChecking:
         # Mark as recently updated
         manager._last_update[order.order_id] = datetime.now()
 
-        await manager._check_position(order, funding_rate=0.0001)
+        manager._check_position(order, funding_rate=0.0001)
 
         # Should not update (rate limited)
         assert len(manager._update_history) == 0
 
-    @pytest.mark.asyncio
-    async def test_check_position_no_filled_at(self):
+    def test_check_position_no_filled_at(self):
         """Test that positions without filled_at are skipped."""
         manager, client, _ = self._create_manager_with_mocks()
 
@@ -329,7 +320,7 @@ class TestPositionChecking:
         )
         # filled_at is None
 
-        await manager._check_position(order, funding_rate=0.0001)
+        manager._check_position(order, funding_rate=0.0001)
 
         assert len(manager._update_history) == 0
 

@@ -6,7 +6,7 @@ When a pending order disappears from the exchange, the bot should:
 - Mark as CANCELLED if position didn't increase (order was cancelled)
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,9 +24,9 @@ class TestOrderDetection:
     @pytest.fixture
     def mock_client(self):
         """Create a mock BingX client."""
-        client = AsyncMock()
-        client.get_open_orders = AsyncMock(return_value=[])
-        client.get_positions = AsyncMock(return_value=[])
+        client = MagicMock()
+        client.get_open_orders = MagicMock(return_value=[])
+        client.get_positions = MagicMock(return_value=[])
         return client
 
     def _create_tracked_order(
@@ -44,8 +44,7 @@ class TestOrderDetection:
             tp_price=entry_price * 1.01,  # 1% TP
         )
 
-    @pytest.mark.asyncio
-    async def test_order_detected_as_filled_when_position_increases(self, tracker, mock_client):
+    def test_order_detected_as_filled_when_position_increases(self, tracker, mock_client):
         """
         When a pending order disappears and position amount increased,
         the order should be detected as FILLED.
@@ -78,25 +77,23 @@ class TestOrderDetection:
             gm._activity_event_repository = None
             gm._account_id = None
             # Add missing attributes for position broadcasting
-            gm._connection_manager = AsyncMock()
+            gm._connection_manager = MagicMock()
             gm._connection_manager.active_connections_count = 0
-            gm._broadcast_order_update = AsyncMock()
-            from unittest.mock import MagicMock
+            gm._broadcast_order_update = MagicMock()
 
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
             gm._db_strategy = None  # No DB strategy cached
 
             # Run sync
-            await gm._sync_with_exchange()
+            gm._sync_with_exchange()
 
         # Verify order was detected as FILLED
         assert len(tracker.pending_orders) == 0
         assert len(tracker.filled_orders) == 1
         assert tracker.filled_orders[0].order_id == "123"
 
-    @pytest.mark.asyncio
-    async def test_order_detected_as_cancelled_when_no_position(self, tracker, mock_client):
+    def test_order_detected_as_cancelled_when_no_position(self, tracker, mock_client):
         """
         When a pending order disappears but position didn't increase,
         the order should be detected as CANCELLED (not saved to DB).
@@ -113,8 +110,6 @@ class TestOrderDetection:
             {"positionAmt": "0", "symbol": "BTC-USDT"}  # No position
         ]
 
-        from unittest.mock import MagicMock
-
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -128,21 +123,20 @@ class TestOrderDetection:
             gm._activity_event_repository = None
             gm._account_id = None
             # Add missing attributes for position broadcasting
-            gm._connection_manager = AsyncMock()
+            gm._connection_manager = MagicMock()
             gm._connection_manager.active_connections_count = 0
-            gm._broadcast_order_update = AsyncMock()
+            gm._broadcast_order_update = MagicMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
             gm._db_strategy = None  # No DB strategy cached
 
-            await gm._sync_with_exchange()
+            gm._sync_with_exchange()
 
         # Verify order was detected as CANCELLED (removed from tracker, not filled)
         assert len(tracker.pending_orders) == 0
         assert len(tracker.filled_orders) == 0  # Key: should NOT be in filled_orders
 
-    @pytest.mark.asyncio
-    async def test_multiple_orders_one_filled_one_cancelled(self, tracker, mock_client):
+    def test_multiple_orders_one_filled_one_cancelled(self, tracker, mock_client):
         """
         When multiple orders disappear, correctly identify which was filled
         vs cancelled based on position delta.
@@ -159,8 +153,6 @@ class TestOrderDetection:
             {"positionAmt": "0.001", "symbol": "BTC-USDT"}  # Only one order filled
         ]
 
-        from unittest.mock import MagicMock
-
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -174,21 +166,20 @@ class TestOrderDetection:
             gm._activity_event_repository = None
             gm._account_id = None
             # Add missing attributes for position broadcasting
-            gm._connection_manager = AsyncMock()
+            gm._connection_manager = MagicMock()
             gm._connection_manager.active_connections_count = 0
-            gm._broadcast_order_update = AsyncMock()
+            gm._broadcast_order_update = MagicMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
             gm._db_strategy = None  # No DB strategy cached
 
-            await gm._sync_with_exchange()
+            gm._sync_with_exchange()
 
         # One should be filled, one should be cancelled
         assert len(tracker.pending_orders) == 0
         assert len(tracker.filled_orders) == 1  # Only one filled
 
-    @pytest.mark.asyncio
-    async def test_order_still_pending_stays_in_tracker(self, tracker, mock_client):
+    def test_order_still_pending_stays_in_tracker(self, tracker, mock_client):
         """
         Orders that are still on the exchange should remain in pending.
         """
@@ -198,8 +189,6 @@ class TestOrderDetection:
         mock_client.get_open_orders.return_value = [{"orderId": "789", "type": "LIMIT"}]
         mock_client.get_positions.return_value = []
 
-        from unittest.mock import MagicMock
-
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -213,27 +202,26 @@ class TestOrderDetection:
             gm._activity_event_repository = None
             gm._account_id = None
             # Add missing attributes for position broadcasting
-            gm._connection_manager = AsyncMock()
+            gm._connection_manager = MagicMock()
             gm._connection_manager.active_connections_count = 0
-            gm._broadcast_order_update = AsyncMock()
+            gm._broadcast_order_update = MagicMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
             gm._db_strategy = None  # No DB strategy cached
 
-            await gm._sync_with_exchange()
+            gm._sync_with_exchange()
 
         # Order should still be pending
         assert len(tracker.pending_orders) == 1
         assert tracker.pending_orders[0].order_id == "789"
 
-    @pytest.mark.asyncio
-    async def test_cancelled_order_not_persisted_to_db(self, tracker, mock_client):
+    def test_cancelled_order_not_persisted_to_db(self, tracker, mock_client):
         """
         Cancelled orders should NOT be saved to the database.
         This is the core fix for BE-045.
         """
         # Setup with trade repository mock
-        mock_trade_repo = AsyncMock()
+        mock_trade_repo = MagicMock()
         tracker._trade_repository = mock_trade_repo
         tracker._account_id = "test-account-id"
 
@@ -245,8 +233,6 @@ class TestOrderDetection:
         mock_client.get_open_orders.return_value = []
         mock_client.get_positions.return_value = [{"positionAmt": "0"}]
 
-        from unittest.mock import MagicMock
-
         from src.grid.grid_manager import GridManager
 
         with patch.object(GridManager, "__init__", lambda x, *args, **kwargs: None):
@@ -260,14 +246,14 @@ class TestOrderDetection:
             gm._activity_event_repository = None
             gm._account_id = None
             # Add missing attributes for position broadcasting
-            gm._connection_manager = AsyncMock()
+            gm._connection_manager = MagicMock()
             gm._connection_manager.active_connections_count = 0
-            gm._broadcast_order_update = AsyncMock()
+            gm._broadcast_order_update = MagicMock()
             gm.config = MagicMock()
             gm.config.trading.leverage = 10
             gm._db_strategy = None  # No DB strategy cached
 
-            await gm._sync_with_exchange()
+            gm._sync_with_exchange()
 
         # Verify trade repository was NOT called (cancelled orders shouldn't be saved)
         # Note: cancel_order() in tracker just removes from memory, doesn't persist

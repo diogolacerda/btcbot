@@ -6,7 +6,6 @@ Tests the HTTP endpoints in HealthServer for managing filters.
 
 from unittest.mock import MagicMock
 
-import pytest
 from aiohttp import web
 from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
 
@@ -37,7 +36,7 @@ class DummyFilter(Filter):
 class TestFilterAPI(AioHTTPTestCase):
     """Test filter API endpoints."""
 
-    async def get_application(self):
+    def get_application(self):
         """Create test application with HealthServer routes."""
         # Reset registry
         registry = FilterRegistry()
@@ -61,18 +60,18 @@ class TestFilterAPI(AioHTTPTestCase):
 
         return app
 
-    async def tearDownAsync(self):
+    def tearDownAsync(self):
         """Cleanup after tests."""
         registry = FilterRegistry()
         registry.clear()
 
     @unittest_run_loop
-    async def test_get_filters(self):
+    def test_get_filters(self):
         """Test GET /filters returns all filter states."""
-        resp = await self.client.get("/filters")
+        resp = self.client.get("/filters")
         assert resp.status == 200
 
-        data = await resp.json()
+        data = resp.json()
         assert "filters" in data
         assert "all_enabled" in data
         assert "any_enabled" in data
@@ -92,161 +91,160 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["filters"]["filter2"]["enabled"] is True
 
     @unittest_run_loop
-    async def test_toggle_filter_disable(self):
+    def test_toggle_filter_disable(self):
         """Test POST /filters/{name} to disable a filter."""
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/filter1",
             json={"enabled": False},
         )
         assert resp.status == 200
 
-        data = await resp.json()
+        data = resp.json()
         assert data["filter"] == "filter1"
         assert data["enabled"] is False
         assert "disabled" in data["message"]
 
         # Verify state changed
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["filters"]["filter1"]["enabled"] is False
         assert data["enabled_count"] == 1
 
     @unittest_run_loop
-    async def test_toggle_filter_enable(self):
+    def test_toggle_filter_enable(self):
         """Test POST /filters/{name} to enable a filter."""
         # First disable it
-        await self.client.post("/filters/filter1", json={"enabled": False})
+        self.client.post("/filters/filter1", json={"enabled": False})
 
         # Then enable it
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/filter1",
             json={"enabled": True},
         )
         assert resp.status == 200
 
-        data = await resp.json()
+        data = resp.json()
         assert data["filter"] == "filter1"
         assert data["enabled"] is True
         assert "enabled" in data["message"]
 
         # Verify state changed
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["filters"]["filter1"]["enabled"] is True
         assert data["enabled_count"] == 2
 
     @unittest_run_loop
-    async def test_toggle_nonexistent_filter(self):
+    def test_toggle_nonexistent_filter(self):
         """Test toggling nonexistent filter returns 404."""
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/nonexistent",
             json={"enabled": False},
         )
         assert resp.status == 404
 
-        data = await resp.json()
+        data = resp.json()
         assert "error" in data
         assert "not found" in data["error"].lower()
 
     @unittest_run_loop
-    async def test_toggle_filter_invalid_body(self):
+    def test_toggle_filter_invalid_body(self):
         """Test toggle with invalid JSON body returns 400."""
         # Invalid JSON
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/filter1",
             data="not json",
         )
         assert resp.status == 400
 
-        data = await resp.json()
+        data = resp.json()
         assert "error" in data
 
     @unittest_run_loop
-    async def test_toggle_filter_missing_enabled(self):
+    def test_toggle_filter_missing_enabled(self):
         """Test toggle without 'enabled' field returns 400."""
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/filter1",
             json={"something": "else"},
         )
         assert resp.status == 400
 
-        data = await resp.json()
+        data = resp.json()
         assert "error" in data
         assert "enabled" in data["error"].lower()
 
     @unittest_run_loop
-    async def test_disable_all_filters(self):
+    def test_disable_all_filters(self):
         """Test POST /filters/disable-all."""
-        resp = await self.client.post("/filters/disable-all")
+        resp = self.client.post("/filters/disable-all")
         assert resp.status == 200
 
-        data = await resp.json()
+        data = resp.json()
         assert "message" in data
         assert "disabled" in data["message"].lower()
         assert "filters" in data
         assert len(data["filters"]) == 2
 
         # Verify all disabled
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["enabled_count"] == 0
         assert data["all_enabled"] is False
         assert data["any_enabled"] is False
 
     @unittest_run_loop
-    async def test_enable_all_filters(self):
+    def test_enable_all_filters(self):
         """Test POST /filters/enable-all."""
         # First disable all
-        await self.client.post("/filters/disable-all")
+        self.client.post("/filters/disable-all")
 
         # Then enable all
-        resp = await self.client.post("/filters/enable-all")
+        resp = self.client.post("/filters/enable-all")
         assert resp.status == 200
 
-        data = await resp.json()
+        data = resp.json()
         assert "message" in data
         assert "enabled" in data["message"].lower()
 
         # Verify all enabled
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["enabled_count"] == 2
         assert data["all_enabled"] is True
         assert data["any_enabled"] is True
 
     @unittest_run_loop
-    async def test_filter_workflow(self):
+    def test_filter_workflow(self):
         """Test complete workflow: disable one, disable all, enable all."""
         # Start: both enabled
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["enabled_count"] == 2
 
         # Disable filter1
-        await self.client.post("/filters/filter1", json={"enabled": False})
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        self.client.post("/filters/filter1", json={"enabled": False})
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["enabled_count"] == 1
         assert data["filters"]["filter1"]["enabled"] is False
         assert data["filters"]["filter2"]["enabled"] is True
 
         # Disable all
-        await self.client.post("/filters/disable-all")
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        self.client.post("/filters/disable-all")
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["enabled_count"] == 0
 
         # Enable all (restores both to enabled)
-        await self.client.post("/filters/enable-all")
-        resp = await self.client.get("/filters")
-        data = await resp.json()
+        self.client.post("/filters/enable-all")
+        resp = self.client.get("/filters")
+        data = resp.json()
         assert data["enabled_count"] == 2
         assert data["filters"]["filter1"]["enabled"] is True
         assert data["filters"]["filter2"]["enabled"] is True
 
 
-@pytest.mark.asyncio
-async def test_filter_state_persistence():
+def test_filter_state_persistence():
     """Test that filter state changes persist within registry."""
     # Reset registry
     registry = FilterRegistry()
@@ -277,8 +275,7 @@ async def test_filter_state_persistence():
     registry.clear()
 
 
-@pytest.mark.asyncio
-async def test_filter_state_volatility():
+def test_filter_state_volatility():
     """Test that filter state is volatile (resets on registry clear)."""
     # Reset registry
     registry = FilterRegistry()
@@ -308,7 +305,7 @@ async def test_filter_state_volatility():
 class TestMACDTriggerAPI(AioHTTPTestCase):
     """Test MACD trigger API endpoint."""
 
-    async def get_application(self):
+    def get_application(self):
         """Create test application with MACD trigger route."""
         # Reset registry
         registry = FilterRegistry()
@@ -339,21 +336,21 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
 
         return app
 
-    async def tearDownAsync(self):
+    def tearDownAsync(self):
         """Cleanup after tests."""
         registry = FilterRegistry()
         registry.clear()
 
     @unittest_run_loop
-    async def test_macd_trigger_activate(self):
+    def test_macd_trigger_activate(self):
         """Test POST /filters/macd/trigger with activated=true."""
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/macd/trigger",
             json={"activated": True},
         )
         assert resp.status == 200
 
-        data = await resp.json()
+        data = resp.json()
         assert data["activated"] is True
         assert data["persisted"] is True
         assert "activated successfully" in data["message"]
@@ -363,15 +360,15 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         self.mock_macd.set_trigger.assert_called_once_with(True)
 
     @unittest_run_loop
-    async def test_macd_trigger_deactivate(self):
+    def test_macd_trigger_deactivate(self):
         """Test POST /filters/macd/trigger with activated=false."""
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/macd/trigger",
             json={"activated": False},
         )
         assert resp.status == 200
 
-        data = await resp.json()
+        data = resp.json()
         assert data["activated"] is False
         assert data["persisted"] is True
         assert "deactivated successfully" in data["message"]
@@ -380,49 +377,49 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         self.mock_macd.set_trigger.assert_called_once_with(False)
 
     @unittest_run_loop
-    async def test_macd_trigger_invalid_json(self):
+    def test_macd_trigger_invalid_json(self):
         """Test trigger endpoint with invalid JSON returns 400."""
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/macd/trigger",
             data="not json",
         )
         assert resp.status == 400
 
-        data = await resp.json()
+        data = resp.json()
         assert "error" in data
         assert "Invalid JSON" in data["error"]
 
     @unittest_run_loop
-    async def test_macd_trigger_missing_activated(self):
+    def test_macd_trigger_missing_activated(self):
         """Test trigger endpoint without 'activated' field returns 400."""
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/macd/trigger",
             json={"something": "else"},
         )
         assert resp.status == 400
 
-        data = await resp.json()
+        data = resp.json()
         assert "error" in data
         assert "activated" in data["error"]
 
     @unittest_run_loop
-    async def test_macd_trigger_activation_fails(self):
+    def test_macd_trigger_activation_fails(self):
         """Test trigger endpoint when set_trigger fails."""
         # Make set_trigger return False
         self.mock_macd.set_trigger.return_value = False
 
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/macd/trigger",
             json={"activated": True},
         )
         assert resp.status == 400
 
-        data = await resp.json()
+        data = resp.json()
         assert "error" in data
         assert "Failed to activate" in data["error"]
 
     @unittest_run_loop
-    async def test_macd_trigger_filter_not_found(self):
+    def test_macd_trigger_filter_not_found(self):
         """Test trigger endpoint when MACD filter is not registered."""
         # Create a new app without MACD filter
         registry = FilterRegistry()
@@ -436,12 +433,12 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         # Replace app
         self.app = app
 
-        resp = await self.client.post(
+        resp = self.client.post(
             "/filters/macd/trigger",
             json={"activated": True},
         )
         assert resp.status == 404
 
-        data = await resp.json()
+        data = resp.json()
         assert "error" in data
         assert "not found" in data["error"].lower()
