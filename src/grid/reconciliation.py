@@ -71,7 +71,6 @@ class TradeReconciliation:
                 # Fix 2: Close trades where TP was executed
                 stats["trades_closed"] = self._close_executed_trades(repo, db_trades, tp_orders)
 
-
             if any(stats.values()):
                 logger.info(
                     f"Reconciliation completed: {stats['tp_ids_fixed']} TP IDs fixed, "

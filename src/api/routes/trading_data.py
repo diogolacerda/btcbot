@@ -123,7 +123,7 @@ def _calculate_fees(trade: Trade) -> TradeFeesSchema:
     )
 
 
-async def _enrich_trade(
+def _enrich_trade(
     trade: Trade,
     tp_adjustment_repo: TPAdjustmentRepository,
 ) -> TradeSchema:

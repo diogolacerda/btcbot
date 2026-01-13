@@ -6,7 +6,7 @@ from uuid import UUID
 
 import bcrypt
 import jwt
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.user import User
 from src.database.repositories.user_repository import UserRepository
@@ -27,7 +27,7 @@ class AuthService:
 
     def __init__(
         self,
-        session: AsyncSession,
+        session: Session,
         *,
         jwt_secret: str | None = None,
         jwt_algorithm: str = "HS256",
@@ -36,7 +36,7 @@ class AuthService:
         """Initialize AuthService.
 
         Args:
-            session: Async database session.
+            session: Database session.
             jwt_secret: Secret key for JWT (defaults to JWT_SECRET_KEY env var).
             jwt_algorithm: JWT algorithm (default: HS256).
             jwt_expiration_hours: Token expiration in hours (default: 24).
