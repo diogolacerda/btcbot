@@ -31,6 +31,8 @@ class GridCalculator:
         self.range_percent = config.range_percent
         self.tp_percent = config.take_profit_percent
         self.max_total_orders = config.max_total_orders
+        self.enable_drift_repositioning = config.enable_drift_repositioning
+        self.drift_threshold_multiplier = config.drift_threshold_multiplier
 
     def calculate_spacing(self, reference_price: float) -> float:
         """
@@ -187,6 +189,69 @@ class GridCalculator:
                 orders_to_cancel.append(order)
 
         return orders_to_cancel
+
+    def get_orders_to_cancel_for_drift(
+        self,
+        current_price: float,
+        existing_orders: list[dict],
+        filled_orders_count: int = 0,
+    ) -> list[dict]:
+        """
+        Get orders that should be cancelled to reposition the grid when price drifts.
+
+        When the price moves significantly away from existing orders, cancel the
+        furthest orders to free up slots for new orders closer to the current price.
+
+        Args:
+            current_price: Current market price
+            existing_orders: List of existing LIMIT orders
+            filled_orders_count: Number of filled orders awaiting TP
+
+        Returns:
+            List of orders to cancel (furthest from current price)
+        """
+        if not self.enable_drift_repositioning or not existing_orders:
+            return []
+
+        # Filter LIMIT orders only (not TPs)
+        limit_orders = [o for o in existing_orders if o.get("type") == "LIMIT"]
+        if not limit_orders:
+            return []
+
+        # Calculate drift threshold
+        spacing = self.calculate_spacing(current_price)
+        drift_threshold = spacing * self.drift_threshold_multiplier
+
+        # Find the closest order to current price
+        closest_order_price = max(
+            float(o.get("price", 0)) for o in limit_orders if float(o.get("price", 0)) > 0
+        )
+
+        # Calculate gap between current price and closest order
+        gap = current_price - closest_order_price
+
+        # If gap is below threshold, no drift repositioning needed
+        if gap <= drift_threshold:
+            return []
+
+        # Calculate available slots (considering filled orders)
+        min_price = self.calculate_min_price(current_price)
+        orders_in_range = [o for o in limit_orders if float(o.get("price", 0)) >= min_price]
+        available_slots = max(0, self.max_total_orders - len(orders_in_range) - filled_orders_count)
+
+        # If we have available slots, no need to cancel
+        if available_slots > 0:
+            return []
+
+        # Sort orders by price (ascending) - furthest orders are at the bottom
+        sorted_orders = sorted(limit_orders, key=lambda o: float(o.get("price", 0)))
+
+        # Cancel up to 30% of orders (minimum 1, maximum 3)
+        # This allows gradual repositioning without disrupting the entire grid
+        max_to_cancel = max(1, min(3, int(len(sorted_orders) * 0.3)))
+
+        # Return the furthest orders
+        return sorted_orders[:max_to_cancel]
 
     def get_grid_summary(self, current_price: float, open_positions_count: int = 0) -> dict:
         """

@@ -65,6 +65,8 @@ class GridConfig:
     range_percent: float
     take_profit_percent: float
     max_total_orders: int = 10  # Total orders (pending LIMIT + open positions)
+    enable_drift_repositioning: bool = True  # Enable grid repositioning when price drifts
+    drift_threshold_multiplier: float = 1.5  # Reposition when gap > spacing * multiplier
 
 
 @dataclass
@@ -128,6 +130,8 @@ def load_config() -> Config:
             range_percent=float(os.getenv("GRID_RANGE_PERCENT", "5")),
             take_profit_percent=float(os.getenv("TAKE_PROFIT_PERCENT", "1.0")),
             max_total_orders=int(os.getenv("MAX_TOTAL_ORDERS", "10")),
+            enable_drift_repositioning=os.getenv("GRID_DRIFT_ENABLED", "true").lower() == "true",
+            drift_threshold_multiplier=float(os.getenv("GRID_DRIFT_THRESHOLD", "1.5")),
         ),
         macd=MACDConfig(
             fast=int(os.getenv("MACD_FAST", "12")),
