@@ -83,14 +83,17 @@ class OrderTracker:
         account_id: UUID | None = None,
         bingx_client: "BingXClient | None" = None,
         symbol: str = "BTC-USDT",
+        spacing: float = 100.0,
     ):
         self._orders: dict[str, TrackedOrder] = {}
         self._orders_by_price: dict[float, str] = {}  # price -> order_id mapping
+        self._occupied_slots: set[float] = set()  # Set of occupied slot floors (based on spacing)
         self._trades: list[TradeRecord] = []
         self._initial_pnl: float = 0.0  # PnL from exchange at startup
         self._account_id = account_id
         self._bingx_client = bingx_client
         self._symbol = symbol
+        self._spacing = spacing  # Grid spacing for slot calculation
         self._position_side: str | None = None  # Cached position side from exchange
 
     async def get_position_side(self) -> str:
@@ -120,6 +123,55 @@ class OrderTracker:
             self._position_side = "BOTH"
 
         return self._position_side
+
+    @staticmethod
+    def get_slot_floor(price: float, spacing: float) -> float:
+        """
+        Calculate the slot floor for a given price and spacing.
+
+        Args:
+            price: Entry price
+            spacing: Spacing value in USDT (e.g., 100)
+
+        Returns:
+            Slot floor (e.g., 99100 for price=99150 with spacing=100)
+
+        Example:
+            >>> get_slot_floor(93972.30, 100)
+            93900.0
+            >>> get_slot_floor(94050.00, 100)
+            94000.0
+        """
+        return (price // spacing) * spacing
+
+    def is_slot_occupied(self, price: float) -> bool:
+        """
+        Check if the slot for this price is already occupied by a filled order.
+
+        Args:
+            price: Entry price to check
+
+        Returns:
+            True if slot is occupied, False otherwise
+        """
+        slot_floor = self.get_slot_floor(price, self._spacing)
+        return slot_floor in self._occupied_slots
+
+    def _mark_slot_occupied(self, price: float) -> None:
+        """Mark a slot as occupied when an order is filled."""
+        slot_floor = self.get_slot_floor(price, self._spacing)
+        self._occupied_slots.add(slot_floor)
+        orders_logger.info(
+            f"Slot ${slot_floor:,.0f}-${slot_floor + self._spacing - 1:,.0f} occupied by position @ ${price:,.2f}"
+        )
+
+    def _release_slot(self, price: float) -> None:
+        """Release a slot when TP is hit."""
+        slot_floor = self.get_slot_floor(price, self._spacing)
+        self._occupied_slots.discard(slot_floor)
+        orders_logger.info(
+            f"Slot ${slot_floor:,.0f}-${slot_floor + self._spacing - 1:,.0f} released (TP hit @ ${price:,.2f})"
+        )
 
     @property
     def pending_orders(self) -> list[TrackedOrder]:
@@ -295,6 +347,9 @@ class OrderTracker:
             order.mark_filled()
             orders_logger.info(f"Order filled: {order_id} @ ${order.entry_price:,.2f}")
 
+            # Mark slot as occupied to prevent duplicate positions in same range
+            self._mark_slot_occupied(order.entry_price)
+
             # Persist OPEN trade to database synchronously
             if self._account_id:
                 await self._persist_open_trade(order)
@@ -327,6 +382,9 @@ class OrderTracker:
             f"TP Hit: ${order.entry_price:,.2f} → ${exit_price:,.2f} | "
             f"PnL: +${pnl:.2f} ({trade.pnl_percent:.2f}%)"
         )
+
+        # Release slot to allow new positions in this range
+        self._release_slot(order.entry_price)
 
         # Persist trade to database synchronously
         if self._account_id:
@@ -639,6 +697,9 @@ class OrderTracker:
             # Multiple positions can share the same rounded entry_price
             if entry_price not in self._orders_by_price:
                 self._orders_by_price[entry_price] = position_id
+
+            # Mark slot as occupied for loaded position
+            self._mark_slot_occupied(entry_price)
 
             orders_logger.info(
                 f"Position loaded from TP: {quantity} BTC @ ${entry_price:,.2f} → TP ${tp_price:,.2f} (TP#{tp_order_id[:8]})"
