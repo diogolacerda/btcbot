@@ -722,6 +722,7 @@ class GridManager:
             orders_loaded = self.tracker.load_existing_orders(
                 limit_orders,
                 self.take_profit_percent,
+                all_open_orders=open_orders,  # Pass all orders for TP linking
             )
 
             if positions_loaded > 0:
