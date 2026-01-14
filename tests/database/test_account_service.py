@@ -1,9 +1,9 @@
 """Tests for AccountService."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models import User
 from src.database.repositories import AccountRepository
@@ -11,27 +11,27 @@ from src.services import AccountService
 
 
 @pytest.fixture
-async def user(async_session: AsyncSession) -> User:
+def user(session: Session) -> User:
     """Create a test user."""
     user = User(
         email="test@example.com",
         password_hash="hashed_password",  # pragma: allowlist secret
         name="Test User",
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user
 
 
 @pytest.fixture
-async def repository(async_session: AsyncSession) -> AccountRepository:
+def repository(session: Session) -> AccountRepository:
     """Create AccountRepository instance."""
-    return AccountRepository(async_session)
+    return AccountRepository(session)
 
 
 @pytest.fixture
-async def service(repository: AccountRepository) -> AccountService:
+def service(repository: AccountRepository) -> AccountService:
     """Create AccountService instance."""
     return AccountService(repository)
 
@@ -39,8 +39,7 @@ async def service(repository: AccountRepository) -> AccountService:
 class TestAccountService:
     """Test cases for AccountService."""
 
-    @pytest.mark.asyncio
-    async def test_add_account_success(
+    def test_add_account_success(
         self,
         service: AccountService,
         user: User,
@@ -49,7 +48,7 @@ class TestAccountService:
         # Arrange
         with patch.object(service, "validate_api_credentials", return_value=True):
             # Act
-            account = await service.add_account(
+            account = service.add_account(
                 user_id=user.id,
                 exchange="bingx",
                 name="My BingX",
@@ -65,8 +64,7 @@ class TestAccountService:
             assert account.is_demo is True
             assert account.api_key_hash is not None
 
-    @pytest.mark.asyncio
-    async def test_add_account_invalid_credentials(
+    def test_add_account_invalid_credentials(
         self,
         service: AccountService,
         user: User,
@@ -76,7 +74,7 @@ class TestAccountService:
         with patch.object(service, "validate_api_credentials", return_value=False):
             # Act & Assert
             with pytest.raises(ConnectionError, match="Invalid API credentials"):
-                await service.add_account(
+                service.add_account(
                     user_id=user.id,
                     exchange="bingx",
                     name="My BingX",
@@ -85,8 +83,7 @@ class TestAccountService:
                     is_demo=True,
                 )
 
-    @pytest.mark.asyncio
-    async def test_add_account_duplicate(
+    def test_add_account_duplicate(
         self,
         service: AccountService,
         user: User,
@@ -94,7 +91,7 @@ class TestAccountService:
         """Test adding duplicate account raises ValueError."""
         # Arrange
         with patch.object(service, "validate_api_credentials", return_value=True):
-            await service.add_account(
+            service.add_account(
                 user_id=user.id,
                 exchange="bingx",
                 name="Duplicate",
@@ -105,7 +102,7 @@ class TestAccountService:
 
             # Act & Assert
             with pytest.raises(ValueError, match="Account already exists"):
-                await service.add_account(
+                service.add_account(
                     user_id=user.id,
                     exchange="bingx",
                     name="Duplicate",
@@ -114,19 +111,18 @@ class TestAccountService:
                     is_demo=True,
                 )
 
-    @pytest.mark.asyncio
-    async def test_validate_bingx_credentials_success(
+    def test_validate_bingx_credentials_success(
         self,
         service: AccountService,
     ):
         """Test validating BingX credentials successfully."""
         # Arrange
-        mock_client = AsyncMock()
+        mock_client = MagicMock()
         mock_client.get_balance.return_value = {"balance": "1000"}
 
         with patch("src.services.account_service.BingXClient", return_value=mock_client):
             # Act
-            is_valid = await service._validate_bingx_credentials(
+            is_valid = service._validate_bingx_credentials(
                 api_key="valid_key",  # pragma: allowlist secret
                 api_secret="valid_secret",  # pragma: allowlist secret
                 is_demo=True,
@@ -136,19 +132,18 @@ class TestAccountService:
             assert is_valid is True
             mock_client.get_balance.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_validate_bingx_credentials_failure(
+    def test_validate_bingx_credentials_failure(
         self,
         service: AccountService,
     ):
         """Test validating BingX credentials with API error."""
         # Arrange
-        mock_client = AsyncMock()
+        mock_client = MagicMock()
         mock_client.get_balance.side_effect = Exception("API Error")
 
         with patch("src.services.account_service.BingXClient", return_value=mock_client):
             # Act
-            is_valid = await service._validate_bingx_credentials(
+            is_valid = service._validate_bingx_credentials(
                 api_key="invalid_key",  # pragma: allowlist secret
                 api_secret="invalid_secret",  # pragma: allowlist secret
                 is_demo=True,
@@ -157,8 +152,7 @@ class TestAccountService:
             # Assert
             assert is_valid is False
 
-    @pytest.mark.asyncio
-    async def test_validate_api_credentials_bingx(
+    def test_validate_api_credentials_bingx(
         self,
         service: AccountService,
     ):
@@ -168,7 +162,7 @@ class TestAccountService:
             service, "_validate_bingx_credentials", return_value=True
         ) as mock_validate:
             # Act
-            is_valid = await service.validate_api_credentials(
+            is_valid = service.validate_api_credentials(
                 exchange="bingx",
                 api_key="key",  # pragma: allowlist secret
                 api_secret="secret",  # pragma: allowlist secret
@@ -179,23 +173,21 @@ class TestAccountService:
             assert is_valid is True
             mock_validate.assert_called_once_with("key", "secret", True)
 
-    @pytest.mark.asyncio
-    async def test_validate_api_credentials_unsupported_exchange(
+    def test_validate_api_credentials_unsupported_exchange(
         self,
         service: AccountService,
     ):
         """Test validate_api_credentials with unsupported exchange."""
         # Act & Assert
         with pytest.raises(ValueError, match="Unsupported exchange"):
-            await service.validate_api_credentials(
+            service.validate_api_credentials(
                 exchange="unsupported",
                 api_key="key",  # pragma: allowlist secret
                 api_secret="secret",  # pragma: allowlist secret
                 is_demo=True,
             )
 
-    @pytest.mark.asyncio
-    async def test_get_user_accounts(
+    def test_get_user_accounts(
         self,
         service: AccountService,
         user: User,
@@ -203,7 +195,7 @@ class TestAccountService:
         """Test getting all accounts for a user."""
         # Arrange
         with patch.object(service, "validate_api_credentials", return_value=True):
-            await service.add_account(
+            service.add_account(
                 user_id=user.id,
                 exchange="bingx",
                 name="Account 1",
@@ -211,7 +203,7 @@ class TestAccountService:
                 api_secret="secret1",  # pragma: allowlist secret
                 is_demo=True,
             )
-            await service.add_account(
+            service.add_account(
                 user_id=user.id,
                 exchange="binance",
                 name="Account 2",
@@ -221,13 +213,12 @@ class TestAccountService:
             )
 
         # Act
-        accounts = await service.get_user_accounts(user.id)
+        accounts = service.get_user_accounts(user.id)
 
         # Assert
         assert len(accounts) == 2
 
-    @pytest.mark.asyncio
-    async def test_get_active_account(
+    def test_get_active_account(
         self,
         service: AccountService,
         user: User,
@@ -235,7 +226,7 @@ class TestAccountService:
         """Test getting active account for user and exchange."""
         # Arrange
         with patch.object(service, "validate_api_credentials", return_value=True):
-            created = await service.add_account(
+            created = service.add_account(
                 user_id=user.id,
                 exchange="bingx",
                 name="My BingX",
@@ -245,21 +236,20 @@ class TestAccountService:
             )
 
         # Act
-        account = await service.get_active_account(user.id, "bingx")
+        account = service.get_active_account(user.id, "bingx")
 
         # Assert
         assert account is not None
         assert account.id == created.id
 
-    @pytest.mark.asyncio
-    async def test_get_active_account_not_found(
+    def test_get_active_account_not_found(
         self,
         service: AccountService,
         user: User,
     ):
         """Test getting active account returns None when not found."""
         # Act
-        account = await service.get_active_account(user.id, "nonexistent")
+        account = service.get_active_account(user.id, "nonexistent")
 
         # Assert
         assert account is None

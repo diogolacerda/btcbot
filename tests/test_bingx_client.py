@@ -5,7 +5,7 @@ Tests the modify_tp_order functionality which cancels an existing TP order
 and creates a new one with an updated price.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -32,20 +32,19 @@ def client(bingx_config):
 class TestModifyTPOrder:
     """Test BingXClient.modify_tp_order method."""
 
-    @pytest.mark.asyncio
-    async def test_modify_tp_order_success(self, client):
+    def test_modify_tp_order_success(self, client):
         """Test successful TP order modification."""
         # Mock cancel_order to simulate successful cancellation
-        client.cancel_order = AsyncMock(return_value={"code": 0, "msg": "Success", "data": {}})
+        client.cancel_order = MagicMock(return_value={"code": 0, "msg": "Success", "data": {}})
 
         # Mock create_order to simulate successful new TP order creation
         mock_new_order_response = {
             "orderId": "new_tp_order_123",
         }
-        client.create_order = AsyncMock(return_value=mock_new_order_response)
+        client.create_order = MagicMock(return_value=mock_new_order_response)
 
         # Execute modify_tp_order
-        result = await client.modify_tp_order(
+        result = client.modify_tp_order(
             symbol="BTC-USDT",
             old_tp_order_id="old_tp_order_789",
             side="SELL",
@@ -75,15 +74,14 @@ class TestModifyTPOrder:
         assert result["newOrderId"] == "new_tp_order_123"
         assert result["order"] == mock_new_order_response
 
-    @pytest.mark.asyncio
-    async def test_modify_tp_order_cancel_failure(self, client):
+    def test_modify_tp_order_cancel_failure(self, client):
         """Test TP order modification when cancellation fails."""
         # Mock cancel_order to simulate failure
-        client.cancel_order = AsyncMock(side_effect=Exception("Failed to cancel order"))
+        client.cancel_order = MagicMock(side_effect=Exception("Failed to cancel order"))
 
         # Execute modify_tp_order and expect exception
         with pytest.raises(Exception, match="Failed to cancel order"):
-            await client.modify_tp_order(
+            client.modify_tp_order(
                 symbol="BTC-USDT",
                 old_tp_order_id="old_tp_order_789",
                 side="SELL",
@@ -95,18 +93,17 @@ class TestModifyTPOrder:
         # Verify cancel_order was called
         client.cancel_order.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_modify_tp_order_create_failure(self, client):
+    def test_modify_tp_order_create_failure(self, client):
         """Test TP order modification when new order creation fails."""
         # Mock cancel_order to simulate successful cancellation
-        client.cancel_order = AsyncMock(return_value={"code": 0, "msg": "Success", "data": {}})
+        client.cancel_order = MagicMock(return_value={"code": 0, "msg": "Success", "data": {}})
 
         # Mock create_order to simulate failure
-        client.create_order = AsyncMock(side_effect=Exception("Failed to create new TP order"))
+        client.create_order = MagicMock(side_effect=Exception("Failed to create new TP order"))
 
         # Execute modify_tp_order and expect exception
         with pytest.raises(Exception, match="Failed to create new TP order"):
-            await client.modify_tp_order(
+            client.modify_tp_order(
                 symbol="BTC-USDT",
                 old_tp_order_id="old_tp_order_789",
                 side="SELL",
@@ -119,23 +116,22 @@ class TestModifyTPOrder:
         client.cancel_order.assert_called_once()
         client.create_order.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_modify_tp_order_cache_invalidation(self, client):
+    def test_modify_tp_order_cache_invalidation(self, client):
         """Test that cache is invalidated after TP order modification."""
         # Mock cancel_order
-        client.cancel_order = AsyncMock(return_value={"code": 0, "msg": "Success", "data": {}})
+        client.cancel_order = MagicMock(return_value={"code": 0, "msg": "Success", "data": {}})
 
         # Mock create_order
         mock_new_order_response = {
             "orderId": "new_tp_order_123",
         }
-        client.create_order = AsyncMock(return_value=mock_new_order_response)
+        client.create_order = MagicMock(return_value=mock_new_order_response)
 
         # Mock _invalidate_cache to track calls
         client._invalidate_cache = MagicMock()
 
         # Execute modify_tp_order
-        await client.modify_tp_order(
+        client.modify_tp_order(
             symbol="BTC-USDT",
             old_tp_order_id="old_tp_order_789",
             side="SELL",
@@ -147,12 +143,11 @@ class TestModifyTPOrder:
         # Verify cache invalidation was called with correct prefixes
         client._invalidate_cache.assert_called_once_with("open_orders", "positions")
 
-    @pytest.mark.asyncio
-    async def test_modify_tp_order_different_prices(self, client):
+    def test_modify_tp_order_different_prices(self, client):
         """Test TP order modification with various price values."""
         # Mock cancel_order and create_order
-        client.cancel_order = AsyncMock(return_value={"code": 0, "msg": "Success", "data": {}})
-        client.create_order = AsyncMock(
+        client.cancel_order = MagicMock(return_value={"code": 0, "msg": "Success", "data": {}})
+        client.create_order = MagicMock(
             return_value={
                 "orderId": "new_tp_order_123",
             }
@@ -162,7 +157,7 @@ class TestModifyTPOrder:
         test_prices = [100000.0, 105000.5, 110250.25, 99999.99]
 
         for new_price in test_prices:
-            await client.modify_tp_order(
+            client.modify_tp_order(
                 symbol="BTC-USDT",
                 old_tp_order_id="old_tp_order_789",
                 side="SELL",
@@ -175,12 +170,11 @@ class TestModifyTPOrder:
             _, kwargs = client.create_order.call_args
             assert kwargs["stop_price"] == new_price
 
-    @pytest.mark.asyncio
-    async def test_modify_tp_order_different_quantities(self, client):
+    def test_modify_tp_order_different_quantities(self, client):
         """Test TP order modification with various quantity values."""
         # Mock cancel_order and create_order
-        client.cancel_order = AsyncMock(return_value={"code": 0, "msg": "Success", "data": {}})
-        client.create_order = AsyncMock(
+        client.cancel_order = MagicMock(return_value={"code": 0, "msg": "Success", "data": {}})
+        client.create_order = MagicMock(
             return_value={
                 "orderId": "new_tp_order_123",
             }
@@ -190,7 +184,7 @@ class TestModifyTPOrder:
         test_quantities = [0.001, 0.01, 0.1, 1.0]
 
         for qty in test_quantities:
-            await client.modify_tp_order(
+            client.modify_tp_order(
                 symbol="BTC-USDT",
                 old_tp_order_id="old_tp_order_789",
                 side="SELL",

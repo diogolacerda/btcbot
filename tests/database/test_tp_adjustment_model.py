@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models import Account, TPAdjustment, Trade, User
 
@@ -16,19 +16,19 @@ class TestTPAdjustmentModel:
     """Test cases for TPAdjustment model."""
 
     @pytest.fixture
-    async def user(self, async_session: AsyncSession) -> User:
+    def user(self, session: Session) -> User:
         """Create a test user."""
         user = User(
             email="test@example.com",
             password_hash="hashed_password_123",  # pragma: allowlist secret
         )
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
         return user
 
     @pytest.fixture
-    async def account(self, async_session: AsyncSession, user: User) -> Account:
+    def account(self, session: Session, user: User) -> Account:
         """Create a test account."""
         account = Account(
             user_id=user.id,
@@ -36,13 +36,13 @@ class TestTPAdjustmentModel:
             name="Test Account",
             is_demo=True,
         )
-        async_session.add(account)
-        await async_session.commit()
-        await async_session.refresh(account)
+        session.add(account)
+        session.commit()
+        session.refresh(account)
         return account
 
     @pytest.fixture
-    async def trade(self, async_session: AsyncSession, account: Account) -> Trade:
+    def trade(self, session: Session, account: Account) -> Trade:
         """Create a test trade."""
         trade = Trade(
             account_id=account.id,
@@ -55,13 +55,12 @@ class TestTPAdjustmentModel:
             tp_percent=Decimal("0.3333"),
             status="OPEN",
         )
-        async_session.add(trade)
-        await async_session.commit()
-        await async_session.refresh(trade)
+        session.add(trade)
+        session.commit()
+        session.refresh(trade)
         return trade
 
-    @pytest.mark.asyncio
-    async def test_create_tp_adjustment_full(self, async_session: AsyncSession, trade: Trade):
+    def test_create_tp_adjustment_full(self, session: Session, trade: Trade):
         """Test creating a TP adjustment with all fields."""
         # Arrange
         adjustment = TPAdjustment(
@@ -76,9 +75,9 @@ class TestTPAdjustmentModel:
         )
 
         # Act
-        async_session.add(adjustment)
-        await async_session.commit()
-        await async_session.refresh(adjustment)
+        session.add(adjustment)
+        session.commit()
+        session.refresh(adjustment)
 
         # Assert
         assert adjustment.id is not None
@@ -93,8 +92,7 @@ class TestTPAdjustmentModel:
         assert adjustment.hours_open == Decimal("16.00")
         assert isinstance(adjustment.adjusted_at, datetime)
 
-    @pytest.mark.asyncio
-    async def test_create_tp_adjustment_minimal(self, async_session: AsyncSession, trade: Trade):
+    def test_create_tp_adjustment_minimal(self, session: Session, trade: Trade):
         """Test creating a TP adjustment with only required fields."""
         # Arrange
         adjustment = TPAdjustment(
@@ -106,9 +104,9 @@ class TestTPAdjustmentModel:
         )
 
         # Act
-        async_session.add(adjustment)
-        await async_session.commit()
-        await async_session.refresh(adjustment)
+        session.add(adjustment)
+        session.commit()
+        session.refresh(adjustment)
 
         # Assert
         assert adjustment.id is not None
@@ -119,8 +117,7 @@ class TestTPAdjustmentModel:
         assert adjustment.funding_accumulated is None
         assert adjustment.hours_open is None
 
-    @pytest.mark.asyncio
-    async def test_trade_id_required(self, async_session: AsyncSession):
+    def test_trade_id_required(self, session: Session):
         """Test that trade_id is required."""
         # Arrange
         adjustment = TPAdjustment(
@@ -131,12 +128,11 @@ class TestTPAdjustmentModel:
         )
 
         # Act & Assert
-        async_session.add(adjustment)
+        session.add(adjustment)
         with pytest.raises(IntegrityError):
-            await async_session.commit()
+            session.commit()
 
-    @pytest.mark.asyncio
-    async def test_foreign_key_constraint(self, async_session: AsyncSession):
+    def test_foreign_key_constraint(self, session: Session):
         """Test that trade_id must reference an existing trade."""
         # Arrange
         adjustment = TPAdjustment(
@@ -148,12 +144,11 @@ class TestTPAdjustmentModel:
         )
 
         # Act & Assert
-        async_session.add(adjustment)
+        session.add(adjustment)
         with pytest.raises(IntegrityError):
-            await async_session.commit()
+            session.commit()
 
-    @pytest.mark.asyncio
-    async def test_old_tp_price_required(self, async_session: AsyncSession, trade: Trade):
+    def test_old_tp_price_required(self, session: Session, trade: Trade):
         """Test that old_tp_price is required."""
         # Arrange
         adjustment = TPAdjustment(
@@ -164,12 +159,11 @@ class TestTPAdjustmentModel:
         )
 
         # Act & Assert
-        async_session.add(adjustment)
+        session.add(adjustment)
         with pytest.raises(IntegrityError):
-            await async_session.commit()
+            session.commit()
 
-    @pytest.mark.asyncio
-    async def test_new_tp_price_required(self, async_session: AsyncSession, trade: Trade):
+    def test_new_tp_price_required(self, session: Session, trade: Trade):
         """Test that new_tp_price is required."""
         # Arrange
         adjustment = TPAdjustment(
@@ -180,12 +174,11 @@ class TestTPAdjustmentModel:
         )
 
         # Act & Assert
-        async_session.add(adjustment)
+        session.add(adjustment)
         with pytest.raises(IntegrityError):
-            await async_session.commit()
+            session.commit()
 
-    @pytest.mark.asyncio
-    async def test_adjusted_at_auto_generated(self, async_session: AsyncSession, trade: Trade):
+    def test_adjusted_at_auto_generated(self, session: Session, trade: Trade):
         """Test that adjusted_at is automatically generated."""
         # Arrange
         adjustment = TPAdjustment(
@@ -197,16 +190,15 @@ class TestTPAdjustmentModel:
         )
 
         # Act
-        async_session.add(adjustment)
-        await async_session.commit()
-        await async_session.refresh(adjustment)
+        session.add(adjustment)
+        session.commit()
+        session.refresh(adjustment)
 
         # Assert
         assert adjustment.adjusted_at is not None
         assert isinstance(adjustment.adjusted_at, datetime)
 
-    @pytest.mark.asyncio
-    async def test_query_by_trade_id(self, async_session: AsyncSession, trade: Trade):
+    def test_query_by_trade_id(self, session: Session, trade: Trade):
         """Test querying adjustments by trade_id."""
         # Arrange
         adjustment1 = TPAdjustment(
@@ -223,19 +215,18 @@ class TestTPAdjustmentModel:
             old_tp_percent=Decimal("0.5000"),
             new_tp_percent=Decimal("0.6667"),
         )
-        async_session.add_all([adjustment1, adjustment2])
-        await async_session.commit()
+        session.add_all([adjustment1, adjustment2])
+        session.commit()
 
         # Act
         stmt = select(TPAdjustment).where(TPAdjustment.trade_id == trade.id)
-        result = await async_session.execute(stmt)
+        result = session.execute(stmt)
         adjustments = result.scalars().all()
 
         # Assert
         assert len(adjustments) == 2
 
-    @pytest.mark.asyncio
-    async def test_cascade_delete(self, async_session: AsyncSession, trade: Trade):
+    def test_cascade_delete(self, session: Session, trade: Trade):
         """Test that adjustments are deleted when trade is deleted."""
         # Arrange
         adjustment = TPAdjustment(
@@ -245,21 +236,20 @@ class TestTPAdjustmentModel:
             old_tp_percent=Decimal("0.3333"),
             new_tp_percent=Decimal("0.5000"),
         )
-        async_session.add(adjustment)
-        await async_session.commit()
+        session.add(adjustment)
+        session.commit()
 
         # Act - Delete the trade
-        await async_session.delete(trade)
-        await async_session.commit()
+        session.delete(trade)
+        session.commit()
 
         # Assert - Adjustment should be deleted
         stmt = select(TPAdjustment).where(TPAdjustment.id == adjustment.id)
-        result = await async_session.execute(stmt)
+        result = session.execute(stmt)
         found_adjustment = result.scalar_one_or_none()
         assert found_adjustment is None
 
-    @pytest.mark.asyncio
-    async def test_tp_adjustment_repr(self, async_session: AsyncSession, trade: Trade):
+    def test_tp_adjustment_repr(self, session: Session, trade: Trade):
         """Test TPAdjustment __repr__ method."""
         # Arrange
         adjustment = TPAdjustment(
@@ -269,9 +259,9 @@ class TestTPAdjustmentModel:
             old_tp_percent=Decimal("0.3333"),
             new_tp_percent=Decimal("0.5000"),
         )
-        async_session.add(adjustment)
-        await async_session.commit()
-        await async_session.refresh(adjustment)
+        session.add(adjustment)
+        session.commit()
+        session.refresh(adjustment)
 
         # Act
         repr_str = repr(adjustment)

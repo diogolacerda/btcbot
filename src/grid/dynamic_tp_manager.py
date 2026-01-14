@@ -1,6 +1,7 @@
 """Dynamic Take Profit Manager based on funding rate."""
 
-import asyncio
+import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -60,7 +61,7 @@ class DynamicTPManager:
         self._account_id = account_id
         self._activity_event_repository = activity_event_repository
         self._running = False
-        self._task: asyncio.Task | None = None
+        self._thread: threading.Thread | None = None
         self._last_update: dict[str, datetime] = {}  # order_id -> last update time
         self._update_history: list[PositionTPUpdate] = []
 
@@ -88,29 +89,18 @@ class DynamicTPManager:
         if not self._activity_event_repository or not self._account_id:
             return
 
-        # Capture values for closure (type narrowing)
-        repo = self._activity_event_repository
-        account_id = self._account_id
-
-        async def _persist_event() -> None:
-            try:
-                await repo.create_event(
-                    account_id=account_id,
-                    event_type=event_type,
-                    description=description,
-                    event_data=event_data,
-                )
-            except Exception as e:
-                orders_logger.warning(f"Failed to log activity event: {e}")
-
-        # Schedule task in background (fire and forget)
+        # Persist event directly (sync)
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_event())
-        except RuntimeError:
-            orders_logger.debug("No event loop, skipping activity event logging")
+            self._activity_event_repository.create_event(
+                account_id=self._account_id,
+                event_type=event_type,
+                description=description,
+                event_data=event_data,
+            )
+        except Exception as e:
+            orders_logger.warning(f"Failed to log activity event: {e}")
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the dynamic TP monitoring task."""
         # Log configuration for debugging
         orders_logger.debug(
@@ -128,35 +118,32 @@ class DynamicTPManager:
             return
 
         self._running = True
-        self._task = asyncio.create_task(self._monitor_loop())
+        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self._thread.start()
         orders_logger.info(
             f"Dynamic TP Manager started (check every {self.config.check_interval_minutes}min)"
         )
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the dynamic TP monitoring task."""
         self._running = False
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError:
-                pass
-            self._task = None
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5)
+            self._thread = None
         orders_logger.info("Dynamic TP Manager stopped")
 
-    async def _monitor_loop(self) -> None:
+    def _monitor_loop(self) -> None:
         """Main monitoring loop."""
         while self._running:
             try:
-                await self._check_and_update_positions()
+                self._check_and_update_positions()
             except Exception as e:
                 orders_logger.error(f"Error in dynamic TP monitor: {e}")
 
             # Wait for next check interval
-            await asyncio.sleep(self.config.check_interval_minutes * 60)
+            time.sleep(self.config.check_interval_minutes * 60)
 
-    async def _check_and_update_positions(self) -> None:
+    def _check_and_update_positions(self) -> None:
         """Check all open positions and update TPs if needed."""
         filled_orders = self.order_tracker.filled_orders
         if not filled_orders:
@@ -164,7 +151,7 @@ class DynamicTPManager:
 
         # Get current funding rate
         try:
-            funding_data = await self.client.get_funding_rate(self.symbol)
+            funding_data = self.client.get_funding_rate(self.symbol)
             funding_rate = funding_data["lastFundingRate"]
         except Exception as e:
             orders_logger.error(f"Failed to get funding rate: {e}")
@@ -173,9 +160,9 @@ class DynamicTPManager:
         orders_logger.debug(f"Current funding rate: {funding_rate:.6f} ({funding_rate * 100:.4f}%)")
 
         for order in filled_orders:
-            await self._check_position(order, funding_rate)
+            self._check_position(order, funding_rate)
 
-    async def _check_position(self, order: "TrackedOrder", funding_rate: float) -> None:
+    def _check_position(self, order: "TrackedOrder", funding_rate: float) -> None:
         """Check a single position and update TP if needed."""
         # Rate limit: don't update same position more than once per 30 min
         last_update = self._last_update.get(order.order_id)
@@ -217,7 +204,7 @@ class DynamicTPManager:
 
         # Don't update if price is already close to current TP (within 0.1%)
         try:
-            current_price = await self.client.get_price(self.symbol)
+            current_price = self.client.get_price(self.symbol)
             distance_to_tp = ((order.tp_price - current_price) / current_price) * 100
             if distance_to_tp < 0.1:
                 orders_logger.debug(
@@ -246,11 +233,11 @@ class DynamicTPManager:
 
         try:
             # Get position side dynamically (One-way = "BOTH", Hedge = "LONG"/"SHORT")
-            position_side = await self.order_tracker.get_position_side()
+            position_side = self.order_tracker.get_position_side()
 
             # Modify TP order on exchange (cancel old + create new)
             # Grid bot only does LONG positions, so TP side is SELL
-            result = await self.client.modify_tp_order(
+            result = self.client.modify_tp_order(
                 symbol=self.symbol,
                 old_tp_order_id=order.exchange_tp_order_id,
                 side="SELL",  # TP for LONG position is SELL
@@ -421,33 +408,26 @@ class DynamicTPManager:
         """
         from decimal import Decimal
 
-        async def _persist_adjustment() -> None:
-            if not self._tp_adjustment_repository or not order.trade_id:
-                return
+        # Persist adjustment directly (sync)
+        if not self._tp_adjustment_repository or not order.trade_id:
+            return
 
-            try:
-                await self._tp_adjustment_repository.save_adjustment(
-                    trade_id=order.trade_id,
-                    old_tp_price=Decimal(str(old_tp_price)),
-                    new_tp_price=Decimal(str(new_tp_price)),
-                    old_tp_percent=Decimal(str(old_tp_percent)),
-                    new_tp_percent=Decimal(str(new_tp_percent)),
-                    funding_rate=Decimal(str(funding_rate)),
-                    funding_accumulated=Decimal(str(funding_accumulated)),
-                    hours_open=Decimal(str(hours_open)),
-                )
-                orders_logger.info(f"TP adjustment persisted: {order.order_id[:8]}")
-            except Exception as e:
-                orders_logger.warning(
-                    f"Failed to persist TP adjustment: {e}. Adjustment kept in memory only."
-                )
-
-        # Schedule task in background (fire and forget)
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_adjustment())
-        except RuntimeError:
-            orders_logger.warning("No event loop, skipping TP adjustment persistence")
+            self._tp_adjustment_repository.save_adjustment(
+                trade_id=order.trade_id,
+                old_tp_price=Decimal(str(old_tp_price)),
+                new_tp_price=Decimal(str(new_tp_price)),
+                old_tp_percent=Decimal(str(old_tp_percent)),
+                new_tp_percent=Decimal(str(new_tp_percent)),
+                funding_rate=Decimal(str(funding_rate)),
+                funding_accumulated=Decimal(str(funding_accumulated)),
+                hours_open=Decimal(str(hours_open)),
+            )
+            orders_logger.info(f"TP adjustment persisted: {order.order_id[:8]}")
+        except Exception as e:
+            orders_logger.warning(
+                f"Failed to persist TP adjustment: {e}. Adjustment kept in memory only."
+            )
 
     def _schedule_trade_update(
         self,
@@ -470,29 +450,21 @@ class DynamicTPManager:
         from src.database.engine import get_session
         from src.database.repositories.trade_repository import TradeRepository
 
-        async def _persist_trade_update() -> None:
-            try:
-                async for session in get_session():
-                    trade_repo = TradeRepository(session)
-
-                    # Update tp_price and exchange_tp_order_id
-                    await trade_repo.update_tp(
-                        trade_id=trade_id,
-                        new_tp_price=Decimal(str(new_tp_price)),
-                        new_tp_order_id=new_tp_order_id,
-                    )
-
-                    orders_logger.debug(
-                        f"Trade {str(trade_id)[:8]} updated with new TP: ${new_tp_price:,.2f}, "
-                        f"TP order: {new_tp_order_id[:8] if new_tp_order_id else 'None'}"
-                    )
-                    break
-            except Exception as e:
-                orders_logger.error(f"Failed to update trade {str(trade_id)[:8]} in database: {e}")
-
-        # Schedule task in background (fire and forget)
+        # Persist trade update directly (sync)
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_trade_update())
-        except RuntimeError:
-            orders_logger.warning("No event loop, skipping trade update")
+            with get_session() as session:
+                trade_repo = TradeRepository(session)
+
+                # Update tp_price and exchange_tp_order_id
+                trade_repo.update_tp(
+                    trade_id=trade_id,
+                    new_tp_price=Decimal(str(new_tp_price)),
+                    new_tp_order_id=new_tp_order_id,
+                )
+
+                orders_logger.debug(
+                    f"Trade {str(trade_id)[:8]} updated with new TP: ${new_tp_price:,.2f}, "
+                    f"TP order: {new_tp_order_id[:8] if new_tp_order_id else 'None'}"
+                )
+        except Exception as e:
+            orders_logger.error(f"Failed to update trade {str(trade_id)[:8]} in database: {e}")

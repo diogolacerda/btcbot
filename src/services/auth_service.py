@@ -6,7 +6,7 @@ from uuid import UUID
 
 import bcrypt
 import jwt
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.user import User
 from src.database.repositories.user_repository import UserRepository
@@ -27,7 +27,7 @@ class AuthService:
 
     def __init__(
         self,
-        session: AsyncSession,
+        session: Session,
         *,
         jwt_secret: str | None = None,
         jwt_algorithm: str = "HS256",
@@ -36,7 +36,7 @@ class AuthService:
         """Initialize AuthService.
 
         Args:
-            session: Async database session.
+            session: Database session.
             jwt_secret: Secret key for JWT (defaults to JWT_SECRET_KEY env var).
             jwt_algorithm: JWT algorithm (default: HS256).
             jwt_expiration_hours: Token expiration in hours (default: 24).
@@ -45,11 +45,12 @@ class AuthService:
             ValueError: If jwt_secret is not provided and JWT_SECRET_KEY env var is not set.
         """
         self.user_repository = UserRepository(session)
-        self.jwt_secret = jwt_secret or os.getenv("JWT_SECRET_KEY")
-        if not self.jwt_secret:
+        secret_key = jwt_secret or os.getenv("JWT_SECRET_KEY")
+        if not secret_key:
             raise ValueError(
                 "JWT secret key is required. Set JWT_SECRET_KEY environment variable or pass jwt_secret parameter."
             )
+        self.jwt_secret: str = secret_key  # Type narrowed after validation
         self.jwt_algorithm = jwt_algorithm
         self.jwt_expiration_hours = jwt_expiration_hours
 
@@ -101,7 +102,7 @@ class AuthService:
         token = jwt.encode(payload, self.jwt_secret, algorithm=self.jwt_algorithm)
         return token  # type: ignore[no-any-return]
 
-    async def register(
+    def register(
         self,
         email: str,
         password: str,
@@ -127,14 +128,14 @@ class AuthService:
             raise ValueError("Password must be at least 8 characters long")
 
         # Check if email already exists
-        existing_user = await self.user_repository.get_by_email(email)
+        existing_user = self.user_repository.get_by_email(email)
         if existing_user:
             raise ValueError(f"User with email {email} already exists")
 
         # Hash password and create user
         password_hash = self.hash_password(password)
         try:
-            user = await self.user_repository.create_user(
+            user = self.user_repository.create_user(
                 email=email,
                 password_hash=password_hash,
                 name=name,
@@ -145,7 +146,7 @@ class AuthService:
             main_logger.error(f"Error registering user {email}: {e}")
             raise
 
-    async def login(self, email: str, password: str) -> tuple[User, str]:
+    def login(self, email: str, password: str) -> tuple[User, str]:
         """Authenticate a user and generate JWT token.
 
         Args:
@@ -160,7 +161,7 @@ class AuthService:
             Exception: If database operation fails.
         """
         # Get user by email
-        user = await self.user_repository.get_by_email(email)
+        user = self.user_repository.get_by_email(email)
         if not user:
             raise ValueError("Invalid email or password")
 
@@ -177,7 +178,7 @@ class AuthService:
         main_logger.info(f"User logged in: {user.email}")
         return user, token
 
-    async def verify_token(self, token: str) -> User | None:
+    def verify_token(self, token: str) -> User | None:
         """Verify JWT token and return associated user.
 
         Args:
@@ -198,7 +199,7 @@ class AuthService:
             user_id = UUID(user_id_str)
 
             # Get user from database
-            user = await self.user_repository.get_by_id(user_id)
+            user = self.user_repository.get_by_id(user_id)
 
             # Check if user exists and is active
             if not user or not user.is_active:
@@ -215,7 +216,7 @@ class AuthService:
             main_logger.error(f"Error verifying token: {e}")
             return None
 
-    async def change_password(
+    def change_password(
         self,
         user_id: UUID,
         old_password: str,
@@ -240,7 +241,7 @@ class AuthService:
             raise ValueError("New password must be at least 8 characters long")
 
         # Get user
-        user = await self.user_repository.get_by_id(user_id)
+        user = self.user_repository.get_by_id(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
 
@@ -251,7 +252,7 @@ class AuthService:
         # Hash new password and update
         new_password_hash = self.hash_password(new_password)
         try:
-            await self.user_repository.update_user(
+            self.user_repository.update_user(
                 user_id,
                 password_hash=new_password_hash,
             )

@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.api.dependencies import (
     create_access_token,
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 @router.post("/login", response_model=Token)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_db),
 ) -> Token:
     """Authenticate user and return JWT access token.
 
@@ -36,7 +36,7 @@ async def login(
         HTTPException: If credentials are invalid.
     """
     # Get user from database
-    result = await session.execute(select(User).where(User.email == form_data.username))
+    result = session.execute(select(User).where(User.email == form_data.username))
     user = result.scalar_one_or_none()
 
     # Verify credentials
@@ -63,7 +63,7 @@ async def login(
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 async def register(
     user_data: UserCreate,
-    session: AsyncSession = Depends(get_db),
+    session: Session = Depends(get_db),
 ) -> Token:
     """Register a new user and return JWT access token.
 
@@ -78,7 +78,7 @@ async def register(
         HTTPException: If email already exists.
     """
     # Check if user already exists
-    result = await session.execute(select(User).where(User.email == user_data.email))
+    result = session.execute(select(User).where(User.email == user_data.email))
     existing_user = result.scalar_one_or_none()
 
     if existing_user:
@@ -96,8 +96,8 @@ async def register(
     )
 
     session.add(new_user)
-    await session.commit()
-    await session.refresh(new_user)
+    session.commit()
+    session.refresh(new_user)
 
     # Create access token
     access_token = create_access_token(data={"sub": new_user.email})

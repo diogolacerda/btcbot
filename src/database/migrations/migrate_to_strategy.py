@@ -15,15 +15,13 @@ Usage:
 """
 
 import argparse
-import asyncio
 import logging
 import sys
 from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from src.database.engine import get_engine, get_session_maker
 from src.database.models.account import Account
@@ -128,7 +126,7 @@ def create_default_macd_config(strategy: Strategy) -> MACDFilterConfig:
     )
 
 
-async def has_existing_strategy(session: AsyncSession, account_id: UUID) -> bool:
+def has_existing_strategy(session: Session, account_id: UUID) -> bool:
     """Check if account already has a Strategy.
 
     Args:
@@ -139,12 +137,12 @@ async def has_existing_strategy(session: AsyncSession, account_id: UUID) -> bool
         True if strategy exists, False otherwise
     """
     stmt = select(Strategy).where(Strategy.account_id == account_id).limit(1)
-    result = await session.scalar(stmt)
+    result = session.scalar(stmt)
     return result is not None
 
 
-async def migrate_account(
-    session: AsyncSession,
+def migrate_account(
+    session: Session,
     account: Account,
     trading_config: TradingConfig | None,
     grid_config: GridConfig | None,
@@ -163,7 +161,7 @@ async def migrate_account(
         MigrationResult with status and details
     """
     # Check if already migrated (idempotent)
-    if await has_existing_strategy(session, account.id):
+    if has_existing_strategy(session, account.id):
         return MigrationResult(
             account_id=account.id,
             account_name=account.name,
@@ -197,7 +195,7 @@ async def migrate_account(
     # Create Strategy
     strategy = create_strategy_from_configs(account, trading_config, grid_config)
     session.add(strategy)
-    await session.flush()  # Get the strategy ID
+    session.flush()  # Get the strategy ID
 
     # Create default MACDFilterConfig
     macd_config = create_default_macd_config(strategy)
@@ -211,7 +209,7 @@ async def migrate_account(
     )
 
 
-async def run_migration(dry_run: bool = True, verbose: bool = False) -> MigrationSummary:
+def run_migration(dry_run: bool = True, verbose: bool = False) -> MigrationSummary:
     """Run the migration for all accounts.
 
     Args:
@@ -228,13 +226,13 @@ async def run_migration(dry_run: bool = True, verbose: bool = False) -> Migratio
     skipped = 0
     errors = 0
 
-    async with session_maker() as session:
+    with session_maker() as session:
         # Load all accounts with their configs (eager load relationships)
         stmt = select(Account).options(
             selectinload(Account.trading_config),
             selectinload(Account.grid_config),
         )
-        result = await session.execute(stmt)
+        result = session.execute(stmt)
         accounts = list(result.scalars())
         total_accounts = len(accounts)
 
@@ -247,7 +245,7 @@ async def run_migration(dry_run: bool = True, verbose: bool = False) -> Migratio
                 trading_config = account.trading_config
                 grid_config = account.grid_config
 
-                migration_result = await migrate_account(
+                migration_result = migrate_account(
                     session=session,
                     account=account,
                     trading_config=trading_config,
@@ -280,13 +278,13 @@ async def run_migration(dry_run: bool = True, verbose: bool = False) -> Migratio
 
         # Commit if not dry run
         if not dry_run:
-            await session.commit()
+            session.commit()
             logger.info("Migration committed successfully")
         else:
-            await session.rollback()
+            session.rollback()
             logger.info("Dry run - no changes committed")
 
-    await engine.dispose()
+    engine.dispose()
 
     return MigrationSummary(
         total_accounts=total_accounts,
@@ -357,7 +355,7 @@ def main() -> int:
     else:
         logger.info("Starting migration in EXECUTE mode")
 
-    summary = asyncio.run(run_migration(dry_run=dry_run, verbose=args.verbose))
+    summary = run_migration(dry_run=dry_run, verbose=args.verbose)
     print_summary(summary, dry_run)
 
     return 0 if summary.errors == 0 else 1

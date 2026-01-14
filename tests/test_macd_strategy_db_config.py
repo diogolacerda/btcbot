@@ -5,7 +5,7 @@ Tests the load_config_from_db method which loads MACD configuration
 from the database Strategy and MACDFilterConfig models.
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -32,12 +32,11 @@ class TestLoadConfigFromDb:
         """Sample strategy ID."""
         return uuid4()
 
-    @pytest.mark.asyncio
-    async def test_load_config_no_account_id(self, default_config):
+    def test_load_config_no_account_id(self, default_config):
         """Test that load returns False when no account_id is set."""
         strategy = MACDStrategy(default_config)
 
-        result = await strategy.load_config_from_db()
+        result = strategy.load_config_from_db()
 
         assert result is False
         # Defaults should remain unchanged
@@ -46,22 +45,20 @@ class TestLoadConfigFromDb:
         assert strategy.signal == 9
         assert strategy.timeframe == "1h"
 
-    @pytest.mark.asyncio
-    async def test_load_config_no_repositories(self, default_config, account_id):
+    def test_load_config_no_repositories(self, default_config, account_id):
         """Test that load returns False when repositories are not set."""
         strategy = MACDStrategy(default_config, account_id=account_id)
 
-        result = await strategy.load_config_from_db()
+        result = strategy.load_config_from_db()
 
         assert result is False
         # Defaults should remain unchanged
         assert strategy.fast == 12
 
-    @pytest.mark.asyncio
-    async def test_load_config_no_active_strategy(self, default_config, account_id):
+    def test_load_config_no_active_strategy(self, default_config, account_id):
         """Test that load returns False when no active strategy exists."""
         mock_strategy_repo = MagicMock()
-        mock_strategy_repo.get_active_by_account = AsyncMock(return_value=None)
+        mock_strategy_repo.get_active_by_account = MagicMock(return_value=None)
         mock_macd_repo = MagicMock()
 
         strategy = MACDStrategy(
@@ -71,24 +68,23 @@ class TestLoadConfigFromDb:
             macd_filter_config_repository=mock_macd_repo,
         )
 
-        result = await strategy.load_config_from_db()
+        result = strategy.load_config_from_db()
 
         assert result is False
         mock_strategy_repo.get_active_by_account.assert_called_once_with(account_id)
         # Defaults should remain unchanged
         assert strategy.fast == 12
 
-    @pytest.mark.asyncio
-    async def test_load_config_no_macd_filter_config(self, default_config, account_id, strategy_id):
+    def test_load_config_no_macd_filter_config(self, default_config, account_id, strategy_id):
         """Test that load returns False when no MACDFilterConfig exists."""
         mock_db_strategy = MagicMock()
         mock_db_strategy.id = strategy_id
 
         mock_strategy_repo = MagicMock()
-        mock_strategy_repo.get_active_by_account = AsyncMock(return_value=mock_db_strategy)
+        mock_strategy_repo.get_active_by_account = MagicMock(return_value=mock_db_strategy)
 
         mock_macd_repo = MagicMock()
-        mock_macd_repo.get_by_strategy = AsyncMock(return_value=None)
+        mock_macd_repo.get_by_strategy = MagicMock(return_value=None)
 
         strategy = MACDStrategy(
             default_config,
@@ -97,15 +93,14 @@ class TestLoadConfigFromDb:
             macd_filter_config_repository=mock_macd_repo,
         )
 
-        result = await strategy.load_config_from_db()
+        result = strategy.load_config_from_db()
 
         assert result is False
         mock_macd_repo.get_by_strategy.assert_called_once_with(strategy_id)
         # Defaults should remain unchanged
         assert strategy.fast == 12
 
-    @pytest.mark.asyncio
-    async def test_load_config_success(self, default_config, account_id, strategy_id):
+    def test_load_config_success(self, default_config, account_id, strategy_id):
         """Test successful config loading from database."""
         mock_db_strategy = MagicMock()
         mock_db_strategy.id = strategy_id
@@ -118,10 +113,10 @@ class TestLoadConfigFromDb:
         mock_macd_config.enabled = True
 
         mock_strategy_repo = MagicMock()
-        mock_strategy_repo.get_active_by_account = AsyncMock(return_value=mock_db_strategy)
+        mock_strategy_repo.get_active_by_account = MagicMock(return_value=mock_db_strategy)
 
         mock_macd_repo = MagicMock()
-        mock_macd_repo.get_by_strategy = AsyncMock(return_value=mock_macd_config)
+        mock_macd_repo.get_by_strategy = MagicMock(return_value=mock_macd_config)
 
         strategy = MACDStrategy(
             default_config,
@@ -130,7 +125,7 @@ class TestLoadConfigFromDb:
             macd_filter_config_repository=mock_macd_repo,
         )
 
-        result = await strategy.load_config_from_db()
+        result = strategy.load_config_from_db()
 
         assert result is True
         # Values should be updated from DB
@@ -140,8 +135,7 @@ class TestLoadConfigFromDb:
         assert strategy.timeframe == "4h"
         assert strategy.is_macd_enabled is True
 
-    @pytest.mark.asyncio
-    async def test_load_config_disabled_macd(self, default_config, account_id, strategy_id):
+    def test_load_config_disabled_macd(self, default_config, account_id, strategy_id):
         """Test config loading when MACD filter is disabled."""
         mock_db_strategy = MagicMock()
         mock_db_strategy.id = strategy_id
@@ -154,10 +148,10 @@ class TestLoadConfigFromDb:
         mock_macd_config.enabled = False  # Disabled
 
         mock_strategy_repo = MagicMock()
-        mock_strategy_repo.get_active_by_account = AsyncMock(return_value=mock_db_strategy)
+        mock_strategy_repo.get_active_by_account = MagicMock(return_value=mock_db_strategy)
 
         mock_macd_repo = MagicMock()
-        mock_macd_repo.get_by_strategy = AsyncMock(return_value=mock_macd_config)
+        mock_macd_repo.get_by_strategy = MagicMock(return_value=mock_macd_config)
 
         strategy = MACDStrategy(
             default_config,
@@ -166,13 +160,12 @@ class TestLoadConfigFromDb:
             macd_filter_config_repository=mock_macd_repo,
         )
 
-        result = await strategy.load_config_from_db()
+        result = strategy.load_config_from_db()
 
         assert result is True
         assert strategy.is_macd_enabled is False
 
-    @pytest.mark.asyncio
-    async def test_load_config_only_loads_once(self, default_config, account_id, strategy_id):
+    def test_load_config_only_loads_once(self, default_config, account_id, strategy_id):
         """Test that config is only loaded once (cached)."""
         mock_db_strategy = MagicMock()
         mock_db_strategy.id = strategy_id
@@ -185,10 +178,10 @@ class TestLoadConfigFromDb:
         mock_macd_config.enabled = True
 
         mock_strategy_repo = MagicMock()
-        mock_strategy_repo.get_active_by_account = AsyncMock(return_value=mock_db_strategy)
+        mock_strategy_repo.get_active_by_account = MagicMock(return_value=mock_db_strategy)
 
         mock_macd_repo = MagicMock()
-        mock_macd_repo.get_by_strategy = AsyncMock(return_value=mock_macd_config)
+        mock_macd_repo.get_by_strategy = MagicMock(return_value=mock_macd_config)
 
         strategy = MACDStrategy(
             default_config,
@@ -198,19 +191,18 @@ class TestLoadConfigFromDb:
         )
 
         # Load twice
-        result1 = await strategy.load_config_from_db()
-        result2 = await strategy.load_config_from_db()
+        result1 = strategy.load_config_from_db()
+        result2 = strategy.load_config_from_db()
 
         assert result1 is True
         assert result2 is True
         # Repository should only be called once
         assert mock_strategy_repo.get_active_by_account.call_count == 1
 
-    @pytest.mark.asyncio
-    async def test_load_config_handles_exception(self, default_config, account_id):
+    def test_load_config_handles_exception(self, default_config, account_id):
         """Test that exceptions are handled gracefully."""
         mock_strategy_repo = MagicMock()
-        mock_strategy_repo.get_active_by_account = AsyncMock(
+        mock_strategy_repo.get_active_by_account = MagicMock(
             side_effect=Exception("Database error")
         )
         mock_macd_repo = MagicMock()
@@ -222,7 +214,7 @@ class TestLoadConfigFromDb:
             macd_filter_config_repository=mock_macd_repo,
         )
 
-        result = await strategy.load_config_from_db()
+        result = strategy.load_config_from_db()
 
         assert result is False
         # Defaults should remain unchanged
@@ -239,8 +231,7 @@ class TestIsMacdEnabled:
 
         assert strategy.is_macd_enabled is True
 
-    @pytest.mark.asyncio
-    async def test_enabled_after_load(self):
+    def test_enabled_after_load(self):
         """Test is_macd_enabled after loading from DB."""
         config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         account_id = uuid4()
@@ -257,10 +248,10 @@ class TestIsMacdEnabled:
         mock_macd_config.enabled = False
 
         mock_strategy_repo = MagicMock()
-        mock_strategy_repo.get_active_by_account = AsyncMock(return_value=mock_db_strategy)
+        mock_strategy_repo.get_active_by_account = MagicMock(return_value=mock_db_strategy)
 
         mock_macd_repo = MagicMock()
-        mock_macd_repo.get_by_strategy = AsyncMock(return_value=mock_macd_config)
+        mock_macd_repo.get_by_strategy = MagicMock(return_value=mock_macd_config)
 
         strategy = MACDStrategy(
             config,
@@ -269,6 +260,6 @@ class TestIsMacdEnabled:
             macd_filter_config_repository=mock_macd_repo,
         )
 
-        await strategy.load_config_from_db()
+        strategy.load_config_from_db()
 
         assert strategy.is_macd_enabled is False

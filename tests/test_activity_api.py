@@ -1,7 +1,7 @@
 """Tests for activity events API endpoints."""
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -70,8 +70,8 @@ def sample_events(test_account_id):
 def test_get_activity_events_default(sample_events, test_account_id):
     """Test GET /api/v1/activity with default parameters (7 days)."""
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         mock_repo.get_events_by_period.return_value = sample_events[:5]  # Today's events
         return mock_repo
 
@@ -102,8 +102,8 @@ def test_get_activity_events_today_period(sample_events, test_account_id):
     today_start = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
     today_events = [e for e in sample_events if e.timestamp >= today_start]
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         mock_repo.get_events_by_period.return_value = today_events
         return mock_repo
 
@@ -129,8 +129,8 @@ def test_get_activity_events_today_period(sample_events, test_account_id):
 def test_get_activity_events_7days_period(sample_events, test_account_id):
     """Test GET /api/v1/activity with period=7days."""
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         # Return today's events (within 7 days)
         mock_repo.get_events_by_period.return_value = sample_events[:5]
         return mock_repo
@@ -153,8 +153,8 @@ def test_get_activity_events_7days_period(sample_events, test_account_id):
 def test_get_activity_events_30days_period(sample_events, test_account_id):
     """Test GET /api/v1/activity with period=30days."""
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         # Return all events (all within 30 days)
         mock_repo.get_events_by_period.return_value = sample_events
         return mock_repo
@@ -184,8 +184,8 @@ def test_get_activity_events_custom_period(sample_events, test_account_id):
     # Only older events (from 10 days ago)
     older_events = sample_events[5:]  # Last 3 events
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         mock_repo.get_events_by_period.return_value = older_events
         return mock_repo
 
@@ -214,8 +214,8 @@ def test_get_activity_events_custom_period(sample_events, test_account_id):
 def test_get_activity_events_custom_without_dates(test_account_id):
     """Test GET /api/v1/activity with custom period without required dates."""
 
-    async def mock_get_activity_event_repository():
-        return AsyncMock()
+    def mock_get_activity_event_repository():
+        return MagicMock()
 
     app.dependency_overrides[get_activity_event_repository] = mock_get_activity_event_repository
 
@@ -234,8 +234,8 @@ def test_get_activity_events_with_event_type_filter(sample_events, test_account_
     """Test GET /api/v1/activity with event type filter."""
     order_filled_events = [e for e in sample_events if e.event_type == "ORDER_FILLED"]
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         mock_repo.get_events_by_period.return_value = order_filled_events
         return mock_repo
 
@@ -262,8 +262,8 @@ def test_get_activity_events_with_event_type_filter(sample_events, test_account_
 def test_get_activity_events_pagination(sample_events, test_account_id):
     """Test GET /api/v1/activity pagination."""
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         mock_repo.get_events_by_period.return_value = sample_events
         return mock_repo
 
@@ -299,8 +299,8 @@ def test_get_activity_events_pagination(sample_events, test_account_id):
 def test_get_activity_events_empty(test_account_id):
     """Test GET /api/v1/activity with no events."""
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         mock_repo.get_events_by_period.return_value = []
         return mock_repo
 
@@ -323,8 +323,8 @@ def test_get_activity_events_empty(test_account_id):
 def test_get_activity_events_no_account():
     """Test GET /api/v1/activity when account not configured."""
 
-    async def mock_get_activity_event_repository():
-        return AsyncMock()
+    def mock_get_activity_event_repository():
+        return MagicMock()
 
     app.dependency_overrides[get_activity_event_repository] = mock_get_activity_event_repository
 
@@ -342,8 +342,8 @@ def test_get_activity_events_no_account():
 def test_get_activity_events_schema_structure(sample_events, test_account_id):
     """Test that activity event schema has correct structure."""
 
-    async def mock_get_activity_event_repository():
-        mock_repo = AsyncMock()
+    def mock_get_activity_event_repository():
+        mock_repo = MagicMock()
         mock_repo.get_events_by_period.return_value = [sample_events[0]]
         return mock_repo
 

@@ -38,7 +38,7 @@ class TradeReconciliation:
         self.account_id = account_id
         self.symbol = symbol
 
-    async def reconcile(self) -> dict:
+    def reconcile(self) -> dict:
         """Run full reconciliation between database and BingX.
 
         Returns:
@@ -53,7 +53,7 @@ class TradeReconciliation:
 
         try:
             # Get BingX state
-            open_orders = await self.client.get_open_orders(self.symbol)
+            open_orders = self.client.get_open_orders(self.symbol)
             tp_orders = {
                 str(o.get("orderId")): o
                 for o in open_orders
@@ -61,19 +61,15 @@ class TradeReconciliation:
             }
 
             # Get database state
-            async for session in get_session():
+            with get_session() as session:
                 repo = TradeRepository(session)
-                db_trades = await repo.get_open_trades(self.account_id)
+                db_trades = repo.get_open_trades(self.account_id)
 
                 # Fix 1: Update missing TP order IDs
-                stats["tp_ids_fixed"] = await self._fix_missing_tp_ids(repo, db_trades, tp_orders)
+                stats["tp_ids_fixed"] = self._fix_missing_tp_ids(repo, db_trades, tp_orders)
 
                 # Fix 2: Close trades where TP was executed
-                stats["trades_closed"] = await self._close_executed_trades(
-                    repo, db_trades, tp_orders
-                )
-
-                break
+                stats["trades_closed"] = self._close_executed_trades(repo, db_trades, tp_orders)
 
             if any(stats.values()):
                 logger.info(
@@ -86,9 +82,7 @@ class TradeReconciliation:
 
         return stats
 
-    async def _fix_missing_tp_ids(
-        self, repo: TradeRepository, db_trades: list, tp_orders: dict
-    ) -> int:
+    def _fix_missing_tp_ids(self, repo: TradeRepository, db_trades: list, tp_orders: dict) -> int:
         """Fix trades with NULL exchange_tp_order_id by matching with BingX TPs.
 
         Args:
@@ -110,7 +104,7 @@ class TradeReconciliation:
 
             if matching_tp:
                 tp_order_id = str(matching_tp.get("orderId"))
-                await repo.update_tp(
+                repo.update_tp(
                     trade_id=trade.id,
                     new_tp_price=trade.tp_price,
                     new_tp_order_id=tp_order_id,
@@ -122,7 +116,7 @@ class TradeReconciliation:
 
         return fixed_count
 
-    async def _close_executed_trades(
+    def _close_executed_trades(
         self, repo: TradeRepository, db_trades: list, tp_orders: dict
     ) -> int:
         """Close trades where TP order no longer exists on BingX (was executed).
@@ -149,7 +143,7 @@ class TradeReconciliation:
                 pnl -= trade.trading_fee + trade.funding_fee
                 pnl_percent = ((exit_price - trade.entry_price) / trade.entry_price) * 100
 
-                await repo.update_trade_exit(
+                repo.update_trade_exit(
                     trade_id=trade.id,
                     exit_price=exit_price,
                     pnl=pnl,

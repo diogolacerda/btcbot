@@ -117,7 +117,7 @@ async def get_price(
         HTTPException: If API request fails
     """
     try:
-        ticker = await client.get_ticker_24h(symbol)
+        ticker = client.get_ticker_24h(symbol)
 
         # Build response
         current_price = Decimal(str(ticker["lastPrice"]))
@@ -181,7 +181,7 @@ async def get_funding_rate(
         HTTPException: If API request fails
     """
     try:
-        funding_data = await client.get_funding_rate(symbol)
+        funding_data = client.get_funding_rate(symbol)
 
         funding_rate = Decimal(str(funding_data["lastFundingRate"]))
         funding_rate_percent = funding_rate * 100
@@ -230,7 +230,7 @@ async def get_macd(
     """
     try:
         # Fetch klines for MACD calculation
-        klines = await client.get_klines(symbol, interval=strategy.timeframe, limit=100)
+        klines = client.get_klines(symbol, interval=strategy.timeframe, limit=100)
 
         # Calculate MACD values
         macd_values = strategy.calculate_macd(klines)
@@ -289,7 +289,7 @@ async def get_grid_range(
         HTTPException: If API request fails
     """
     try:
-        current_price = await client.get_price(symbol)
+        current_price = client.get_price(symbol)
         min_price = calculator.calculate_min_price(current_price)
 
         # Calculate number of levels possible in range

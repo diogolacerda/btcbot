@@ -261,7 +261,7 @@ async def stop_bot(
         pending_before = grid_status.pending_orders
 
         # Stop the grid manager (cancels LIMIT orders, preserves TPs)
-        await grid_manager.stop()
+        grid_manager.stop()
 
         main_logger.info("Bot stopped via API")
 
@@ -302,7 +302,7 @@ async def start_bot(
             )
 
         # Start the grid manager
-        await grid_manager.start()
+        grid_manager.start()
 
         main_logger.info("Bot started via API")
 

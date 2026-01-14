@@ -5,7 +5,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.macd_filter_config import MACDFilterConfig
 from src.database.repositories.base_repository import BaseRepository
@@ -23,7 +23,7 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
         update_config: Update specific configuration fields.
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
@@ -31,7 +31,7 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
         """
         super().__init__(session, MACDFilterConfig)
 
-    async def get_by_strategy(self, strategy_id: UUID) -> MACDFilterConfig | None:
+    def get_by_strategy(self, strategy_id: UUID) -> MACDFilterConfig | None:
         """Get MACD filter configuration for a specific strategy.
 
         Args:
@@ -44,12 +44,12 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
             Exception: If database operation fails.
 
         Example:
-            config = await repo.get_by_strategy(strategy_id)
+            config = repo.get_by_strategy(strategy_id)
             if config:
                 print(f"Fast period: {config.fast_period}")
         """
         try:
-            result = await self.session.execute(
+            result = self.session.execute(
                 select(MACDFilterConfig).where(MACDFilterConfig.strategy_id == strategy_id)
             )
             return result.scalar_one_or_none()  # type: ignore[no-any-return]
@@ -58,7 +58,7 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
                 f"Error fetching MACD filter config for strategy {strategy_id}: {e}"
             ) from e
 
-    async def create_or_update(
+    def create_or_update(
         self,
         strategy_id: UUID,
         enabled: bool | None = None,
@@ -88,13 +88,13 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
 
         Example:
             # Create with defaults
-            config = await repo.create_or_update(strategy_id)
+            config = repo.create_or_update(strategy_id)
 
             # Update only fast_period
-            config = await repo.create_or_update(strategy_id, fast_period=15)
+            config = repo.create_or_update(strategy_id, fast_period=15)
         """
         try:
-            existing = await self.get_by_strategy(strategy_id)
+            existing = self.get_by_strategy(strategy_id)
 
             if existing:
                 if enabled is not None:
@@ -108,7 +108,7 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
                 if timeframe is not None:
                     existing.timeframe = timeframe
 
-                return await super().update(existing)
+                return super().update(existing)
             else:
                 new_config = MACDFilterConfig(
                     strategy_id=strategy_id,
@@ -118,14 +118,14 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
                     signal_period=signal_period or 9,
                     timeframe=timeframe or "1h",
                 )
-                return await super().create(new_config)
+                return super().create(new_config)
         except Exception as e:
-            await self.session.rollback()
+            self.session.rollback()
             raise Exception(
                 f"Error creating/updating MACD filter config for strategy {strategy_id}: {e}"
             ) from e
 
-    async def update_config(
+    def update_config(
         self,
         strategy_id: UUID,
         **kwargs: bool | int | str,
@@ -145,13 +145,13 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
             Exception: If database operation fails.
 
         Example:
-            config = await repo.update_config(
+            config = repo.update_config(
                 strategy_id,
                 fast_period=15,
                 timeframe="4h"
             )
         """
-        existing = await self.get_by_strategy(strategy_id)
+        existing = self.get_by_strategy(strategy_id)
         if not existing:
             raise ValueError(f"No MACD filter config found for strategy {strategy_id}")
 
@@ -160,7 +160,7 @@ class MACDFilterConfigRepository(BaseRepository[MACDFilterConfig]):
                 if hasattr(existing, field):
                     setattr(existing, field, value)
 
-            return await super().update(existing)
+            return super().update(existing)
         except Exception:
-            await self.session.rollback()
+            self.session.rollback()
             raise

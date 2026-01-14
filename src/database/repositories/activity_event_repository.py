@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.activity_event import ActivityEvent, EventType
 from src.database.repositories.base_repository import BaseRepository
@@ -21,7 +21,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
     for the dashboard timeline.
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
@@ -29,7 +29,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
         """
         super().__init__(session, ActivityEvent)
 
-    async def create_event(
+    def create_event(
         self,
         account_id: UUID,
         event_type: EventType | str,
@@ -66,7 +66,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
             if timestamp:
                 event.timestamp = timestamp
 
-            created_event = await super().create(event)
+            created_event = super().create(event)
             main_logger.debug(f"Activity event created: {event_type_str} for account {account_id}")
             return created_event
 
@@ -74,7 +74,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
             main_logger.error(f"Error creating activity event: {e}")
             raise
 
-    async def get_events_by_account(
+    def get_events_by_account(
         self,
         account_id: UUID,
         limit: int = 50,
@@ -101,14 +101,14 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
                 .limit(limit)
                 .offset(offset)
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             return list(result.scalars().all())
 
         except Exception as e:
             main_logger.error(f"Error fetching activity events for account {account_id}: {e}")
             raise
 
-    async def get_events_by_period(
+    def get_events_by_period(
         self,
         account_id: UUID,
         start: datetime,
@@ -140,7 +140,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
                 .order_by(ActivityEvent.timestamp.desc())
                 .limit(limit)
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             return list(result.scalars().all())
 
         except Exception as e:
@@ -150,7 +150,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
             )
             raise
 
-    async def get_events_by_type(
+    def get_events_by_type(
         self,
         account_id: UUID,
         event_type: EventType | str,
@@ -181,7 +181,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
                 .order_by(ActivityEvent.timestamp.desc())
                 .limit(limit)
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             return list(result.scalars().all())
 
         except Exception as e:
@@ -190,7 +190,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
             )
             raise
 
-    async def count_events_by_account(self, account_id: UUID) -> int:
+    def count_events_by_account(self, account_id: UUID) -> int:
         """Count total activity events for an account.
 
         Args:
@@ -206,7 +206,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
             from sqlalchemy import func
 
             stmt = select(func.count()).where(ActivityEvent.account_id == account_id)
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             count: int = result.scalar() or 0
             return count
 
@@ -214,7 +214,7 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
             main_logger.error(f"Error counting activity events for account {account_id}: {e}")
             raise
 
-    async def delete_old_events(
+    def delete_old_events(
         self,
         account_id: UUID,
         older_than: datetime,
@@ -240,8 +240,8 @@ class ActivityEventRepository(BaseRepository[ActivityEvent]):
                 ActivityEvent.account_id == account_id,
                 ActivityEvent.timestamp < older_than,
             )
-            result = await self.session.execute(stmt)
-            await self.session.commit()
+            result = self.session.execute(stmt)
+            self.session.commit()
 
             deleted_count: int = getattr(result, "rowcount", 0) or 0
             main_logger.info(

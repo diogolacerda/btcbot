@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.trade import Trade
 from src.database.repositories.base_repository import BaseRepository
@@ -22,19 +22,19 @@ class TradeRepository(BaseRepository[Trade]):
     Inherits from BaseRepository to leverage common CRUD operations
     while providing trade-specific methods.
 
-    Provides async methods for creating, reading, and updating trade records
+    Provides methods for creating, reading, and updating trade records
     for historical analytics and state recovery.
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
-            session: Async database session.
+            session: Database session.
         """
         super().__init__(session, Trade)
 
-    async def save_trade(self, trade_data: dict) -> UUID:
+    def save_trade(self, trade_data: dict) -> UUID:
         """Save a new trade record.
 
         Uses BaseRepository.create() internally for database operations.
@@ -70,7 +70,7 @@ class TradeRepository(BaseRepository[Trade]):
             # Check if trade already exists (race condition protection)
             exchange_order_id = trade_data.get("exchange_order_id")
             if exchange_order_id:
-                existing_trade = await self.get_by_exchange_order_id(
+                existing_trade = self.get_by_exchange_order_id(
                     account_id=trade_data["account_id"],
                     exchange_order_id=exchange_order_id,
                 )
@@ -104,7 +104,7 @@ class TradeRepository(BaseRepository[Trade]):
                 closed_at=trade_data.get("closed_at"),
             )
             # Use inherited create method
-            created_trade = await super().create(trade)
+            created_trade = super().create(trade)
             main_logger.info(
                 f"Trade saved: {created_trade.id} for account {created_trade.account_id}"
             )
@@ -113,7 +113,7 @@ class TradeRepository(BaseRepository[Trade]):
             main_logger.error(f"Error saving trade: {e}")
             raise
 
-    async def get_trades_by_account(
+    def get_trades_by_account(
         self,
         account_id: UUID,
         limit: int = 100,
@@ -140,13 +140,13 @@ class TradeRepository(BaseRepository[Trade]):
                 .limit(limit)
                 .offset(offset)
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             return list(result.scalars().all())
         except Exception as e:
             main_logger.error(f"Error fetching trades for account {account_id}: {e}")
             raise
 
-    async def get_trades_by_period(
+    def get_trades_by_period(
         self,
         account_id: UUID,
         start: datetime,
@@ -184,7 +184,7 @@ class TradeRepository(BaseRepository[Trade]):
                 )
                 .order_by(func.coalesce(Trade.closed_at, Trade.opened_at).desc())
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             return list(result.scalars().all())
         except Exception as e:
             main_logger.error(
@@ -192,7 +192,7 @@ class TradeRepository(BaseRepository[Trade]):
             )
             raise
 
-    async def get_open_trades(self, account_id: UUID) -> list[Trade]:
+    def get_open_trades(self, account_id: UUID) -> list[Trade]:
         """Get all open trades for an account.
 
         Args:
@@ -213,13 +213,13 @@ class TradeRepository(BaseRepository[Trade]):
                 )
                 .order_by(Trade.opened_at.desc())
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             return list(result.scalars().all())
         except Exception as e:
             main_logger.error(f"Error fetching open trades for account {account_id}: {e}")
             raise
 
-    async def update_trade_exit(
+    def update_trade_exit(
         self,
         trade_id: UUID,
         exit_price: Decimal,
@@ -249,7 +249,7 @@ class TradeRepository(BaseRepository[Trade]):
         """
         try:
             # Use inherited get_by_id method
-            trade = await super().get_by_id(trade_id)
+            trade = super().get_by_id(trade_id)
 
             if not trade:
                 raise ValueError(f"Trade {trade_id} not found")
@@ -265,7 +265,7 @@ class TradeRepository(BaseRepository[Trade]):
                 trade.funding_fee = funding_fee
 
             # Use inherited update method
-            await super().update(trade)
+            super().update(trade)
             main_logger.info(
                 f"Trade {trade_id} updated with exit data: pnl={pnl}"
                 + (f", funding_fee={funding_fee}" if funding_fee else "")
@@ -298,7 +298,7 @@ class TradeRepository(BaseRepository[Trade]):
         sort_value = sort_by.value if sort_by else None
         return sort_map.get(sort_value, Trade.closed_at) if sort_value else Trade.closed_at
 
-    async def get_trades_with_filters(
+    def get_trades_with_filters(
         self,
         account_id: UUID,
         *,
@@ -394,7 +394,7 @@ class TradeRepository(BaseRepository[Trade]):
 
             # Get total count first
             count_stmt = select(Trade).where(*conditions)
-            count_result = await self.session.execute(count_stmt)
+            count_result = self.session.execute(count_stmt)
             total_count = len(list(count_result.scalars().all()))
 
             # Determine sort column and direction
@@ -407,7 +407,7 @@ class TradeRepository(BaseRepository[Trade]):
             stmt = (
                 select(Trade).where(*conditions).order_by(order_clause).limit(limit).offset(offset)
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             trades = list(result.scalars().all())
 
             return trades, total_count
@@ -415,7 +415,7 @@ class TradeRepository(BaseRepository[Trade]):
             main_logger.error(f"Error fetching trades with filters for account {account_id}: {e}")
             raise
 
-    async def get_by_exchange_order_id(
+    def get_by_exchange_order_id(
         self,
         account_id: UUID,
         exchange_order_id: str,
@@ -437,14 +437,14 @@ class TradeRepository(BaseRepository[Trade]):
                 Trade.account_id == account_id,
                 Trade.exchange_order_id == exchange_order_id,
             )
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             trade: Trade | None = result.scalar_one_or_none()
             return trade
         except Exception as e:
             main_logger.error(f"Error fetching trade by exchange order {exchange_order_id}: {e}")
             raise
 
-    async def update_tp(
+    def update_tp(
         self,
         trade_id: UUID,
         new_tp_price: Decimal,
@@ -465,7 +465,7 @@ class TradeRepository(BaseRepository[Trade]):
         """
         try:
             stmt = select(Trade).where(Trade.id == trade_id)
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             trade: Trade | None = result.scalar_one_or_none()
 
             if not trade:
@@ -481,10 +481,10 @@ class TradeRepository(BaseRepository[Trade]):
             if trade.entry_price and trade.entry_price > 0:
                 trade.tp_percent = ((new_tp_price - trade.entry_price) / trade.entry_price) * 100
 
-            await self.session.commit()
+            self.session.commit()
             main_logger.debug(f"Trade {trade_id} TP updated to ${new_tp_price}")
 
         except Exception as e:
-            await self.session.rollback()
+            self.session.rollback()
             main_logger.error(f"Error updating TP for trade {trade_id}: {e}")
             raise

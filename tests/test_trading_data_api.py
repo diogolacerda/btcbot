@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -95,10 +95,10 @@ def sample_trades(test_account_id):
 def _create_mock_repository(trades: list[Trade]):
     """Create a mock repository with get_trades_with_filters method."""
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
 
-        async def mock_get_trades_with_filters(
+        def mock_get_trades_with_filters(
             account_id,
             *,
             start_date=None,
@@ -173,8 +173,8 @@ def _create_mock_tp_adjustment_repository(adjustments_by_trade_id: dict | None =
     if adjustments_by_trade_id is None:
         adjustments_by_trade_id = {}
 
-    async def mock_get_tp_adjustment_repository():
-        mock_repo = AsyncMock()
+    def mock_get_tp_adjustment_repository():
+        mock_repo = MagicMock()
         mock_repo.get_by_trade.side_effect = lambda trade_id: adjustments_by_trade_id.get(
             trade_id, []
         )
@@ -292,8 +292,8 @@ def test_get_trades_invalid_status(test_account_id):
 def test_get_trade_stats(sample_trades, test_account_id):
     """Test GET /api/v1/trading/stats endpoint."""
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_account.return_value = sample_trades
         return mock_repo
 
@@ -352,8 +352,8 @@ def test_get_positions_empty(test_account_id):
 def test_get_stats_empty(test_account_id):
     """Test GET /api/v1/trading/stats with no trades."""
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_account.return_value = []
         return mock_repo
 
@@ -845,12 +845,12 @@ def test_get_performance_metrics_default_period(sample_trades, test_account_id):
     """Test GET /api/v1/trading/performance-metrics with default period (today)."""
     closed_trades = [t for t in sample_trades if t.status == "CLOSED"]
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = closed_trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -899,12 +899,12 @@ def test_get_performance_metrics_7days_period(sample_trades, test_account_id):
     """Test GET /api/v1/trading/performance-metrics with 7days period."""
     closed_trades = [t for t in sample_trades if t.status == "CLOSED"]
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = closed_trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -928,12 +928,12 @@ def test_get_performance_metrics_custom_period(sample_trades, test_account_id):
     """Test GET /api/v1/trading/performance-metrics with custom period."""
     closed_trades = [t for t in sample_trades if t.status == "CLOSED"]
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = closed_trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -962,10 +962,10 @@ def test_get_performance_metrics_custom_period(sample_trades, test_account_id):
 def test_get_performance_metrics_custom_period_missing_dates(test_account_id):
     """Test GET /api/v1/trading/performance-metrics with custom period but missing dates."""
 
-    async def mock_get_trade_repository():
-        return AsyncMock()
+    def mock_get_trade_repository():
+        return MagicMock()
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -987,12 +987,12 @@ def test_get_performance_metrics_custom_period_missing_dates(test_account_id):
 def test_get_performance_metrics_empty_trades(test_account_id):
     """Test GET /api/v1/trading/performance-metrics with no trades."""
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = []
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -1071,12 +1071,12 @@ def test_get_performance_metrics_roi_calculation(test_account_id):
         ),
     ]
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -1107,12 +1107,12 @@ def test_get_performance_metrics_best_worst_trade_with_id(sample_trades, test_ac
     best = max(closed_trades, key=lambda t: t.pnl if t.pnl else Decimal(0))
     worst = min(closed_trades, key=lambda t: t.pnl if t.pnl else Decimal(0))
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = closed_trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -1170,12 +1170,12 @@ def test_get_performance_metrics_single_positive_trade(test_account_id):
         ),
     ]
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -1226,12 +1226,12 @@ def test_get_performance_metrics_single_negative_trade(test_account_id):
         ),
     ]
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -1282,12 +1282,12 @@ def test_get_performance_metrics_single_breakeven_trade(test_account_id):
         ),
     ]
 
-    async def mock_get_trade_repository():
-        mock_repo = AsyncMock()
+    def mock_get_trade_repository():
+        mock_repo = MagicMock()
         mock_repo.get_trades_by_period.return_value = trades
         return mock_repo
 
-    async def mock_get_account_id():
+    def mock_get_account_id():
         return test_account_id
 
     app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
@@ -2091,8 +2091,8 @@ class TestCumulativePnl:
     def test_cumulative_pnl_basic(self, cumulative_pnl_trades, test_account_id):
         """Test basic cumulative P&L calculation across multiple days."""
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = cumulative_pnl_trades
             return mock_repo
 
@@ -2131,8 +2131,8 @@ class TestCumulativePnl:
     def test_cumulative_pnl_empty_period(self, test_account_id):
         """Test cumulative P&L returns empty array when no trades in period."""
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = []
             return mock_repo
 
@@ -2154,8 +2154,8 @@ class TestCumulativePnl:
     def test_cumulative_pnl_with_period_filter(self, cumulative_pnl_trades, test_account_id):
         """Test cumulative P&L with period filter."""
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = cumulative_pnl_trades
             return mock_repo
 
@@ -2181,8 +2181,8 @@ class TestCumulativePnl:
     def test_cumulative_pnl_custom_period(self, cumulative_pnl_trades, test_account_id):
         """Test cumulative P&L with custom date range."""
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = cumulative_pnl_trades
             return mock_repo
 
@@ -2210,8 +2210,8 @@ class TestCumulativePnl:
     def test_cumulative_pnl_custom_period_missing_dates(self, test_account_id):
         """Test cumulative P&L with custom period but missing dates returns 400."""
 
-        async def mock_get_trade_repository():
-            return AsyncMock()
+        def mock_get_trade_repository():
+            return MagicMock()
 
         app.dependency_overrides[get_trade_repository] = mock_get_trade_repository
         app.dependency_overrides[get_account_id] = lambda: test_account_id
@@ -2274,8 +2274,8 @@ class TestCumulativePnl:
             ),
         ]
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = trades
             return mock_repo
 
@@ -2341,8 +2341,8 @@ class TestCumulativePnl:
             ),
         ]
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = trades
             return mock_repo
 
@@ -2407,8 +2407,8 @@ class TestCumulativePnl:
             ),
         ]
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = trades
             return mock_repo
 
@@ -2496,8 +2496,8 @@ class TestCumulativePnl:
             ),
         ]
 
-        async def mock_get_trade_repository():
-            mock_repo = AsyncMock()
+        def mock_get_trade_repository():
+            mock_repo = MagicMock()
             mock_repo.get_trades_by_period.return_value = trades
             return mock_repo
 

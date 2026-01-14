@@ -123,7 +123,7 @@ def _calculate_fees(trade: Trade) -> TradeFeesSchema:
     )
 
 
-async def _enrich_trade(
+def _enrich_trade(
     trade: Trade,
     tp_adjustment_repo: TPAdjustmentRepository,
 ) -> TradeSchema:
@@ -137,7 +137,7 @@ async def _enrich_trade(
         TradeSchema with all fields populated including new BE-TRADE-003 fields
     """
     # Fetch TP adjustments for this trade
-    adjustments = await tp_adjustment_repo.get_by_trade(trade.id)
+    adjustments = tp_adjustment_repo.get_by_trade(trade.id)
     tp_adjustment_schemas = [_convert_tp_adjustment(adj) for adj in adjustments]
 
     # Calculate duration and fees
@@ -193,7 +193,7 @@ async def get_positions(
     """
     try:
         # Get open trades from database
-        open_trades = await trade_repo.get_open_trades(account_id)
+        open_trades = trade_repo.get_open_trades(account_id)
 
         # Convert trades to position schemas
         positions = [
@@ -497,7 +497,7 @@ async def get_trades(
         fetch_offset = 0 if needs_in_memory_sorting else offset
 
         # Fetch trades with SQL filters and optional SQL sorting
-        trades, sql_total = await trade_repo.get_trades_with_filters(
+        trades, sql_total = trade_repo.get_trades_with_filters(
             account_id,
             start_date=start_date,
             end_date=end_date,
@@ -531,7 +531,7 @@ async def get_trades(
             total = sql_total
 
         # Enrich trades with TP adjustments, duration, and fees
-        trade_schemas = [await _enrich_trade(trade, tp_adjustment_repo) for trade in trades]
+        trade_schemas = [_enrich_trade(trade, tp_adjustment_repo) for trade in trades]
 
         return TradesListResponse(
             trades=trade_schemas,
@@ -580,9 +580,9 @@ async def get_trade_stats(
 
         # Fetch trades based on date filters
         if start_date and end_date:
-            trades = await trade_repo.get_trades_by_period(account_id, start_date, end_date)
+            trades = trade_repo.get_trades_by_period(account_id, start_date, end_date)
         else:
-            trades = await trade_repo.get_trades_by_account(account_id, limit=10000, offset=0)
+            trades = trade_repo.get_trades_by_account(account_id, limit=10000, offset=0)
 
         # Calculate statistics
         total_trades = len(trades)
@@ -811,7 +811,7 @@ async def get_performance_metrics(
         period_start, period_end = _calculate_period_dates(period, start_date, end_date)
 
         # Fetch trades for the period
-        trades = await trade_repo.get_trades_by_period(account_id, period_start, period_end)
+        trades = trade_repo.get_trades_by_period(account_id, period_start, period_end)
 
         # Filter to closed trades with P&L
         closed_trades = [t for t in trades if t.status == "CLOSED" and t.pnl is not None]
@@ -969,7 +969,7 @@ async def get_cumulative_pnl(
         period_start, period_end = _calculate_period_dates(period, start_date, end_date)
 
         # Fetch trades for the period
-        trades = await trade_repo.get_trades_by_period(account_id, period_start, period_end)
+        trades = trade_repo.get_trades_by_period(account_id, period_start, period_end)
 
         # Filter to closed trades with P&L and closed_at date
         closed_trades = [

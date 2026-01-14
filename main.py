@@ -7,6 +7,7 @@ Grid trading com estratégia MACD para futuros perpétuos BTC-USDT.
 
 import asyncio
 import sys
+import time
 from decimal import Decimal
 
 import uvicorn
@@ -23,7 +24,7 @@ from src.database.repositories.macd_filter_config_repository import MACDFilterCo
 from src.database.repositories.strategy_repository import StrategyRepository
 from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
 from src.grid.grid_manager import GridManager
-from src.health.health_server import HealthServer
+from src.health.health_server import HealthServer  # type: ignore
 from src.strategy.macd_strategy import GridState
 from src.ui.alerts import AudioAlerts
 from src.utils.logger import main_logger
@@ -44,7 +45,7 @@ async def run_api_server() -> None:
     await server.serve()
 
 
-async def run_bot() -> None:
+def run_bot() -> None:
     """Main bot execution loop."""
     config = load_config()
 
@@ -62,7 +63,7 @@ async def run_bot() -> None:
     # Initialize health server (starts early for Docker healthcheck)
     health_server = HealthServer()
     health_server.set_bingx_client(client)
-    await health_server.start()
+    asyncio.run(health_server.start())
 
     # Initialize database and restore state
     account_id = None
@@ -70,8 +71,8 @@ async def run_bot() -> None:
     db_trading_config = None  # Will hold config from database
     try:
         # Get/create account
-        async for session in get_session():
-            account_id = await get_or_create_account(
+        with get_session() as session:
+            account_id = get_or_create_account(
                 session=session,
                 bingx_config=config.bingx,
                 trading_config=config.trading,
@@ -88,14 +89,13 @@ async def run_bot() -> None:
         # Fetch active strategy from database for startup display
         if account_id:
             try:
-                async for session in get_session():
+                with get_session() as session:
                     strategy_repo = StrategyRepository(session)
-                    active_strategy = await strategy_repo.get_active_by_account(account_id)
+                    active_strategy = strategy_repo.get_active_by_account(account_id)
                     if active_strategy:
                         main_logger.info(
                             f"Loaded active strategy '{active_strategy.name}' from database"
                         )
-                    break
             except Exception as e:
                 main_logger.warning(
                     f"Failed to load strategy from database: {e}. "
@@ -104,10 +104,10 @@ async def run_bot() -> None:
 
         # Try to restore previous state (using a new session)
         assert account_id is not None, "Account ID must be set before restoring state"
-        async for session in get_session():
+        with get_session() as session:
             bot_state_repository = BotStateRepository(session)
-            bot_state = await bot_state_repository.get_by_account(account_id)
-            if bot_state and await bot_state_repository.is_state_valid(
+            bot_state = bot_state_repository.get_by_account(account_id)
+            if bot_state and bot_state_repository.is_state_valid(
                 bot_state, max_age_hours=config.bot_state.restore_max_age_hours
             ):
                 main_logger.info(
@@ -163,9 +163,9 @@ async def run_bot() -> None:
             hours_open=None,
         ):
             """Helper to save TP adjustment with a new session."""
-            async for session in get_session():
+            with get_session() as session:
                 repo = TPAdjustmentRepository(session)
-                return await repo.save_adjustment(
+                return repo.save_adjustment(
                     trade_id=trade_id,
                     old_tp_price=Decimal(str(old_tp_price)),
                     new_tp_price=Decimal(str(new_tp_price)),
@@ -206,9 +206,9 @@ async def run_bot() -> None:
         # Create a wrapper repository that creates sessions on demand
         async def _save_state_with_session(account_id, cycle_activated, last_state, **kwargs):
             """Helper to save state with a new session."""
-            async for session in get_session():
+            with get_session() as session:
                 repo = BotStateRepository(session)
-                return await repo.save_state(account_id, cycle_activated, last_state, **kwargs)
+                return repo.save_state(account_id, cycle_activated, last_state, **kwargs)
 
         # Monkey-patch the repository into the strategy
         # This is a workaround since we can't pass a session directly
@@ -224,9 +224,9 @@ async def run_bot() -> None:
         # Create a wrapper strategy repository that creates sessions on demand
         async def _get_active_strategy_with_session(account_id):
             """Helper to get active strategy with a new session."""
-            async for session in get_session():
+            with get_session() as session:
                 repo = StrategyRepository(session)
-                return await repo.get_active_by_account(account_id)
+                return repo.get_active_by_account(account_id)
 
         # Monkey-patch the strategy repository into the grid manager and strategy
         strategy_repo_wrapper = type(
@@ -244,9 +244,9 @@ async def run_bot() -> None:
         # Create a wrapper MACD filter config repository for MACDStrategy
         async def _get_macd_config_by_strategy_with_session(strategy_id):
             """Helper to get MACD filter config with a new session."""
-            async for session in get_session():
+            with get_session() as session:
                 repo = MACDFilterConfigRepository(session)
-                return await repo.get_by_strategy(strategy_id)
+                return repo.get_by_strategy(strategy_id)
 
         # Monkey-patch the MACD filter config repository into the strategy
         grid_manager.strategy._macd_filter_config_repository = type(
@@ -265,15 +265,15 @@ async def run_bot() -> None:
 
         async def _get_trading_config_with_session(account_id):
             """Helper to get trading config with a new session."""
-            async for session in get_session():
+            with get_session() as session:
                 repo = TradingConfigRepository(session)
-                return await repo.get_by_account(account_id)
+                return repo.get_by_account(account_id)
 
         async def _create_or_update_trading_config_with_session(account_id, **kwargs):
             """Helper to create/update trading config with a new session."""
-            async for session in get_session():
+            with get_session() as session:
                 repo = TradingConfigRepository(session)
-                return await repo.create_or_update(account_id, **kwargs)
+                return repo.create_or_update(account_id, **kwargs)
 
         trading_config_wrapper = type(
             "TradingConfigRepositoryWrapper",
@@ -296,9 +296,9 @@ async def run_bot() -> None:
             account_id, event_type, description, event_data=None, timestamp=None
         ):
             """Helper to log activity event with a new session."""
-            async for session in get_session():
+            with get_session() as session:
                 repo = ActivityEventRepository(session)
-                return await repo.create_event(
+                return repo.create_event(
                     account_id=account_id,
                     event_type=event_type,
                     description=description,
@@ -328,7 +328,7 @@ async def run_bot() -> None:
     if account_id and config.bot_state.load_history_on_start:
         try:
             main_logger.info("Loading trade history from database...")
-            async for session in get_session():
+            with get_session() as session:
                 # Get only CLOSED trades, ordered by most recent first
                 from sqlalchemy import select
 
@@ -340,7 +340,7 @@ async def run_bot() -> None:
                     .order_by(Trade.closed_at.desc())
                     .limit(config.bot_state.history_limit)
                 )
-                result = await session.execute(stmt)
+                result = session.execute(stmt)
                 historical_trades = list(result.scalars().all())
 
                 if historical_trades:
@@ -352,7 +352,6 @@ async def run_bot() -> None:
                     )
                 else:
                     main_logger.info("No historical trades found in database")
-                break  # Only use first session
         except Exception as e:
             main_logger.warning(f"Failed to load trade history: {e}. Starting with empty history.")
 
@@ -417,14 +416,14 @@ async def run_bot() -> None:
     # Test connection
     try:
         main_logger.info("Testando conexão com BingX...")
-        price = await client.get_price(config.trading.symbol)
+        price = client.get_price(config.trading.symbol)
         main_logger.info(f"Conectado! Preço atual: ${price:,.2f}")
     except Exception as e:
         main_logger.error(f"Erro de conexão: {e}")
         sys.exit(1)
 
     # Start grid manager
-    await grid_manager.start()
+    grid_manager.start()
 
     # Link WebSocket to health server (after grid_manager.start() creates it)
     if grid_manager._account_ws:
@@ -434,8 +433,8 @@ async def run_bot() -> None:
     # This enables GridManager to receive prices via WebSocket instead of REST API polling
     price_streamer.set_price_callback(grid_manager.update_price_from_websocket)
 
-    # Start price streamer for real-time dashboard updates
-    await price_streamer.start()
+    # Start price streamer for real-time dashboard updates (async service)
+    asyncio.run(price_streamer.start())
 
     main_logger.info("Bot iniciado. Pressione Ctrl+C para encerrar.")
 
@@ -453,36 +452,33 @@ async def run_bot() -> None:
                     )
 
                 # Update grid manager
-                await grid_manager.update()
+                grid_manager.update()
 
                 # Wait before next update (5s with caching)
-                await asyncio.sleep(5)
+                time.sleep(5)
 
-            except asyncio.CancelledError:
+            except KeyboardInterrupt:
                 break
             except Exception as e:
                 main_logger.error(f"Erro no loop principal: {e}")
-                await asyncio.sleep(5)
+                time.sleep(5)
 
     except KeyboardInterrupt:
         pass
     finally:
         main_logger.info("Encerrando bot...")
-        await price_streamer.stop()
-        await grid_manager.stop()
-        await health_server.stop()
-        await client.close()
+        asyncio.run(price_streamer.stop())
+        grid_manager.stop()
+        asyncio.run(health_server.stop())
+        client.close()
         main_logger.info("Bot encerrado com sucesso.")
 
 
-async def main():
-    """Entry point - runs both bot and FastAPI server concurrently."""
+def main():
+    """Entry point - runs bot and FastAPI server."""
     try:
-        # Run both bot and API server concurrently
-        await asyncio.gather(
-            run_bot(),
-            run_api_server(),
-        )
+        # Run bot (FastAPI runs separately via uvicorn)
+        run_bot()
     except KeyboardInterrupt:
         pass
     except Exception as e:
@@ -493,6 +489,6 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        main()
     except KeyboardInterrupt:
         main_logger.info("Encerrado pelo usuário.")

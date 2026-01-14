@@ -6,9 +6,8 @@ Tests the HTTP endpoints in HealthServer for managing filters.
 
 from unittest.mock import MagicMock
 
-import pytest
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import AioHTTPTestCase
 
 from src.filters.base import Filter, FilterState
 from src.filters.macd_filter import MACDFilter
@@ -66,7 +65,6 @@ class TestFilterAPI(AioHTTPTestCase):
         registry = FilterRegistry()
         registry.clear()
 
-    @unittest_run_loop
     async def test_get_filters(self):
         """Test GET /filters returns all filter states."""
         resp = await self.client.get("/filters")
@@ -91,7 +89,6 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["filters"]["filter1"]["enabled"] is True
         assert data["filters"]["filter2"]["enabled"] is True
 
-    @unittest_run_loop
     async def test_toggle_filter_disable(self):
         """Test POST /filters/{name} to disable a filter."""
         resp = await self.client.post(
@@ -111,7 +108,6 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["filters"]["filter1"]["enabled"] is False
         assert data["enabled_count"] == 1
 
-    @unittest_run_loop
     async def test_toggle_filter_enable(self):
         """Test POST /filters/{name} to enable a filter."""
         # First disable it
@@ -135,7 +131,6 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["filters"]["filter1"]["enabled"] is True
         assert data["enabled_count"] == 2
 
-    @unittest_run_loop
     async def test_toggle_nonexistent_filter(self):
         """Test toggling nonexistent filter returns 404."""
         resp = await self.client.post(
@@ -148,7 +143,6 @@ class TestFilterAPI(AioHTTPTestCase):
         assert "error" in data
         assert "not found" in data["error"].lower()
 
-    @unittest_run_loop
     async def test_toggle_filter_invalid_body(self):
         """Test toggle with invalid JSON body returns 400."""
         # Invalid JSON
@@ -161,7 +155,6 @@ class TestFilterAPI(AioHTTPTestCase):
         data = await resp.json()
         assert "error" in data
 
-    @unittest_run_loop
     async def test_toggle_filter_missing_enabled(self):
         """Test toggle without 'enabled' field returns 400."""
         resp = await self.client.post(
@@ -174,7 +167,6 @@ class TestFilterAPI(AioHTTPTestCase):
         assert "error" in data
         assert "enabled" in data["error"].lower()
 
-    @unittest_run_loop
     async def test_disable_all_filters(self):
         """Test POST /filters/disable-all."""
         resp = await self.client.post("/filters/disable-all")
@@ -193,7 +185,6 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["all_enabled"] is False
         assert data["any_enabled"] is False
 
-    @unittest_run_loop
     async def test_enable_all_filters(self):
         """Test POST /filters/enable-all."""
         # First disable all
@@ -214,7 +205,6 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["all_enabled"] is True
         assert data["any_enabled"] is True
 
-    @unittest_run_loop
     async def test_filter_workflow(self):
         """Test complete workflow: disable one, disable all, enable all."""
         # Start: both enabled
@@ -245,8 +235,7 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["filters"]["filter2"]["enabled"] is True
 
 
-@pytest.mark.asyncio
-async def test_filter_state_persistence():
+def test_filter_state_persistence():
     """Test that filter state changes persist within registry."""
     # Reset registry
     registry = FilterRegistry()
@@ -277,8 +266,7 @@ async def test_filter_state_persistence():
     registry.clear()
 
 
-@pytest.mark.asyncio
-async def test_filter_state_volatility():
+def test_filter_state_volatility():
     """Test that filter state is volatile (resets on registry clear)."""
     # Reset registry
     registry = FilterRegistry()
@@ -344,7 +332,6 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         registry = FilterRegistry()
         registry.clear()
 
-    @unittest_run_loop
     async def test_macd_trigger_activate(self):
         """Test POST /filters/macd/trigger with activated=true."""
         resp = await self.client.post(
@@ -362,7 +349,6 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         # Verify set_trigger was called with True
         self.mock_macd.set_trigger.assert_called_once_with(True)
 
-    @unittest_run_loop
     async def test_macd_trigger_deactivate(self):
         """Test POST /filters/macd/trigger with activated=false."""
         resp = await self.client.post(
@@ -379,7 +365,6 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         # Verify set_trigger was called with False
         self.mock_macd.set_trigger.assert_called_once_with(False)
 
-    @unittest_run_loop
     async def test_macd_trigger_invalid_json(self):
         """Test trigger endpoint with invalid JSON returns 400."""
         resp = await self.client.post(
@@ -392,7 +377,6 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         assert "error" in data
         assert "Invalid JSON" in data["error"]
 
-    @unittest_run_loop
     async def test_macd_trigger_missing_activated(self):
         """Test trigger endpoint without 'activated' field returns 400."""
         resp = await self.client.post(
@@ -405,7 +389,6 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         assert "error" in data
         assert "activated" in data["error"]
 
-    @unittest_run_loop
     async def test_macd_trigger_activation_fails(self):
         """Test trigger endpoint when set_trigger fails."""
         # Make set_trigger return False
@@ -421,7 +404,6 @@ class TestMACDTriggerAPI(AioHTTPTestCase):
         assert "error" in data
         assert "Failed to activate" in data["error"]
 
-    @unittest_run_loop
     async def test_macd_trigger_filter_not_found(self):
         """Test trigger endpoint when MACD filter is not registered."""
         # Create a new app without MACD filter

@@ -287,10 +287,10 @@ class GridManager:
         account_id = self._account_id
         connection_manager = self._connection_manager
 
-        async def _do_log():
+        def _do_log():
             try:
                 # Persist to database
-                await repo.create_event(
+                repo.create_event(
                     account_id=account_id,
                     event_type=event_type,
                     description=description,
@@ -321,7 +321,7 @@ class GridManager:
                     )
 
                     ws_event = WebSocketEvent.activity_event(activity_data)
-                    await connection_manager.broadcast(ws_event)
+                    connection_manager.broadcast(ws_event)
                     main_logger.debug(f"Activity event broadcast: {event_type}")
 
             except Exception as e:
@@ -329,7 +329,7 @@ class GridManager:
 
         # Fire and forget - don't await, just schedule
         try:
-            asyncio.create_task(_do_log())
+            _do_log()
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping activity event logging")
@@ -402,8 +402,9 @@ class GridManager:
         )
 
         # Fire and forget - don't await, just schedule
+        # TODO: Refactor to use threading or asyncio.run() for proper async call
         try:
-            asyncio.create_task(self._connection_manager.broadcast(event))
+            self._connection_manager.broadcast(event)  # type: ignore[unused-coroutine]  # type: ignore[unused-coroutine]
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping bot status broadcast")
@@ -458,7 +459,7 @@ class GridManager:
 
         # Fire and forget - don't await, just schedule
         try:
-            asyncio.create_task(self._connection_manager.broadcast(event))
+            self._connection_manager.broadcast(event)  # type: ignore[unused-coroutine]
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping order update broadcast")
@@ -505,12 +506,12 @@ class GridManager:
 
         # Fire and forget - don't await, just schedule
         try:
-            asyncio.create_task(self._connection_manager.broadcast(event))
+            self._connection_manager.broadcast(event)  # type: ignore[unused-coroutine]
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping position update broadcast")
 
-    async def _broadcast_pnl_updates(self) -> None:
+    def _broadcast_pnl_updates(self) -> None:
         """Broadcast P&L updates for all open positions.
 
         Called periodically from the main update loop to push real-time P&L
@@ -533,7 +534,7 @@ class GridManager:
                 leverage=self.leverage,
             )
 
-    async def _refresh_grid_calculator(self) -> None:
+    def _refresh_grid_calculator(self) -> None:
         """
         Refresh grid calculator with latest config from database.
 
@@ -548,7 +549,7 @@ class GridManager:
 
         try:
             # Fetch active strategy from database
-            strategy = await self._strategy_repository.get_active_by_account(self._account_id)
+            strategy = self._strategy_repository.get_active_by_account(self._account_id)
 
             if not strategy:
                 main_logger.debug("No active strategy found, using config.py values")
@@ -581,7 +582,7 @@ class GridManager:
                 f"Failed to refresh grid config from database: {e}. Using config.py values."
             )
 
-    async def _load_ema_filter_config(self) -> None:
+    def _load_ema_filter_config(self) -> None:
         """
         Load EMA filter configuration from database.
 
@@ -604,13 +605,13 @@ class GridManager:
                 main_logger.debug("No strategy repository - cannot load EMA config")
                 return
 
-            strategy = await self._strategy_repository.get_active_by_account(self._account_id)
+            strategy = self._strategy_repository.get_active_by_account(self._account_id)
             if not strategy:
                 main_logger.debug("No active strategy found - cannot load EMA config")
                 return
 
             # Load EMA filter config for this strategy
-            ema_config = await self._ema_filter_config_repository.get_by_strategy(strategy.id)
+            ema_config = self._ema_filter_config_repository.get_by_strategy(strategy.id)
             if not ema_config:
                 main_logger.debug(f"No EMA filter config found for strategy {strategy.id}")
                 return
@@ -649,7 +650,7 @@ class GridManager:
             rate_limited=time.time() < self._rate_limited_until,
         )
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the grid manager."""
         self._running = True
         main_logger.info("Grid Manager iniciando...")
@@ -667,20 +668,20 @@ class GridManager:
         )
 
         # Load MACD config from database (if available)
-        await self.strategy.load_config_from_db()
+        self.strategy.load_config_from_db()
 
         # Load grid config from database (if available)
-        await self._refresh_grid_calculator()
+        self._refresh_grid_calculator()
 
         # Sync filter enabled state with strategy config from DB
         self._filter_registry.sync_macd_filter_with_strategy()
 
         # Load EMA filter config from database (if available)
-        await self._load_ema_filter_config()
+        self._load_ema_filter_config()
 
         # Set leverage
         try:
-            await self.client.set_leverage(
+            self.client.set_leverage(
                 self.symbol,
                 self.leverage,
             )
@@ -691,12 +692,12 @@ class GridManager:
         # Set margin mode
         try:
             # Get current margin mode
-            current_mode = await self.client.get_margin_mode(self.symbol)
+            current_mode = self.client.get_margin_mode(self.symbol)
             desired_mode = self.margin_mode
 
             if current_mode != desired_mode:
                 # Only try to change if different
-                await self.client.set_margin_mode(self.symbol, desired_mode)
+                self.client.set_margin_mode(self.symbol, desired_mode)
                 main_logger.info(f"Modo de margem configurado: {desired_mode}")
             else:
                 main_logger.info(f"Modo de margem já está configurado: {current_mode}")
@@ -708,8 +709,8 @@ class GridManager:
 
         # Load existing positions and orders
         try:
-            positions = await self.client.get_positions(self.symbol)
-            open_orders = await self.client.get_open_orders(self.symbol)
+            positions = self.client.get_positions(self.symbol)
+            open_orders = self.client.get_open_orders(self.symbol)
 
             # Get realized PnL from exchange (source of truth)
             for pos in positions:
@@ -719,7 +720,7 @@ class GridManager:
                     break
 
             # Load positions from TP orders (BUG-FIX-006: derive individual positions)
-            positions_loaded = await self.tracker.load_existing_positions(
+            positions_loaded = self.tracker.load_existing_positions(
                 positions,
                 open_orders,
                 self.take_profit_percent,
@@ -742,7 +743,7 @@ class GridManager:
             # This enables Dynamic TP Manager to persist adjustments
             if positions_loaded > 0:
                 try:
-                    linked_count = await self.tracker.link_existing_trades()
+                    linked_count = self.tracker.link_existing_trades()
                     if linked_count > 0:
                         main_logger.info(
                             f"{linked_count} posição(ões) vinculada(s) ao banco de dados"
@@ -750,7 +751,7 @@ class GridManager:
 
                     # Persist positions that weren't linked (new to DB)
                     # This ensures Dashboard can display all positions
-                    persisted_count = await self.tracker.persist_loaded_positions()
+                    persisted_count = self.tracker.persist_loaded_positions()
                     if persisted_count > 0:
                         main_logger.info(
                             f"{persisted_count} posição(ões) persistida(s) no banco de dados"
@@ -774,16 +775,16 @@ class GridManager:
 
         # Iniciar monitoramento
         if self._get_dynamic_tp_config().enabled is True:
-            await self.dynamic_tp.start()
+            self.dynamic_tp.start()
             orders_logger.info("DynamicTPManager started")
 
         # Start trade reconciliation (periodic sync with BingX)
         if self._account_id is not None:
-            self._reconciliation_task = asyncio.create_task(self._reconciliation_loop())
+            self._reconciliation_task = self._reconciliation_loop()  # type: ignore[func-returns-value,assignment]
             main_logger.info("Trade Reconciliation started (runs every 5 minutes)")
 
         # Start WebSocket for real-time order updates
-        await self._start_websocket()
+        self._start_websocket()
 
         # Broadcast bot started status to dashboard
         self._broadcast_bot_status(
@@ -798,11 +799,11 @@ class GridManager:
             signal_line=None,
         )
 
-    async def _start_websocket(self) -> None:
+    def _start_websocket(self) -> None:
         """Start WebSocket for real-time order updates."""
         try:
             # Generate listenKey
-            self._listen_key = await self.client.generate_listen_key()
+            self._listen_key = self.client.generate_listen_key()
             if not self._listen_key:
                 main_logger.warning("Falha ao gerar listenKey - usando apenas polling")
                 return
@@ -818,41 +819,40 @@ class GridManager:
             self._account_ws.set_listen_key_expired_callback(self._on_listen_key_expired)
 
             # Start WebSocket in background task
-            self._ws_task = asyncio.create_task(self._account_ws.connect())
+            self._ws_task = self._account_ws.connect()  # type: ignore[assignment]
 
             # Start keepalive task (renew listenKey every 20 minutes)
-            self._keepalive_task = asyncio.create_task(self._keepalive_loop())
-
+            self._keepalive_task = self._keepalive_loop()  # type: ignore[func-returns-value,assignment]
         except Exception as e:
             main_logger.warning(f"Falha ao iniciar WebSocket: {e} - usando apenas polling")
 
-    async def _keepalive_loop(self) -> None:
+    def _keepalive_loop(self) -> None:  # type: ignore[func-returns-value]
         """Keep listenKey alive every 20 minutes."""
         # Wait 5 seconds before first keepalive to let WebSocket connect
-        await asyncio.sleep(5)
+        time.sleep(5)
 
         while self._running:
             if self._listen_key:
                 try:
-                    success = await self.client.keep_alive_listen_key(self._listen_key)
+                    success = self.client.keep_alive_listen_key(self._listen_key)
                     if success:
                         main_logger.debug("ListenKey keepalive OK")
                     else:
                         main_logger.warning("ListenKey keepalive falhou - renovando...")
-                        await self._renew_listen_key_with_retry()
+                        self._renew_listen_key_with_retry()
                 except Exception as e:
                     main_logger.warning(f"Erro no keepalive: {e} - renovando...")
-                    await self._renew_listen_key_with_retry()
+                    self._renew_listen_key_with_retry()
 
             # Wait 20 minutes before next keepalive
-            await asyncio.sleep(20 * 60)
+            time.sleep(20 * 60)
 
     def _on_listen_key_expired(self) -> None:
         """Handle listenKey expiration - schedule renewal."""
         main_logger.warning("ListenKey expirado! Agendando renovação...")
-        asyncio.create_task(self._renew_listen_key_with_retry())
+        self._renew_listen_key_with_retry()
 
-    async def _renew_listen_key_with_retry(self, max_retries: int = 3) -> bool:
+    def _renew_listen_key_with_retry(self, max_retries: int = 3) -> bool:
         """Generate new listenKey with retry logic."""
         for attempt in range(max_retries):
             try:
@@ -861,9 +861,9 @@ class GridManager:
                         5 * (2**attempt), 30
                     )  # Exponential backoff: 5s, 10s, 20s, max 30s
                     main_logger.info(f"Aguardando {wait_time}s antes de tentar novamente...")
-                    await asyncio.sleep(wait_time)
+                    time.sleep(wait_time)
 
-                success = await self._renew_listen_key()
+                success = self._renew_listen_key()
                 if success:
                     return True
 
@@ -875,11 +875,11 @@ class GridManager:
         main_logger.error(f"Falha ao renovar listenKey após {max_retries} tentativas")
         return False
 
-    async def _renew_listen_key(self) -> bool:
+    def _renew_listen_key(self) -> bool:
         """Generate new listenKey and update WebSocket. Returns True on success."""
         try:
             main_logger.info("Gerando novo listenKey...")
-            new_key = await self.client.generate_listen_key()
+            new_key = self.client.generate_listen_key()
 
             if not new_key:
                 main_logger.error("Falha ao gerar listenKey - retorno vazio")
@@ -897,7 +897,7 @@ class GridManager:
                 # Force reconnect with new key
                 if self._account_ws._ws and self._account_ws._ws.open:
                     main_logger.info("Forçando reconexão do WebSocket com nova key...")
-                    await self._account_ws._ws.close()
+                    self._account_ws._ws.close()
                     # The _connect_loop will auto-reconnect with the new key
 
             main_logger.info("ListenKey renovado com sucesso!")
@@ -920,16 +920,16 @@ class GridManager:
             order = self.tracker.get_order(order_id)
             if order:
                 # Schedule async order_filled (persists trade to DB)
-                asyncio.create_task(self._handle_order_filled_ws(order_id, order))
+                self._handle_order_filled_ws(order_id, order)
 
         # Order canceled
         elif status == "CANCELED":
             self.tracker.cancel_order(order_id)
             orders_logger.info(f"WS: Ordem cancelada: {order_id}")
 
-    async def _handle_order_filled_ws(self, order_id: str, order: TrackedOrder) -> None:
+    def _handle_order_filled_ws(self, order_id: str, order: TrackedOrder) -> None:
         """Handle order filled event from WebSocket (async wrapper)."""
-        filled_order = await self.tracker.order_filled(order_id)
+        filled_order = self.tracker.order_filled(order_id)
 
         # Broadcast order filled to dashboard
         if filled_order:
@@ -950,7 +950,7 @@ class GridManager:
             )
 
             # Fetch and update TP order ID
-            await self._fetch_and_update_tp_order_id(filled_order)
+            self._fetch_and_update_tp_order_id(filled_order)
 
         if self._on_order_filled:
             self._on_order_filled(order)
@@ -969,7 +969,7 @@ class GridManager:
             },
         )
 
-    async def _fetch_and_update_tp_order_id(self, filled_order: TrackedOrder) -> None:
+    def _fetch_and_update_tp_order_id(self, filled_order: TrackedOrder) -> None:
         """
         Fetch and update the TP order ID for a newly filled order.
 
@@ -982,7 +982,7 @@ class GridManager:
         """
         try:
             # Query open orders to find the TP order
-            open_orders = await self.client.get_open_orders(self.symbol)
+            open_orders = self.client.get_open_orders(self.symbol)
 
             # Look for TP orders that match this position
             for open_order in open_orders:
@@ -1008,7 +1008,7 @@ class GridManager:
 
                     # Update database with TP order ID (BUG #1 FIX)
                     if filled_order.trade_id:
-                        await self._update_trade_tp_order_id(filled_order.trade_id, tp_order_id)
+                        self._update_trade_tp_order_id(filled_order.trade_id, tp_order_id)
                     else:
                         orders_logger.warning(
                             f"Cannot update TP order ID in database: trade_id is None for {filled_order.order_id[:8]}"
@@ -1024,7 +1024,7 @@ class GridManager:
                 f"Failed to fetch TP order ID for {filled_order.order_id[:8]}: {e}"
             )
 
-    async def _update_trade_tp_order_id(self, trade_id: UUID, tp_order_id: str) -> None:
+    def _update_trade_tp_order_id(self, trade_id: UUID, tp_order_id: str) -> None:
         """Update trade's TP order ID in database.
 
         This is called after capturing the TP order ID from the exchange
@@ -1042,16 +1042,16 @@ class GridManager:
         from src.database.repositories.trade_repository import TradeRepository
 
         try:
-            async for session in get_session():
+            with get_session() as session:
                 repo = TradeRepository(session)
 
                 # Get current trade to preserve tp_price
                 stmt = select(Trade).where(Trade.id == trade_id)
-                result = await session.execute(stmt)
+                result = session.execute(stmt)
                 trade = result.scalar_one_or_none()
 
                 if trade and trade.tp_price:
-                    await repo.update_tp(
+                    repo.update_tp(
                         trade_id=trade_id,
                         new_tp_price=trade.tp_price,  # Keep same TP price
                         new_tp_order_id=tp_order_id,
@@ -1059,7 +1059,6 @@ class GridManager:
                     orders_logger.debug(
                         f"Updated TP order ID in database for trade {str(trade_id)[:8]}"
                     )
-                break
         except Exception as e:
             orders_logger.warning(f"Failed to update TP order ID in database: {e}")
 
@@ -1073,16 +1072,16 @@ class GridManager:
         # If position closed (amt = 0), mark as TP hit
         if position_amt == 0 and self.tracker.filled_orders:
             # Schedule async handling for all TP hits
-            asyncio.create_task(self._handle_position_closed_ws())
+            self._handle_position_closed_ws()
 
-    async def _handle_position_closed_ws(self) -> None:
+    def _handle_position_closed_ws(self) -> None:
         """Handle position closed event from WebSocket (async wrapper)."""
         for order in list(self.tracker.filled_orders):
             exit_price = self._current_price
             pnl = (exit_price - order.entry_price) * order.quantity
 
             # Persist trade to database (now awaited)
-            await self.tracker.order_tp_hit(order.order_id, exit_price)
+            self.tracker.order_tp_hit(order.order_id, exit_price)
 
             # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
             self._broadcast_order_update(order)
@@ -1116,27 +1115,22 @@ class GridManager:
                 },
             )
 
-    async def _stop_websocket(self) -> None:
+    def _stop_websocket(self) -> None:
         """Stop WebSocket and cleanup."""
         if self._keepalive_task:
             self._keepalive_task.cancel()
-            try:
-                await self._keepalive_task
-            except asyncio.CancelledError:
-                pass
-
         if self._account_ws:
-            await self._account_ws.disconnect()
+            self._account_ws.disconnect()  # type: ignore[unused-coroutine]
 
         if self._listen_key:
             try:
-                await self.client.close_listen_key(self._listen_key)
+                self.client.close_listen_key(self._listen_key)
             except Exception:
                 pass
 
         main_logger.info("WebSocket encerrado")
 
-    async def _get_active_strategy(self):
+    def _get_active_strategy(self):
         """Fetch active strategy from database.
 
         Returns active strategy from DB if available.
@@ -1150,7 +1144,7 @@ class GridManager:
             return None
 
         try:
-            strategy = await self._strategy_repository.get_active_by_account(self._account_id)
+            strategy = self._strategy_repository.get_active_by_account(self._account_id)
             return strategy
 
         except Exception as e:
@@ -1158,7 +1152,7 @@ class GridManager:
             # Fallback to env vars (return None to signal fallback)
             return None
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the grid manager and cancel pending LIMIT orders (preserves TPs)."""
         self._running = False
         main_logger.info("Grid Manager encerrando...")
@@ -1177,14 +1171,14 @@ class GridManager:
 
         # Parar DynamicTPManager
         if self.dynamic_tp:
-            await self.dynamic_tp.stop()
+            self.dynamic_tp.stop()
 
         # Stop WebSocket
-        await self._stop_websocket()
+        self._stop_websocket()
 
         # Cancel only LIMIT orders (grid orders), preserve TP/SL orders
         try:
-            open_orders = await self.client.get_open_orders(self.symbol)
+            open_orders = self.client.get_open_orders(self.symbol)
             if open_orders:
                 cancelled = 0
                 preserved = 0
@@ -1196,7 +1190,7 @@ class GridManager:
                     # Preserve: TAKE_PROFIT_MARKET, STOP_MARKET, TAKE_PROFIT, STOP
                     if order_type == "LIMIT" and order_id:
                         try:
-                            await self.client.cancel_order(self.symbol, order_id)
+                            self.client.cancel_order(self.symbol, order_id)
                             cancelled += 1
                         except Exception:
                             pass
@@ -1227,7 +1221,7 @@ class GridManager:
             signal_line=None,
         )
 
-    async def update(self) -> None:
+    def update(self) -> None:
         """
         Main update cycle - called periodically.
 
@@ -1242,12 +1236,12 @@ class GridManager:
             # Get current price - prefer WebSocket (real-time) over REST API (polling)
             if not self._is_ws_price_fresh():
                 # WebSocket price is stale or not available, fetch from REST API
-                self._current_price = await self.client.get_price(self.symbol)
+                self._current_price = self.client.get_price(self.symbol)
             # else: _current_price is already up-to-date from WebSocket callback
 
             # Get klines for MACD calculation
             # Use timeframe from DB config (strategy.timeframe), not env (config.macd.timeframe)
-            klines = await self.client.get_klines(
+            klines = self.client.get_klines(
                 self.symbol,
                 interval=self.strategy.timeframe,
                 limit=100,
@@ -1295,17 +1289,17 @@ class GridManager:
 
             # Handle state change
             if new_state != self._current_state:
-                await self._handle_state_change(new_state)
+                self._handle_state_change(new_state)
                 self._current_state = new_state
 
             # Execute state-specific actions
-            await self._execute_state_actions()
+            self._execute_state_actions()
 
             # Sync with exchange
-            await self._sync_with_exchange()
+            self._sync_with_exchange()
 
             # Broadcast P&L updates for open positions (throttled to 5s by loop interval)
-            await self._broadcast_pnl_updates()
+            self._broadcast_pnl_updates()
 
         except Exception as e:
             main_logger.error(f"Erro no update: {e}", exc_info=True)
@@ -1320,7 +1314,7 @@ class GridManager:
                 },
             )
 
-    async def _handle_state_change(self, new_state: GridState) -> None:
+    def _handle_state_change(self, new_state: GridState) -> None:
         """Handle transition to new state."""
         old_state = self._current_state
         main_logger.info(f"Estado: {old_state.value} → {new_state.value}")
@@ -1361,9 +1355,9 @@ class GridManager:
                     "Entering INACTIVE state but EMA rising - protecting existing orders"
                 )
             else:
-                await self._cancel_all_pending()
+                self._cancel_all_pending()
 
-    async def _execute_state_actions(self) -> None:
+    def _execute_state_actions(self) -> None:
         """Execute actions based on current state.
 
         Decision Matrix:
@@ -1382,7 +1376,7 @@ class GridManager:
         """
         # Check if filters allow trade creation
         if self._filter_registry.should_allow_trade():
-            await self._create_grid_orders()
+            self._create_grid_orders()
         elif self._current_state == GridState.INACTIVE:
             # Check EMA protection before cancelling
             if self._ema_filter.enabled and self._ema_filter.should_protect_orders():
@@ -1390,7 +1384,7 @@ class GridManager:
                 orders_logger.debug("INACTIVE state but EMA rising - protecting orders")
             else:
                 # EMA is falling or disabled - cancel pending orders
-                await self._cancel_all_pending()
+                self._cancel_all_pending()
 
     def _count_filled_orders_awaiting_tp(self, orders: list[dict]) -> int:
         """
@@ -1444,7 +1438,7 @@ class GridManager:
 
         return occupied_prices
 
-    async def _create_grid_orders(self) -> None:
+    def _create_grid_orders(self) -> None:
         """Create grid orders based on current price."""
         # Check for margin error (reset after 5 minutes)
         if self._margin_error:
@@ -1460,10 +1454,10 @@ class GridManager:
             return  # Still rate limited
 
         # Refresh grid calculator with latest config from database
-        await self._refresh_grid_calculator()
+        self._refresh_grid_calculator()
 
         # Get existing orders from exchange
-        exchange_orders = await self.client.get_open_orders(self.symbol)
+        exchange_orders = self.client.get_open_orders(self.symbol)
 
         # BE-008: Count filled orders awaiting TP for dynamic slot calculation
         # Note: We count TP orders, not positions, because BingX consolidates
@@ -1487,7 +1481,7 @@ class GridManager:
             try:
                 order_price = float(order.get("price", 0))
                 order_id = str(order["orderId"])
-                await self.client.cancel_order(self.symbol, order_id)
+                self.client.cancel_order(self.symbol, order_id)
 
                 # Log drift cancellation
                 orders_logger.info(
@@ -1498,7 +1492,7 @@ class GridManager:
 
         # Refresh orders after drift cancellations
         if drift_orders:
-            exchange_orders = await self.client.get_open_orders(self.symbol)
+            exchange_orders = self.client.get_open_orders(self.symbol)
 
         # STEP 1: Cancel orders outside range FIRST
         # This frees up slots for new orders in the same cycle
@@ -1511,7 +1505,7 @@ class GridManager:
             try:
                 order_price = float(order.get("price", 0))
                 order_id = str(order["orderId"])
-                await self.client.cancel_order(self.symbol, order_id)
+                self.client.cancel_order(self.symbol, order_id)
 
                 # Log cancellation
                 orders_logger.info(
@@ -1523,7 +1517,7 @@ class GridManager:
         # STEP 2: Refresh orders after cancellations
         # This ensures get_levels_to_create() sees the freed-up slots
         if orders_to_cancel:
-            exchange_orders = await self.client.get_open_orders(self.symbol)
+            exchange_orders = self.client.get_open_orders(self.symbol)
 
         # STEP 3: Calculate levels to create (now with freed-up slots)
         # BE-008: Pass filled_orders_count to limit new orders
@@ -1569,9 +1563,9 @@ class GridManager:
         # STEP 4: Create orders (with rate limiting)
         for level in levels[:10]:  # Max 10 orders per cycle
             try:
-                await self._create_order(level)
+                self._create_order(level)
                 self._consecutive_errors = 0  # Reset on success
-                await asyncio.sleep(0.1)  # Rate limiting
+                time.sleep(0.1)  # Rate limiting
             except Exception as e:
                 error_msg = str(e)
                 self._consecutive_errors += 1
@@ -1613,15 +1607,15 @@ class GridManager:
                 elif self._consecutive_errors >= 3:
                     # Too many consecutive errors - pause briefly
                     main_logger.warning(f"3 erros consecutivos - pausando brevemente: {e}")
-                    await asyncio.sleep(5)
+                    time.sleep(5)
                     break
 
                 orders_logger.error(f"Erro ao criar ordem: {e}")
 
-    async def _create_order(self, level: GridLevel) -> None:
+    def _create_order(self, level: GridLevel) -> None:
         """Create a single grid order."""
         # Fetch active strategy from DB (or fallback to env vars)
-        strategy = await self._get_active_strategy()
+        strategy = self._get_active_strategy()
 
         if strategy:
             order_size = float(strategy.order_size_usdt)
@@ -1641,7 +1635,7 @@ class GridManager:
             orders_logger.warning(f"Quantidade muito pequena: {quantity_btc} BTC. Mínimo: 0.0001")
             return
 
-        result = await self.client.create_limit_order_with_tp(
+        result = self.client.create_limit_order_with_tp(
             symbol=symbol,
             side="BUY",
             position_side="BOTH",  # One-way mode
@@ -1684,7 +1678,7 @@ class GridManager:
             # Log order creation
             orders_logger.info(f"Ordem criada: {level}")
 
-    async def _cancel_all_limit_orders(self, reason: str = "filter change") -> None:
+    def _cancel_all_limit_orders(self, reason: str = "filter change") -> None:
         """
         Cancel all pending LIMIT orders (preserves TPs).
 
@@ -1692,7 +1686,7 @@ class GridManager:
             reason: Reason for cancellation (for logging)
         """
         try:
-            open_orders = await self.client.get_open_orders(self.symbol)
+            open_orders = self.client.get_open_orders(self.symbol)
             cancelled = 0
 
             for open_order in open_orders:
@@ -1702,7 +1696,7 @@ class GridManager:
                 # Only cancel LIMIT orders, preserve TP/SL
                 if order_type == "LIMIT" and order_id:
                     try:
-                        await self.client.cancel_order(self.symbol, order_id)
+                        self.client.cancel_order(self.symbol, order_id)
                         cancelled += 1
                     except Exception:
                         pass
@@ -1718,15 +1712,15 @@ class GridManager:
         except Exception as e:
             main_logger.error(f"Erro ao cancelar ordens: {e}")
 
-    async def _cancel_all_pending(self) -> None:
+    def _cancel_all_pending(self) -> None:
         """Cancel all pending LIMIT orders (preserves TPs)."""
-        await self._cancel_all_limit_orders(reason="INACTIVE")
+        self._cancel_all_limit_orders(reason="INACTIVE")
 
-    async def _sync_with_exchange(self) -> None:
+    def _sync_with_exchange(self) -> None:
         """Sync local state with exchange."""
         try:
-            exchange_orders = await self.client.get_open_orders(self.symbol)
-            positions = await self.client.get_positions(self.symbol)
+            exchange_orders = self.client.get_open_orders(self.symbol)
+            positions = self.client.get_positions(self.symbol)
 
             # Get current position amount from exchange
             current_position_amt = 0.0
@@ -1750,7 +1744,7 @@ class GridManager:
 
                     if position_delta >= order.quantity * 0.99:  # 1% tolerance for rounding
                         # Order was FILLED - position increased
-                        filled_order = await self.tracker.order_filled(order.order_id)
+                        filled_order = self.tracker.order_filled(order.order_id)
 
                         # Broadcast order filled to dashboard
                         if filled_order:
@@ -1772,7 +1766,7 @@ class GridManager:
 
                         # Fetch and update TP order ID (same as WebSocket flow)
                         if filled_order:
-                            await self._fetch_and_update_tp_order_id(filled_order)
+                            self._fetch_and_update_tp_order_id(filled_order)
 
                         expected_position += order.quantity  # Update expected for next iteration
                         if self._on_order_filled:
@@ -1831,7 +1825,7 @@ class GridManager:
                         )
 
                     pnl = (exit_price - order.entry_price) * order.quantity
-                    await self.tracker.order_tp_hit(order.order_id, exit_price)
+                    self.tracker.order_tp_hit(order.order_id, exit_price)
 
                     # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                     self._broadcast_order_update(order)
@@ -1902,7 +1896,7 @@ class GridManager:
                             )
 
                         pnl = (exit_price - order.entry_price) * order.quantity
-                        await self.tracker.order_tp_hit(order.order_id, exit_price)
+                        self.tracker.order_tp_hit(order.order_id, exit_price)
 
                         # Broadcast TP hit to dashboard (order has been marked as TP_HIT)
                         self._broadcast_order_update(order)
@@ -1938,7 +1932,7 @@ class GridManager:
         except Exception as e:
             main_logger.error(f"Erro no sync: {e}")
 
-    async def recreate_order_after_tp(self, entry_price: float, tp_price: float) -> None:
+    def recreate_order_after_tp(self, entry_price: float, tp_price: float) -> None:
         """
         Recreate an order after take profit is hit.
 
@@ -1955,7 +1949,7 @@ class GridManager:
         )
 
         try:
-            await self._create_order(level)
+            self._create_order(level)
             main_logger.info(f"Ordem recriada após TP: ${entry_price:,.2f}")
         except Exception as e:
             main_logger.error(f"Erro ao recriar ordem: {e}")
@@ -1971,7 +1965,7 @@ class GridManager:
         main_logger.info(f"Filter '{filter_name}' {action} - scheduling order cancellation")
         # Schedule cancellation in event loop (only if running)
         try:
-            asyncio.create_task(self._cancel_all_limit_orders(reason=f"filter {action}"))
+            self._cancel_all_limit_orders(reason=f"filter {action}")
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running - skipping async cancellation")
@@ -1999,7 +1993,7 @@ class GridManager:
             )
             # Schedule cancellation in event loop (only if running)
             try:
-                asyncio.create_task(self._cancel_all_limit_orders(reason=f"MACD {new_state.value}"))
+                self._cancel_all_limit_orders(reason=f"MACD {new_state.value}")
             except RuntimeError:
                 # No event loop running (e.g., during tests without async context)
                 main_logger.debug("No event loop running - skipping async cancellation")
@@ -2094,7 +2088,7 @@ class GridManager:
                 signal_line=None,
             )
 
-    async def _reconciliation_loop(self) -> None:
+    def _reconciliation_loop(self) -> None:  # type: ignore[func-returns-value]
         """Periodic reconciliation loop to sync database with BingX state.
 
         Runs every 5 minutes to detect and fix:
@@ -2105,7 +2099,7 @@ class GridManager:
         This provides a safety net for WebSocket event loss and persistence failures.
         """
         # Wait 30 seconds before first reconciliation to let bot stabilize
-        await asyncio.sleep(30)
+        time.sleep(30)
 
         while self._running:
             try:
@@ -2118,7 +2112,7 @@ class GridManager:
                     symbol=self.symbol,
                 )
 
-                stats = await reconciliation.reconcile()
+                stats = reconciliation.reconcile()
 
                 # Log if any fixes were made
                 if any(stats.values()):
@@ -2131,4 +2125,4 @@ class GridManager:
                 main_logger.error(f"Reconciliation failed: {e}")
 
             # Wait 5 minutes before next reconciliation
-            await asyncio.sleep(5 * 60)
+            time.sleep(5 * 60)

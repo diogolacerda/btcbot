@@ -6,7 +6,7 @@ Tests:
 2. PAUSE state restoration fix
 """
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
@@ -26,7 +26,7 @@ class TestLogActivityEventMethod:
         gm = MagicMock()
         gm._account_id = uuid4()
         gm._activity_event_repository = MagicMock()
-        gm._activity_event_repository.create_event = AsyncMock(return_value=MagicMock())
+        gm._activity_event_repository.create_event = MagicMock(return_value=MagicMock())
         return gm
 
     def test_log_activity_event_skips_without_repository(self):

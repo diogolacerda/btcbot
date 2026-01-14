@@ -24,7 +24,7 @@ class AccountService:
         """
         self.repository = repository
 
-    async def add_account(
+    def add_account(
         self,
         user_id: UUID,
         exchange: str,
@@ -51,17 +51,17 @@ class AccountService:
             ConnectionError: If API credentials are invalid.
         """
         # Check if account already exists
-        if await self.repository.account_exists(user_id, exchange, name, is_demo):
+        if self.repository.account_exists(user_id, exchange, name, is_demo):
             msg = f"Account already exists: {exchange}/{name} (demo={is_demo})"
             raise ValueError(msg)
 
         # Validate API credentials
-        if not await self.validate_api_credentials(exchange, api_key, api_secret, is_demo):
+        if not self.validate_api_credentials(exchange, api_key, api_secret, is_demo):
             raise ConnectionError("Invalid API credentials or unable to connect to exchange")
 
         # Create account with hashed API key
         api_key_hash = self.hash_api_key(api_key)
-        return await self.repository.create_account(
+        return self.repository.create_account(
             user_id=user_id,
             exchange=exchange,
             name=name,
@@ -69,7 +69,7 @@ class AccountService:
             api_key_hash=api_key_hash,
         )
 
-    async def validate_api_credentials(
+    def validate_api_credentials(
         self,
         exchange: str,
         api_key: str,
@@ -88,16 +88,16 @@ class AccountService:
             True if credentials are valid and connection succeeds.
         """
         if exchange.lower() == "bingx":
-            return await self._validate_bingx_credentials(api_key, api_secret, is_demo)
+            return self._validate_bingx_credentials(api_key, api_secret, is_demo)
 
         # Add support for other exchanges here
         # elif exchange.lower() == "binance":
-        #     return await self._validate_binance_credentials(api_key, api_secret, is_demo)
+        #     return self._validate_binance_credentials(api_key, api_secret, is_demo)
 
         msg = f"Unsupported exchange: {exchange}"
         raise ValueError(msg)
 
-    async def _validate_bingx_credentials(
+    def _validate_bingx_credentials(
         self,
         api_key: str,
         api_secret: str,
@@ -119,13 +119,13 @@ class AccountService:
             client = BingXClient(config)
 
             # Test connection by fetching account balance
-            balance = await client.get_balance()
+            balance = client.get_balance()
             return balance is not None
 
         except Exception:  # noqa: BLE001
             return False
 
-    async def get_user_accounts(self, user_id: UUID) -> list[Account]:
+    def get_user_accounts(self, user_id: UUID) -> list[Account]:
         """Get all accounts for a user.
 
         Args:
@@ -134,9 +134,9 @@ class AccountService:
         Returns:
             List of Account instances.
         """
-        return await self.repository.get_by_user(user_id)
+        return self.repository.get_by_user(user_id)
 
-    async def get_active_account(self, user_id: UUID, exchange: str) -> Account | None:
+    def get_active_account(self, user_id: UUID, exchange: str) -> Account | None:
         """Get the first active account for a user and exchange.
 
         Args:
@@ -150,7 +150,7 @@ class AccountService:
             Returns the first account found. For multi-account selection,
             use get_user_accounts() and implement custom selection logic.
         """
-        accounts = await self.repository.get_by_user_and_exchange(user_id, exchange)
+        accounts = self.repository.get_by_user_and_exchange(user_id, exchange)
         return accounts[0] if accounts else None
 
     def hash_api_key(self, api_key: str) -> str:

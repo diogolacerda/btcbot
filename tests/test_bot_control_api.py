@@ -1,11 +1,11 @@
 """Tests for bot control API endpoints."""
 
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.api.dependencies import get_db, get_grid_manager
 from src.api.main import app
@@ -14,29 +14,30 @@ from src.database.models.user import User
 from src.strategy.macd_strategy import GridState
 
 # Test database URL
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
 @pytest.fixture
-async def async_engine():
+def engine():
     """Create async test database engine."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    engine = create_engine(TEST_DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
     yield engine
-    await engine.dispose()
+    engine.dispose()
 
 
 @pytest.fixture
-async def async_session(async_engine):
-    """Create async test database session."""
-    async_session_maker = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session_maker() as session:
-        yield session
+def session(engine):
+    """Create test database session."""
+    session_maker = sessionmaker(engine, class_=Session, expire_on_commit=False)
+    session = session_maker()
+    yield session
+    session.rollback()
+    session.close()
 
 
 @pytest.fixture
-async def test_user(async_session):
+def test_user(session):
     """Create a test user in the database."""
     from src.api.dependencies import get_password_hash
 
@@ -46,10 +47,10 @@ async def test_user(async_session):
         name="Test User",
         is_active=True,
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
-    async_session.expunge_all()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    session.expunge_all()
     return user
 
 
@@ -84,14 +85,14 @@ def mock_grid_manager():
     mock.get_status.return_value = mock_status
 
     # Configure async methods
-    mock.start = AsyncMock()
-    mock.stop = AsyncMock()
+    mock.start = MagicMock()
+    mock.stop = MagicMock()
 
     return mock
 
 
 @pytest.fixture
-def auth_token(async_session, test_user):
+def auth_token(session, test_user):
     """Get auth token for test user."""
     from src.api.dependencies import create_access_token
 
@@ -99,11 +100,11 @@ def auth_token(async_session, test_user):
 
 
 @pytest.fixture
-def client(async_session, mock_grid_manager):
+def client(session, mock_grid_manager):
     """Create test client with overridden dependencies."""
 
-    async def override_get_db():
-        yield async_session
+    def override_get_db():
+        yield session
 
     def override_get_grid_manager():
         return mock_grid_manager

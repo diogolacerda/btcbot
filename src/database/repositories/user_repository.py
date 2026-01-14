@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.user import User
 from src.database.repositories.base_repository import BaseRepository
@@ -20,7 +20,7 @@ class UserRepository(BaseRepository[User]):
     user records for authentication and user management.
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
@@ -28,7 +28,7 @@ class UserRepository(BaseRepository[User]):
         """
         super().__init__(session, User)
 
-    async def get_by_email(self, email: str) -> User | None:
+    def get_by_email(self, email: str) -> User | None:
         """Get user by email address.
 
         Args:
@@ -42,14 +42,14 @@ class UserRepository(BaseRepository[User]):
         """
         try:
             stmt = select(User).where(User.email == email)
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             user: User | None = result.scalar_one_or_none()
             return user
         except Exception as e:
             main_logger.error(f"Error fetching user by email {email}: {e}")
             raise
 
-    async def list_active(self) -> list[User]:
+    def list_active(self) -> list[User]:
         """Get all active users.
 
         Returns:
@@ -60,13 +60,13 @@ class UserRepository(BaseRepository[User]):
         """
         try:
             stmt = select(User).where(User.is_active == True).order_by(User.created_at.desc())  # noqa: E712
-            result = await self.session.execute(stmt)
+            result = self.session.execute(stmt)
             return list(result.scalars().all())
         except Exception as e:
             main_logger.error(f"Error fetching active users: {e}")
             raise
 
-    async def create_user(
+    def create_user(
         self,
         email: str,
         password_hash: str,
@@ -97,14 +97,14 @@ class UserRepository(BaseRepository[User]):
                 name=name,
                 is_active=is_active,
             )
-            created_user = await super().create(user)
+            created_user = super().create(user)
             main_logger.info(f"User created: {created_user.id} ({created_user.email})")
             return created_user
         except Exception as e:
             main_logger.error(f"Error creating user with email {email}: {e}")
             raise
 
-    async def update_user(
+    def update_user(
         self,
         user_id: UUID,
         **kwargs,
@@ -125,7 +125,7 @@ class UserRepository(BaseRepository[User]):
             Exception: If database operation fails.
         """
         try:
-            user = await super().get_by_id(user_id)
+            user = super().get_by_id(user_id)
 
             if not user:
                 raise ValueError(f"User {user_id} not found")
@@ -135,7 +135,7 @@ class UserRepository(BaseRepository[User]):
                 if key in ("email", "name", "password_hash", "is_active"):
                     setattr(user, key, value)
 
-            updated_user = await super().update(user)
+            updated_user = super().update(user)
             main_logger.info(f"User {user_id} updated")
             return updated_user
         except ValueError:
@@ -144,7 +144,7 @@ class UserRepository(BaseRepository[User]):
             main_logger.error(f"Error updating user {user_id}: {e}")
             raise
 
-    async def deactivate_user(self, user_id: UUID) -> User:
+    def deactivate_user(self, user_id: UUID) -> User:
         """Deactivate a user account.
 
         Args:
@@ -158,12 +158,12 @@ class UserRepository(BaseRepository[User]):
             Exception: If database operation fails.
         """
         try:
-            return await self.update_user(user_id, is_active=False)
+            return self.update_user(user_id, is_active=False)
         except Exception as e:
             main_logger.error(f"Error deactivating user {user_id}: {e}")
             raise
 
-    async def activate_user(self, user_id: UUID) -> User:
+    def activate_user(self, user_id: UUID) -> User:
         """Activate a user account.
 
         Args:
@@ -177,7 +177,7 @@ class UserRepository(BaseRepository[User]):
             Exception: If database operation fails.
         """
         try:
-            return await self.update_user(user_id, is_active=True)
+            return self.update_user(user_id, is_active=True)
         except Exception as e:
             main_logger.error(f"Error activating user {user_id}: {e}")
             raise

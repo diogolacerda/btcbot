@@ -4,28 +4,28 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models import Account, User
 from src.database.repositories import StrategyRepository
 
 
 @pytest.fixture
-async def user(async_session: AsyncSession) -> User:
+def user(session: Session) -> User:
     """Create a test user."""
     user = User(
         email="test@example.com",
         password_hash="hashed_password",  # pragma: allowlist secret
         name="Test User",
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user
 
 
 @pytest.fixture
-async def account(async_session: AsyncSession, user: User) -> Account:
+def account(session: Session, user: User) -> Account:
     """Create a test account."""
     account = Account(
         user_id=user.id,
@@ -33,14 +33,14 @@ async def account(async_session: AsyncSession, user: User) -> Account:
         name="Test Account",
         is_demo=True,
     )
-    async_session.add(account)
-    await async_session.commit()
-    await async_session.refresh(account)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
     return account
 
 
 @pytest.fixture
-async def second_account(async_session: AsyncSession, user: User) -> Account:
+def second_account(session: Session, user: User) -> Account:
     """Create a second test account."""
     account = Account(
         user_id=user.id,
@@ -48,30 +48,29 @@ async def second_account(async_session: AsyncSession, user: User) -> Account:
         name="Second Account",
         is_demo=False,
     )
-    async_session.add(account)
-    await async_session.commit()
-    await async_session.refresh(account)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
     return account
 
 
 @pytest.fixture
-async def repository(async_session: AsyncSession) -> StrategyRepository:
+def repository(session: Session) -> StrategyRepository:
     """Create StrategyRepository instance."""
-    return StrategyRepository(async_session)
+    return StrategyRepository(session)
 
 
 class TestStrategyRepository:
     """Test cases for StrategyRepository."""
 
-    @pytest.mark.asyncio
-    async def test_create_strategy(
+    def test_create_strategy(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test creating a strategy from dict."""
         # Act
-        strategy = await repository.create_strategy(
+        strategy = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "My Grid Strategy",
@@ -91,15 +90,14 @@ class TestStrategyRepository:
         assert strategy.created_at is not None
         assert strategy.updated_at is not None
 
-    @pytest.mark.asyncio
-    async def test_create_strategy_with_defaults(
+    def test_create_strategy_with_defaults(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test creating a strategy uses model defaults."""
         # Act
-        strategy = await repository.create_strategy(
+        strategy = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Default Strategy",
@@ -114,21 +112,20 @@ class TestStrategyRepository:
         assert strategy.take_profit_percent == Decimal("0.50")
         assert strategy.is_active is False
 
-    @pytest.mark.asyncio
-    async def test_get_by_account(
+    def test_get_by_account(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test getting all strategies for an account."""
         # Arrange
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Strategy 1",
             }
         )
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Strategy 2",
@@ -136,40 +133,38 @@ class TestStrategyRepository:
         )
 
         # Act
-        strategies = await repository.get_by_account(account.id)
+        strategies = repository.get_by_account(account.id)
 
         # Assert
         assert len(strategies) == 2
         assert all(s.account_id == account.id for s in strategies)
 
-    @pytest.mark.asyncio
-    async def test_get_by_account_empty(
+    def test_get_by_account_empty(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test getting strategies for account with no strategies."""
         # Act
-        strategies = await repository.get_by_account(account.id)
+        strategies = repository.get_by_account(account.id)
 
         # Assert
         assert strategies == []
 
-    @pytest.mark.asyncio
-    async def test_get_by_account_ordered_by_created_at(
+    def test_get_by_account_ordered_by_created_at(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test strategies are ordered by created_at desc."""
         # Arrange
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "First",
             }
         )
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Second",
@@ -177,28 +172,27 @@ class TestStrategyRepository:
         )
 
         # Act
-        strategies = await repository.get_by_account(account.id)
+        strategies = repository.get_by_account(account.id)
 
         # Assert (most recent first)
         assert strategies[0].name == "Second"
         assert strategies[1].name == "First"
 
-    @pytest.mark.asyncio
-    async def test_get_active_by_account(
+    def test_get_active_by_account(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test getting the active strategy for an account."""
         # Arrange
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Inactive Strategy",
                 "is_active": False,
             }
         )
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Active Strategy",
@@ -207,22 +201,21 @@ class TestStrategyRepository:
         )
 
         # Act
-        active = await repository.get_active_by_account(account.id)
+        active = repository.get_active_by_account(account.id)
 
         # Assert
         assert active is not None
         assert active.name == "Active Strategy"
         assert active.is_active is True
 
-    @pytest.mark.asyncio
-    async def test_get_active_by_account_none(
+    def test_get_active_by_account_none(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test getting active strategy when none is active."""
         # Arrange
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Inactive Strategy",
@@ -231,20 +224,19 @@ class TestStrategyRepository:
         )
 
         # Act
-        active = await repository.get_active_by_account(account.id)
+        active = repository.get_active_by_account(account.id)
 
         # Assert
         assert active is None
 
-    @pytest.mark.asyncio
-    async def test_update_strategy(
+    def test_update_strategy(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test updating strategy fields."""
         # Arrange
-        strategy = await repository.create_strategy(
+        strategy = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Original Name",
@@ -253,7 +245,7 @@ class TestStrategyRepository:
         )
 
         # Act
-        updated = await repository.update_strategy(
+        updated = repository.update_strategy(
             strategy.id,
             {
                 "name": "Updated Name",
@@ -267,25 +259,23 @@ class TestStrategyRepository:
         assert updated.leverage == 20
         assert updated.take_profit_percent == Decimal("0.75")
 
-    @pytest.mark.asyncio
-    async def test_update_strategy_not_found(
+    def test_update_strategy_not_found(
         self,
         repository: StrategyRepository,
     ):
         """Test updating non-existent strategy raises ValueError."""
         # Act & Assert
         with pytest.raises(ValueError, match="Strategy not found"):
-            await repository.update_strategy(uuid4(), {"name": "New Name"})
+            repository.update_strategy(uuid4(), {"name": "New Name"})
 
-    @pytest.mark.asyncio
-    async def test_activate_strategy(
+    def test_activate_strategy(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test activating a strategy."""
         # Arrange
-        strategy = await repository.create_strategy(
+        strategy = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "To Activate",
@@ -294,27 +284,26 @@ class TestStrategyRepository:
         )
 
         # Act
-        activated = await repository.activate_strategy(strategy.id)
+        activated = repository.activate_strategy(strategy.id)
 
         # Assert
         assert activated.is_active is True
 
-    @pytest.mark.asyncio
-    async def test_activate_strategy_deactivates_others(
+    def test_activate_strategy_deactivates_others(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test activating a strategy deactivates all others for same account."""
         # Arrange
-        first = await repository.create_strategy(
+        first = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "First Strategy",
                 "is_active": True,
             }
         )
-        second = await repository.create_strategy(
+        second = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Second Strategy",
@@ -323,41 +312,39 @@ class TestStrategyRepository:
         )
 
         # Act
-        await repository.activate_strategy(second.id)
+        repository.activate_strategy(second.id)
 
         # Assert - refetch to get updated values
-        first_refreshed = await repository.get_by_id(first.id)
-        second_refreshed = await repository.get_by_id(second.id)
+        first_refreshed = repository.get_by_id(first.id)
+        second_refreshed = repository.get_by_id(second.id)
 
         assert first_refreshed.is_active is False
         assert second_refreshed.is_active is True
 
-    @pytest.mark.asyncio
-    async def test_activate_strategy_not_found(
+    def test_activate_strategy_not_found(
         self,
         repository: StrategyRepository,
     ):
         """Test activating non-existent strategy raises ValueError."""
         # Act & Assert
         with pytest.raises(ValueError, match="Strategy not found"):
-            await repository.activate_strategy(uuid4())
+            repository.activate_strategy(uuid4())
 
-    @pytest.mark.asyncio
-    async def test_deactivate_all(
+    def test_deactivate_all(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test deactivating all strategies for an account."""
         # Arrange - create strategies with one active (constraint allows only one active)
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Strategy 1",
                 "is_active": True,
             }
         )
-        await repository.create_strategy(
+        repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Strategy 2",
@@ -366,29 +353,27 @@ class TestStrategyRepository:
         )
 
         # Act
-        await repository.deactivate_all(account.id)
+        repository.deactivate_all(account.id)
 
         # Assert
-        strategies = await repository.get_by_account(account.id)
+        strategies = repository.get_by_account(account.id)
         assert len(strategies) == 2
         assert all(s.is_active is False for s in strategies)
 
-    @pytest.mark.asyncio
-    async def test_deactivate_all_no_strategies(
+    def test_deactivate_all_no_strategies(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test deactivating all when no strategies exist doesn't error."""
         # Act (should not raise)
-        await repository.deactivate_all(account.id)
+        repository.deactivate_all(account.id)
 
         # Assert
-        strategies = await repository.get_by_account(account.id)
+        strategies = repository.get_by_account(account.id)
         assert strategies == []
 
-    @pytest.mark.asyncio
-    async def test_activate_strategy_different_accounts(
+    def test_activate_strategy_different_accounts(
         self,
         repository: StrategyRepository,
         account: Account,
@@ -396,14 +381,14 @@ class TestStrategyRepository:
     ):
         """Test activating strategy doesn't affect other accounts."""
         # Arrange
-        first_acc_strategy = await repository.create_strategy(
+        first_acc_strategy = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "First Account Strategy",
                 "is_active": True,
             }
         )
-        second_acc_strategy = await repository.create_strategy(
+        second_acc_strategy = repository.create_strategy(
             {
                 "account_id": second_account.id,
                 "name": "Second Account Strategy",
@@ -412,24 +397,23 @@ class TestStrategyRepository:
         )
 
         # Act - activate strategy in second account
-        await repository.activate_strategy(second_acc_strategy.id)
+        repository.activate_strategy(second_acc_strategy.id)
 
         # Assert - first account's strategy should remain active
-        first_refreshed = await repository.get_by_id(first_acc_strategy.id)
-        second_refreshed = await repository.get_by_id(second_acc_strategy.id)
+        first_refreshed = repository.get_by_id(first_acc_strategy.id)
+        second_refreshed = repository.get_by_id(second_acc_strategy.id)
 
         assert first_refreshed.is_active is True
         assert second_refreshed.is_active is True
 
-    @pytest.mark.asyncio
-    async def test_get_by_id(
+    def test_get_by_id(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test getting strategy by ID."""
         # Arrange
-        created = await repository.create_strategy(
+        created = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Test Strategy",
@@ -437,34 +421,32 @@ class TestStrategyRepository:
         )
 
         # Act
-        strategy = await repository.get_by_id(created.id)
+        strategy = repository.get_by_id(created.id)
 
         # Assert
         assert strategy is not None
         assert strategy.id == created.id
         assert strategy.name == "Test Strategy"
 
-    @pytest.mark.asyncio
-    async def test_get_by_id_not_found(
+    def test_get_by_id_not_found(
         self,
         repository: StrategyRepository,
     ):
         """Test getting non-existent strategy returns None."""
         # Act
-        strategy = await repository.get_by_id(uuid4())
+        strategy = repository.get_by_id(uuid4())
 
         # Assert
         assert strategy is None
 
-    @pytest.mark.asyncio
-    async def test_delete(
+    def test_delete(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test deleting a strategy."""
         # Arrange
-        strategy = await repository.create_strategy(
+        strategy = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "To Delete",
@@ -472,34 +454,32 @@ class TestStrategyRepository:
         )
 
         # Act
-        result = await repository.delete(strategy.id)
+        result = repository.delete(strategy.id)
 
         # Assert
         assert result is True
-        deleted = await repository.get_by_id(strategy.id)
+        deleted = repository.get_by_id(strategy.id)
         assert deleted is None
 
-    @pytest.mark.asyncio
-    async def test_delete_not_found(
+    def test_delete_not_found(
         self,
         repository: StrategyRepository,
     ):
         """Test deleting non-existent strategy returns False."""
         # Act
-        result = await repository.delete(uuid4())
+        result = repository.delete(uuid4())
 
         # Assert
         assert result is False
 
-    @pytest.mark.asyncio
-    async def test_exists(
+    def test_exists(
         self,
         repository: StrategyRepository,
         account: Account,
     ):
         """Test checking if strategy exists."""
         # Arrange
-        strategy = await repository.create_strategy(
+        strategy = repository.create_strategy(
             {
                 "account_id": account.id,
                 "name": "Existing",
@@ -507,8 +487,8 @@ class TestStrategyRepository:
         )
 
         # Act
-        exists = await repository.exists(strategy.id)
-        not_exists = await repository.exists(uuid4())
+        exists = repository.exists(strategy.id)
+        not_exists = repository.exists(uuid4())
 
         # Assert
         assert exists is True

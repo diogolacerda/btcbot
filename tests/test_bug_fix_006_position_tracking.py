@@ -13,8 +13,6 @@ Test scenarios:
 5. Empty position list returns 0
 """
 
-import pytest
-
 from src.grid.order_tracker import OrderStatus, OrderTracker
 
 
@@ -25,8 +23,7 @@ class TestBugFix006LoadExistingPositions:
         """Set up fresh OrderTracker for each test."""
         self.tracker = OrderTracker()
 
-    @pytest.mark.asyncio
-    async def test_derives_multiple_positions_from_tp_orders(self):
+    def test_derives_multiple_positions_from_tp_orders(self):
         """
         Given 10 TP orders exist on the exchange,
         When load_existing_positions is called,
@@ -56,14 +53,13 @@ class TestBugFix006LoadExistingPositions:
                 }
             )
 
-        loaded = await self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
+        loaded = self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
 
         # Should load all 10 positions
         assert loaded == 10
         assert len(self.tracker.filled_orders) == 10
 
-    @pytest.mark.asyncio
-    async def test_correctly_calculates_entry_from_tp(self):
+    def test_correctly_calculates_entry_from_tp(self):
         """
         Given a TP order with stopPrice,
         When position is loaded,
@@ -85,14 +81,13 @@ class TestBugFix006LoadExistingPositions:
             }
         ]
 
-        await self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
+        self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
 
         position = self.tracker.filled_orders[0]
         assert position.entry_price == expected_entry
         assert position.tp_price == tp_price
 
-    @pytest.mark.asyncio
-    async def test_prevents_duplicate_positions(self):
+    def test_prevents_duplicate_positions(self):
         """
         Given a position is already tracked at an entry price,
         When load_existing_positions is called again,
@@ -110,16 +105,15 @@ class TestBugFix006LoadExistingPositions:
         ]
 
         # First load
-        loaded1 = await self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
+        loaded1 = self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
         assert loaded1 == 1
 
         # Second load (same data)
-        loaded2 = await self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
+        loaded2 = self.tracker.load_existing_positions(positions, tp_orders, tp_percent)
         assert loaded2 == 0  # No new positions loaded
         assert len(self.tracker.filled_orders) == 1  # Still only 1
 
-    @pytest.mark.asyncio
-    async def test_returns_zero_for_empty_position(self):
+    def test_returns_zero_for_empty_position(self):
         """
         Given no positions on exchange (positionAmt = 0),
         When load_existing_positions is called,
@@ -135,13 +129,12 @@ class TestBugFix006LoadExistingPositions:
             }
         ]
 
-        loaded = await self.tracker.load_existing_positions(positions, tp_orders, 0.5)
+        loaded = self.tracker.load_existing_positions(positions, tp_orders, 0.5)
 
         assert loaded == 0
         assert len(self.tracker.filled_orders) == 0
 
-    @pytest.mark.asyncio
-    async def test_ignores_non_tp_orders(self):
+    def test_ignores_non_tp_orders(self):
         """
         Given a mix of order types,
         When load_existing_positions is called,
@@ -160,14 +153,13 @@ class TestBugFix006LoadExistingPositions:
             {"type": "TAKE_PROFIT", "orderId": "tp_2", "stopPrice": 96000, "origQty": 0.0001},
         ]
 
-        loaded = await self.tracker.load_existing_positions(positions, mixed_orders, 0.5)
+        loaded = self.tracker.load_existing_positions(positions, mixed_orders, 0.5)
 
         # Only 2 TP orders should create positions
         assert loaded == 2
         assert len(self.tracker.filled_orders) == 2
 
-    @pytest.mark.asyncio
-    async def test_position_has_filled_status(self):
+    def test_position_has_filled_status(self):
         """
         Given TP orders loaded,
         When positions are created,
@@ -183,13 +175,12 @@ class TestBugFix006LoadExistingPositions:
             }
         ]
 
-        await self.tracker.load_existing_positions(positions, tp_orders, 0.5)
+        self.tracker.load_existing_positions(positions, tp_orders, 0.5)
 
         position = self.tracker.filled_orders[0]
         assert position.status == OrderStatus.FILLED
 
-    @pytest.mark.asyncio
-    async def test_stores_exchange_tp_order_id(self):
+    def test_stores_exchange_tp_order_id(self):
         """
         Given a TP order with orderId,
         When position is loaded,
@@ -205,7 +196,7 @@ class TestBugFix006LoadExistingPositions:
             }
         ]
 
-        await self.tracker.load_existing_positions(positions, tp_orders, 0.5)
+        self.tracker.load_existing_positions(positions, tp_orders, 0.5)
 
         position = self.tracker.filled_orders[0]
         assert position.exchange_tp_order_id == "exchange_tp_12345"
@@ -214,8 +205,7 @@ class TestBugFix006LoadExistingPositions:
 class TestBugFix006Scenario:
     """Real-world scenario tests for BUG-FIX-006."""
 
-    @pytest.mark.asyncio
-    async def test_scenario_10_fills_show_10_positions(self):
+    def test_scenario_10_fills_show_10_positions(self):
         """
         Scenario: User executes 10 limit orders at different prices.
         BingX consolidates into 1 position with average price.
@@ -247,7 +237,7 @@ class TestBugFix006Scenario:
                 }
             )
 
-        loaded = await tracker.load_existing_positions(positions, tp_orders, tp_percent)
+        loaded = tracker.load_existing_positions(positions, tp_orders, tp_percent)
 
         # Dashboard should show 10 positions
         assert loaded == 10
@@ -257,8 +247,7 @@ class TestBugFix006Scenario:
         entry_prices = {p.entry_price for p in tracker.filled_orders}
         assert len(entry_prices) == 10
 
-    @pytest.mark.asyncio
-    async def test_scenario_restart_preserves_positions(self):
+    def test_scenario_restart_preserves_positions(self):
         """
         Scenario: Bot restarts while positions are open.
         Positions should be restored from TP orders.
@@ -306,7 +295,7 @@ class TestBugFix006Scenario:
             },
         ]
 
-        loaded = await tracker.load_existing_positions(positions, tp_orders, 0.5)
+        loaded = tracker.load_existing_positions(positions, tp_orders, 0.5)
 
         assert loaded == 5
         assert tracker.position_count == 5

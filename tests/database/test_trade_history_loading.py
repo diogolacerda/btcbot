@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models import Account, User
 from src.database.models.trade import Trade
@@ -13,21 +13,21 @@ from src.grid.order_tracker import OrderTracker
 
 
 @pytest.fixture
-async def user(async_session: AsyncSession) -> User:
+def user(session: Session) -> User:
     """Create a test user."""
     user = User(
         email="test@example.com",
         password_hash="hashed_password",  # pragma: allowlist secret
         name="Test User",
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
+    session.add(user)
+    session.commit()
+    session.refresh(user)
     return user
 
 
 @pytest.fixture
-async def account(async_session: AsyncSession, user: User) -> Account:
+def account(session: Session, user: User) -> Account:
     """Create a test account."""
     account = Account(
         user_id=user.id,
@@ -35,23 +35,22 @@ async def account(async_session: AsyncSession, user: User) -> Account:
         name="Test Account",
         is_demo=True,
     )
-    async_session.add(account)
-    await async_session.commit()
-    await async_session.refresh(account)
+    session.add(account)
+    session.commit()
+    session.refresh(account)
     return account
 
 
 @pytest.fixture
-async def trade_repository(async_session: AsyncSession) -> TradeRepository:
+def trade_repository(session: Session) -> TradeRepository:
     """Create TradeRepository instance."""
-    return TradeRepository(async_session)
+    return TradeRepository(session)
 
 
 class TestTradeHistoryLoading:
     """Tests for loading trade history into OrderTracker."""
 
-    @pytest.mark.asyncio
-    async def test_load_empty_history(self):
+    def test_load_empty_history(self):
         """Test loading with no trades."""
         # Arrange
         tracker = OrderTracker()
@@ -66,10 +65,9 @@ class TestTradeHistoryLoading:
         assert stats["date_range"] is None
         assert tracker.total_trades == 0
 
-    @pytest.mark.asyncio
-    async def test_load_valid_trades(
+    def test_load_valid_trades(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
     ):
         """Test loading valid closed trades."""
@@ -94,12 +92,12 @@ class TestTradeHistoryLoading:
                 opened_at=now,
                 closed_at=now,
             )
-            async_session.add(trade)
+            session.add(trade)
             trades.append(trade)
 
-        await async_session.commit()
+        session.commit()
         for trade in trades:
-            await async_session.refresh(trade)
+            session.refresh(trade)
 
         # Act
         stats = tracker.load_trade_history(trades)
@@ -111,10 +109,9 @@ class TestTradeHistoryLoading:
         assert stats["win_rate"] == 100.0  # All positive PnL
         assert stats["date_range"] is not None
 
-    @pytest.mark.asyncio
-    async def test_load_trades_with_wins_and_losses(
+    def test_load_trades_with_wins_and_losses(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
     ):
         """Test win rate calculation with mixed results."""
@@ -138,7 +135,7 @@ class TestTradeHistoryLoading:
                 opened_at=now,
                 closed_at=now,
             )
-            async_session.add(trade)
+            session.add(trade)
             trades.append(trade)
 
         # 1 loss
@@ -155,12 +152,12 @@ class TestTradeHistoryLoading:
             opened_at=now,
             closed_at=now,
         )
-        async_session.add(trade)
+        session.add(trade)
         trades.append(trade)
 
-        await async_session.commit()
+        session.commit()
         for trade in trades:
-            await async_session.refresh(trade)
+            session.refresh(trade)
 
         # Act
         stats = tracker.load_trade_history(trades)
@@ -169,10 +166,9 @@ class TestTradeHistoryLoading:
         assert stats["trades_loaded"] == 3
         assert stats["win_rate"] == pytest.approx(66.67, abs=0.1)  # 2 out of 3
 
-    @pytest.mark.asyncio
-    async def test_skip_incomplete_trades(
+    def test_skip_incomplete_trades(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
     ):
         """Test that incomplete trades are skipped."""
@@ -210,11 +206,11 @@ class TestTradeHistoryLoading:
             closed_at=now,
         )
 
-        async_session.add(complete_trade)
-        async_session.add(incomplete_trade)
-        await async_session.commit()
-        await async_session.refresh(complete_trade)
-        await async_session.refresh(incomplete_trade)
+        session.add(complete_trade)
+        session.add(incomplete_trade)
+        session.commit()
+        session.refresh(complete_trade)
+        session.refresh(incomplete_trade)
 
         # Act
         stats = tracker.load_trade_history([complete_trade, incomplete_trade])
@@ -223,10 +219,9 @@ class TestTradeHistoryLoading:
         assert stats["trades_loaded"] == 1
         assert tracker.total_trades == 1
 
-    @pytest.mark.asyncio
-    async def test_skip_trades_without_timestamps(
+    def test_skip_trades_without_timestamps(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
     ):
         """Test that trades without timestamps are skipped."""
@@ -264,11 +259,11 @@ class TestTradeHistoryLoading:
             closed_at=None,  # Missing!
         )
 
-        async_session.add(complete_trade)
-        async_session.add(no_timestamp_trade)
-        await async_session.commit()
-        await async_session.refresh(complete_trade)
-        await async_session.refresh(no_timestamp_trade)
+        session.add(complete_trade)
+        session.add(no_timestamp_trade)
+        session.commit()
+        session.refresh(complete_trade)
+        session.refresh(no_timestamp_trade)
 
         # Act
         stats = tracker.load_trade_history([complete_trade, no_timestamp_trade])
@@ -277,10 +272,9 @@ class TestTradeHistoryLoading:
         assert stats["trades_loaded"] == 1
         assert tracker.total_trades == 1
 
-    @pytest.mark.asyncio
-    async def test_total_pnl_includes_history(
+    def test_total_pnl_includes_history(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
     ):
         """Test that total_pnl includes loaded history."""
@@ -302,9 +296,9 @@ class TestTradeHistoryLoading:
             opened_at=now,
             closed_at=now,
         )
-        async_session.add(trade)
-        await async_session.commit()
-        await async_session.refresh(trade)
+        session.add(trade)
+        session.commit()
+        session.refresh(trade)
 
         # Act
         tracker.load_trade_history([trade])
@@ -312,10 +306,9 @@ class TestTradeHistoryLoading:
         # Assert
         assert tracker.total_pnl == 100.5  # 100 initial + 0.5 from history
 
-    @pytest.mark.asyncio
-    async def test_date_range_calculation(
+    def test_date_range_calculation(
         self,
-        async_session: AsyncSession,
+        session: Session,
         account: Account,
     ):
         """Test that date range is calculated correctly."""
@@ -339,12 +332,12 @@ class TestTradeHistoryLoading:
                 opened_at=date,
                 closed_at=date,
             )
-            async_session.add(trade)
+            session.add(trade)
             trades.append(trade)
 
-        await async_session.commit()
+        session.commit()
         for trade in trades:
-            await async_session.refresh(trade)
+            session.refresh(trade)
 
         # Act
         stats = tracker.load_trade_history(trades)
@@ -355,8 +348,7 @@ class TestTradeHistoryLoading:
         assert stats["date_range"][0].replace(tzinfo=UTC) == oldest_date
         assert stats["date_range"][1].replace(tzinfo=UTC) == newest_date
 
-    @pytest.mark.asyncio
-    async def test_integration_with_trade_repository(
+    def test_integration_with_trade_repository(
         self,
         trade_repository: TradeRepository,
         account: Account,
@@ -381,10 +373,10 @@ class TestTradeHistoryLoading:
                 "opened_at": now,
                 "closed_at": now,
             }
-            await trade_repository.save_trade(trade_data)
+            trade_repository.save_trade(trade_data)
 
         # Act - Load back from repository
-        trades = await trade_repository.get_trades_by_account(account.id, limit=100)
+        trades = trade_repository.get_trades_by_account(account.id, limit=100)
         closed_trades = [t for t in trades if t.status == "CLOSED"]
         stats = tracker.load_trade_history(closed_trades)
 

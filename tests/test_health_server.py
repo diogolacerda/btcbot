@@ -9,7 +9,7 @@ Tests:
 5. Timeout handling works
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,7 +19,6 @@ from src.health.health_server import HealthServer
 class TestHealthServerBasic:
     """Test basic HealthServer functionality."""
 
-    @pytest.mark.asyncio
     async def test_health_server_start_stop(self):
         """Test that health server can start and stop correctly."""
         server = HealthServer(port=18080)
@@ -35,7 +34,6 @@ class TestHealthServerBasic:
         await server.stop()
         assert not server.is_running
 
-    @pytest.mark.asyncio
     async def test_health_server_double_start(self):
         """Test that starting server twice doesn't cause issues."""
         server = HealthServer(port=18081)
@@ -46,7 +44,6 @@ class TestHealthServerBasic:
 
         await server.stop()
 
-    @pytest.mark.asyncio
     async def test_health_server_double_stop(self):
         """Test that stopping server twice doesn't cause issues."""
         server = HealthServer(port=18082)
@@ -82,7 +79,6 @@ class TestHealthServerBasic:
 class TestHealthServerEndpoint:
     """Test the /health endpoint."""
 
-    @pytest.mark.asyncio
     async def test_health_endpoint_returns_json(self):
         """Test that /health endpoint returns valid JSON."""
         import aiohttp
@@ -107,14 +103,13 @@ class TestHealthServerEndpoint:
         finally:
             await server.stop()
 
-    @pytest.mark.asyncio
     async def test_health_endpoint_status_healthy(self):
         """Test that healthy status returns 200."""
         import aiohttp
 
         # Create mock client that returns successfully
         mock_client = MagicMock()
-        mock_client.get_price = AsyncMock(return_value=95000.0)
+        mock_client.get_price = MagicMock(return_value=95000.0)
 
         server = HealthServer(port=18084)
         server.set_bingx_client(mock_client)
@@ -129,14 +124,13 @@ class TestHealthServerEndpoint:
         finally:
             await server.stop()
 
-    @pytest.mark.asyncio
     async def test_health_endpoint_status_unhealthy(self):
         """Test that unhealthy status returns 503."""
         import aiohttp
 
         # Create mock client that raises an error
         mock_client = MagicMock()
-        mock_client.get_price = AsyncMock(side_effect=Exception("Connection failed"))
+        mock_client.get_price = MagicMock(side_effect=Exception("Connection failed"))
 
         server = HealthServer(port=18085)
         server.set_bingx_client(mock_client)
@@ -155,41 +149,38 @@ class TestHealthServerEndpoint:
 class TestHealthServerComponents:
     """Test component health checks."""
 
-    @pytest.mark.asyncio
-    async def test_exchange_api_check_success(self):
+    def test_exchange_api_check_success(self):
         """Test exchange API check with successful response."""
         mock_client = MagicMock()
-        mock_client.get_price = AsyncMock(return_value=95000.0)
+        mock_client.get_price = MagicMock(return_value=95000.0)
 
         server = HealthServer(port=18086)
         server.set_bingx_client(mock_client)
 
-        result = await server._check_exchange_api()
+        result = server._check_exchange_api()
 
         assert result["status"] == "healthy"
         assert "latency_ms" in result
         assert result["latency_ms"] >= 0
 
-    @pytest.mark.asyncio
-    async def test_exchange_api_check_failure(self):
+    def test_exchange_api_check_failure(self):
         """Test exchange API check with failed response."""
         mock_client = MagicMock()
-        mock_client.get_price = AsyncMock(side_effect=Exception("API Error"))
+        mock_client.get_price = MagicMock(side_effect=Exception("API Error"))
 
         server = HealthServer(port=18087)
         server.set_bingx_client(mock_client)
 
-        result = await server._check_exchange_api()
+        result = server._check_exchange_api()
 
         assert result["status"] == "unhealthy"
         assert "error" in result
 
-    @pytest.mark.asyncio
-    async def test_exchange_api_check_no_client(self):
+    def test_exchange_api_check_no_client(self):
         """Test exchange API check without client."""
         server = HealthServer(port=18088)
 
-        result = await server._check_exchange_api()
+        result = server._check_exchange_api()
 
         assert result["status"] == "unknown"
         assert "message" in result
@@ -285,7 +276,6 @@ class TestHealthServerGridStatus:
 class TestHealthServerIntegration:
     """Integration tests for health server."""
 
-    @pytest.mark.asyncio
     async def test_full_health_check_response_structure(self):
         """Test complete health check response matches expected structure."""
         import aiohttp
@@ -294,7 +284,7 @@ class TestHealthServerIntegration:
 
         # Setup mocks
         mock_client = MagicMock()
-        mock_client.get_price = AsyncMock(return_value=95000.0)
+        mock_client.get_price = MagicMock(return_value=95000.0)
 
         mock_ws = MagicMock()
         mock_ws.is_connected = True

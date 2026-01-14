@@ -3,7 +3,7 @@
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.account import Account
 from src.database.repositories.base_repository import BaseRepository
@@ -24,7 +24,7 @@ class AccountRepository(BaseRepository[Account]):
     - exists(account_id: UUID) -> bool
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
@@ -32,7 +32,7 @@ class AccountRepository(BaseRepository[Account]):
         """
         super().__init__(session, Account)
 
-    async def create_account(
+    def create_account(
         self,
         user_id: UUID,
         exchange: str,
@@ -62,9 +62,9 @@ class AccountRepository(BaseRepository[Account]):
             is_demo=is_demo,
             api_key_hash=api_key_hash,
         )
-        return await self.create(account)
+        return self.create(account)
 
-    async def get_by_user(self, user_id: UUID) -> list[Account]:
+    def get_by_user(self, user_id: UUID) -> list[Account]:
         """Get all accounts for a user.
 
         Args:
@@ -73,10 +73,10 @@ class AccountRepository(BaseRepository[Account]):
         Returns:
             List of Account instances.
         """
-        result = await self.session.execute(select(Account).where(Account.user_id == user_id))
+        result = self.session.execute(select(Account).where(Account.user_id == user_id))
         return list(result.scalars().all())
 
-    async def get_by_user_and_exchange(
+    def get_by_user_and_exchange(
         self,
         user_id: UUID,
         exchange: str,
@@ -97,10 +97,10 @@ class AccountRepository(BaseRepository[Account]):
         if is_demo is not None:
             query = query.where(Account.is_demo == is_demo)
 
-        result = await self.session.execute(query)
+        result = self.session.execute(query)
         return list(result.scalars().all())
 
-    async def account_exists(
+    def account_exists(
         self,
         user_id: UUID,
         exchange: str,
@@ -118,7 +118,7 @@ class AccountRepository(BaseRepository[Account]):
         Returns:
             True if account exists with these exact parameters.
         """
-        result = await self.session.execute(
+        result = self.session.execute(
             select(Account).where(
                 Account.user_id == user_id,
                 Account.exchange == exchange,

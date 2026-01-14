@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models.trading_config import TradingConfig
 from src.database.repositories.base_repository import BaseRepository
@@ -39,7 +39,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         update_config: Update specific configuration fields.
     """
 
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: Session):
         """Initialize repository with database session.
 
         Args:
@@ -54,7 +54,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
         super().__init__(session, TradingConfig)
 
     @deprecated("Use StrategyRepository.get_active_by_account instead", version="2.0")
-    async def get_by_account(self, account_id: UUID) -> TradingConfig | None:
+    def get_by_account(self, account_id: UUID) -> TradingConfig | None:
         """Get trading configuration for a specific account.
 
         DEPRECATED: Use StrategyRepository.get_active_by_account instead.
@@ -69,12 +69,12 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
             Exception: If database operation fails.
 
         Example:
-            config = await repo.get_by_account(account_id)
+            config = repo.get_by_account(account_id)
             if config:
                 print(f"Leverage: {config.leverage}x")
         """
         try:
-            result = await self.session.execute(
+            result = self.session.execute(
                 select(TradingConfig).where(TradingConfig.account_id == account_id)
             )
             return result.scalar_one_or_none()  # type: ignore[no-any-return]
@@ -82,7 +82,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
             raise Exception(f"Error fetching trading config for account {account_id}: {e}") from e
 
     @deprecated("Use StrategyRepository.create_or_update instead", version="2.0")
-    async def create_or_update(
+    def create_or_update(
         self,
         account_id: UUID,
         symbol: str | None = None,
@@ -126,13 +126,13 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
 
         Example:
             # Create with defaults
-            config = await repo.create_or_update(account_id)
+            config = repo.create_or_update(account_id)
 
             # Update only leverage
-            config = await repo.create_or_update(account_id, leverage=20)
+            config = repo.create_or_update(account_id, leverage=20)
         """
         try:
-            existing = await self.get_by_account(account_id)
+            existing = self.get_by_account(account_id)
 
             if existing:
                 # Update existing config
@@ -159,7 +159,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                 if tp_check_interval_min is not None:
                     existing.tp_check_interval_min = tp_check_interval_min
 
-                return await super().update(existing)
+                return super().update(existing)
             else:
                 # Create new config with defaults
                 new_config = TradingConfig(
@@ -179,15 +179,15 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                     tp_safety_margin=tp_safety_margin or Decimal("0.05"),
                     tp_check_interval_min=tp_check_interval_min or 60,
                 )
-                return await super().create(new_config)
+                return super().create(new_config)
         except Exception as e:
-            await self.session.rollback()
+            self.session.rollback()
             raise Exception(
                 f"Error creating/updating trading config for account {account_id}: {e}"
             ) from e
 
     @deprecated("Use StrategyRepository.update instead", version="2.0")
-    async def update_config(
+    def update_config(
         self,
         account_id: UUID,
         **kwargs: str | int | Decimal | bool,
@@ -212,14 +212,14 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
             Exception: If database operation fails.
 
         Example:
-            config = await repo.update_config(
+            config = repo.update_config(
                 account_id,
                 leverage=15,
                 take_profit_percent=Decimal("0.8")
             )
         """
         try:
-            existing = await self.get_by_account(account_id)
+            existing = self.get_by_account(account_id)
             if not existing:
                 raise ValueError(f"No trading config found for account {account_id}")
 
@@ -228,7 +228,7 @@ class TradingConfigRepository(BaseRepository[TradingConfig]):
                 if hasattr(existing, field):
                     setattr(existing, field, value)
 
-            return await super().update(existing)
+            return super().update(existing)
         except Exception as e:
-            await self.session.rollback()
+            self.session.rollback()
             raise Exception(f"Error updating trading config for account {account_id}: {e}") from e

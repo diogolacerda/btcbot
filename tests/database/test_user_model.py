@@ -6,7 +6,7 @@ from uuid import UUID
 import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.database.models import User
 
@@ -14,8 +14,7 @@ from src.database.models import User
 class TestUserModel:
     """Test cases for User model."""
 
-    @pytest.mark.asyncio
-    async def test_create_user(self, async_session: AsyncSession):
+    def test_create_user(self, session: Session):
         """Test creating a user with all fields."""
         # Arrange
         user = User(
@@ -26,9 +25,9 @@ class TestUserModel:
         )
 
         # Act
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
 
         # Assert
         assert user.id is not None
@@ -40,8 +39,7 @@ class TestUserModel:
         assert isinstance(user.created_at, datetime)
         assert isinstance(user.updated_at, datetime)
 
-    @pytest.mark.asyncio
-    async def test_create_user_minimal(self, async_session: AsyncSession):
+    def test_create_user_minimal(self, session: Session):
         """Test creating a user with only required fields."""
         # Arrange
         user = User(
@@ -50,9 +48,9 @@ class TestUserModel:
         )
 
         # Act
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
 
         # Assert
         assert user.id is not None
@@ -61,8 +59,7 @@ class TestUserModel:
         assert user.name is None
         assert user.is_active is True  # Default value
 
-    @pytest.mark.asyncio
-    async def test_email_unique_constraint(self, async_session: AsyncSession):
+    def test_email_unique_constraint(self, session: Session):
         """Test that email must be unique."""
         # Arrange
         user1 = User(
@@ -75,15 +72,14 @@ class TestUserModel:
         )
 
         # Act & Assert
-        async_session.add(user1)
-        await async_session.commit()
+        session.add(user1)
+        session.commit()
 
-        async_session.add(user2)
+        session.add(user2)
         with pytest.raises(IntegrityError):
-            await async_session.commit()
+            session.commit()
 
-    @pytest.mark.asyncio
-    async def test_email_required(self, async_session: AsyncSession):
+    def test_email_required(self, session: Session):
         """Test that email is required."""
         # Arrange
         user = User(
@@ -91,12 +87,11 @@ class TestUserModel:
         )
 
         # Act & Assert
-        async_session.add(user)
+        session.add(user)
         with pytest.raises(IntegrityError):
-            await async_session.commit()
+            session.commit()
 
-    @pytest.mark.asyncio
-    async def test_password_hash_required(self, async_session: AsyncSession):
+    def test_password_hash_required(self, session: Session):
         """Test that password_hash is required."""
         # Arrange
         user = User(
@@ -104,12 +99,11 @@ class TestUserModel:
         )
 
         # Act & Assert
-        async_session.add(user)
+        session.add(user)
         with pytest.raises(IntegrityError):
-            await async_session.commit()
+            session.commit()
 
-    @pytest.mark.asyncio
-    async def test_is_active_default(self, async_session: AsyncSession):
+    def test_is_active_default(self, session: Session):
         """Test that is_active defaults to True."""
         # Arrange
         user = User(
@@ -118,15 +112,14 @@ class TestUserModel:
         )
 
         # Act
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
 
         # Assert
         assert user.is_active is True
 
-    @pytest.mark.asyncio
-    async def test_is_active_can_be_false(self, async_session: AsyncSession):
+    def test_is_active_can_be_false(self, session: Session):
         """Test that is_active can be set to False."""
         # Arrange
         user = User(
@@ -136,15 +129,14 @@ class TestUserModel:
         )
 
         # Act
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
 
         # Assert
         assert user.is_active is False
 
-    @pytest.mark.asyncio
-    async def test_timestamps_auto_generated(self, async_session: AsyncSession):
+    def test_timestamps_auto_generated(self, session: Session):
         """Test that timestamps are automatically generated."""
         # Arrange
         user = User(
@@ -153,9 +145,9 @@ class TestUserModel:
         )
 
         # Act
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
 
         # Assert
         assert user.created_at is not None
@@ -163,8 +155,7 @@ class TestUserModel:
         assert isinstance(user.created_at, datetime)
         assert isinstance(user.updated_at, datetime)
 
-    @pytest.mark.asyncio
-    async def test_updated_at_changes_on_update(self, async_session: AsyncSession):
+    def test_updated_at_changes_on_update(self, session: Session):
         """Test that updated_at changes when user is updated."""
         # Arrange
         user = User(
@@ -172,23 +163,22 @@ class TestUserModel:
             password_hash="password123",  # pragma: allowlist secret
             name="Original Name",
         )
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
 
         original_updated_at = user.updated_at
 
         # Act - Update the user
         user.name = "Updated Name"
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.commit()
+        session.refresh(user)
 
         # Assert
         assert user.updated_at > original_updated_at
         assert user.name == "Updated Name"
 
-    @pytest.mark.asyncio
-    async def test_query_by_email(self, async_session: AsyncSession):
+    def test_query_by_email(self, session: Session):
         """Test querying user by email."""
         # Arrange
         user = User(
@@ -196,12 +186,12 @@ class TestUserModel:
             password_hash="password123",  # pragma: allowlist secret
             name="Query User",
         )
-        async_session.add(user)
-        await async_session.commit()
+        session.add(user)
+        session.commit()
 
         # Act
         stmt = select(User).where(User.email == "query@example.com")
-        result = await async_session.execute(stmt)
+        result = session.execute(stmt)
         found_user = result.scalar_one_or_none()
 
         # Assert
@@ -209,8 +199,7 @@ class TestUserModel:
         assert found_user.email == "query@example.com"
         assert found_user.name == "Query User"
 
-    @pytest.mark.asyncio
-    async def test_query_by_is_active(self, async_session: AsyncSession):
+    def test_query_by_is_active(self, session: Session):
         """Test querying users by is_active status."""
         # Arrange
         active_user = User(
@@ -223,29 +212,28 @@ class TestUserModel:
             password_hash="password2",  # pragma: allowlist secret
             is_active=False,
         )
-        async_session.add_all([active_user, inactive_user])
-        await async_session.commit()
+        session.add_all([active_user, inactive_user])
+        session.commit()
 
         # Act
         stmt = select(User).where(User.is_active == True)  # noqa: E712
-        result = await async_session.execute(stmt)
+        result = session.execute(stmt)
         active_users = result.scalars().all()
 
         # Assert
         assert len(active_users) == 1
         assert active_users[0].email == "active@example.com"
 
-    @pytest.mark.asyncio
-    async def test_user_repr(self, async_session: AsyncSession):
+    def test_user_repr(self, session: Session):
         """Test User __repr__ method."""
         # Arrange
         user = User(
             email="repr@example.com",
             password_hash="password123",  # pragma: allowlist secret
         )
-        async_session.add(user)
-        await async_session.commit()
-        await async_session.refresh(user)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
 
         # Act
         repr_str = repr(user)

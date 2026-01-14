@@ -5,11 +5,11 @@ Tests the HTTP endpoints in HealthServer for managing grid configuration.
 """
 
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import AioHTTPTestCase
 
 from src.database.models.grid_config import GridConfig
 from src.health.health_server import HealthServer
@@ -22,8 +22,8 @@ class TestGridConfigAPI(AioHTTPTestCase):
         """Create test application with HealthServer routes."""
         # Create mock repositories
         self.grid_config_repo_mock = MagicMock()
-        self.grid_config_repo_mock.get_or_create = AsyncMock()
-        self.grid_config_repo_mock.save_config = AsyncMock()
+        self.grid_config_repo_mock.get_or_create = MagicMock()
+        self.grid_config_repo_mock.save_config = MagicMock()
         self.grid_config_repo_mock.to_dict = MagicMock()
 
         # Create account ID for testing
@@ -70,7 +70,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
 
         return app
 
-    @unittest_run_loop
     async def test_get_grid_config_success(self):
         """Test GET /api/configs/grid returns config successfully."""
         resp = await self.client.get("/api/configs/grid")
@@ -87,7 +86,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         # Verify repo was called
         self.grid_config_repo_mock.get_or_create.assert_called_once_with(self.account_id)
 
-    @unittest_run_loop
     async def test_put_grid_config_success(self):
         """Test PUT /api/configs/grid updates all fields successfully."""
         # Configure mock to return updated config
@@ -136,7 +134,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         # Verify repo was called with correct params
         self.grid_config_repo_mock.save_config.assert_called_once()
 
-    @unittest_run_loop
     async def test_put_grid_config_missing_fields(self):
         """Test PUT /api/configs/grid returns 400 when fields are missing."""
         resp = await self.client.put(
@@ -152,7 +149,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         assert "error" in data
         assert "Missing required fields" in data["error"]
 
-    @unittest_run_loop
     async def test_put_grid_config_invalid_spacing_type(self):
         """Test PUT /api/configs/grid validates spacing_type."""
         resp = await self.client.put(
@@ -172,7 +168,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         assert "error" in data
         assert "spacing_type must be" in data["error"]
 
-    @unittest_run_loop
     async def test_put_grid_config_invalid_anchor_mode(self):
         """Test PUT /api/configs/grid validates anchor_mode."""
         resp = await self.client.put(
@@ -192,7 +187,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         assert "error" in data
         assert "anchor_mode must be" in data["error"]
 
-    @unittest_run_loop
     async def test_put_grid_config_negative_values(self):
         """Test PUT /api/configs/grid rejects negative values."""
         resp = await self.client.put(
@@ -212,7 +206,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         assert "error" in data
         assert "must be positive" in data["error"]
 
-    @unittest_run_loop
     async def test_patch_grid_config_partial_update(self):
         """Test PATCH /api/configs/grid updates only provided fields."""
         # Configure mock to return updated config
@@ -252,7 +245,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         assert "spacing_value" in data["updated_fields"]
         assert data["config"]["spacing_value"] == 200.0
 
-    @unittest_run_loop
     async def test_patch_grid_config_no_fields(self):
         """Test PATCH /api/configs/grid returns 400 when no fields provided."""
         resp = await self.client.patch("/api/configs/grid", json={})
@@ -262,7 +254,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         assert "error" in data
         assert "No fields provided" in data["error"]
 
-    @unittest_run_loop
     async def test_patch_grid_config_invalid_value(self):
         """Test PATCH /api/configs/grid validates field values."""
         resp = await self.client.patch(
@@ -275,7 +266,6 @@ class TestGridConfigAPI(AioHTTPTestCase):
         assert "error" in data
         assert "must be positive" in data["error"]
 
-    @unittest_run_loop
     async def test_patch_grid_config_invalid_type(self):
         """Test PATCH /api/configs/grid validates spacing_type in PATCH."""
         resp = await self.client.patch(

@@ -14,12 +14,12 @@ but test the full integration between API layers.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 from starlette.websockets import WebSocketDisconnect
 
 from src.api.dependencies import (
@@ -38,7 +38,7 @@ from src.grid.order_tracker import OrderStatus, TrackedOrder
 from src.strategy.macd_strategy import GridState
 
 # Test database URL
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
 # =============================================================================
@@ -47,25 +47,26 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
 @pytest.fixture
-async def async_engine():
+def engine():
     """Create async test database engine."""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    engine = create_engine(TEST_DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
     yield engine
-    await engine.dispose()
+    engine.dispose()
 
 
 @pytest.fixture
-async def async_session(async_engine):
-    """Create async test database session."""
-    async_session_maker = sessionmaker(async_engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session_maker() as session:
-        yield session
+def session(engine):
+    """Create test database session."""
+    session_maker = sessionmaker(engine, class_=Session, expire_on_commit=False)
+    session = session_maker()
+    yield session
+    session.rollback()
+    session.close()
 
 
 @pytest.fixture
-async def test_user(async_session):
+def test_user(session):
     """Create a test user in the database."""
     user = User(
         email="integrationtest@example.com",
@@ -73,15 +74,15 @@ async def test_user(async_session):
         name="Integration Test User",
         is_active=True,
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
-    async_session.expunge_all()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    session.expunge_all()
     return user
 
 
 @pytest.fixture
-async def second_user(async_session, test_user):
+def second_user(session, test_user):
     """Create a second test user for concurrent testing."""
     user = User(
         email="concurrent@example.com",
@@ -89,10 +90,10 @@ async def second_user(async_session, test_user):
         name="Concurrent Test User",
         is_active=True,
     )
-    async_session.add(user)
-    await async_session.commit()
-    await async_session.refresh(user)
-    async_session.expunge_all()
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    session.expunge_all()
     return user
 
 
@@ -141,8 +142,8 @@ def mock_grid_manager():
     mock._margin_error_time = 0.0
 
     # Configure async methods
-    mock.start = AsyncMock()
-    mock.stop = AsyncMock()
+    mock.start = MagicMock()
+    mock.stop = MagicMock()
 
     return mock
 
@@ -153,10 +154,10 @@ def mock_bingx_client():
     mock = MagicMock()
 
     # Price data
-    mock.get_price = AsyncMock(return_value=98500.50)
+    mock.get_price = MagicMock(return_value=98500.50)
 
     # 24h ticker data
-    mock.get_ticker_24h = AsyncMock(
+    mock.get_ticker_24h = MagicMock(
         return_value={
             "lastPrice": "98500.50",
             "priceChange": "1250.25",
@@ -168,7 +169,7 @@ def mock_bingx_client():
     )
 
     # Funding rate data
-    mock.get_funding_rate = AsyncMock(
+    mock.get_funding_rate = MagicMock(
         return_value={
             "lastFundingRate": "0.0001",
             "nextFundingTime": int((datetime.now(UTC) + timedelta(hours=4)).timestamp() * 1000),
@@ -177,7 +178,7 @@ def mock_bingx_client():
     )
 
     # Klines data for MACD calculation
-    mock.get_klines = AsyncMock(
+    mock.get_klines = MagicMock(
         return_value=[
             {"close": 98000 + i * 50, "timestamp": 1704067200000 + i * 3600000} for i in range(100)
         ]
@@ -260,13 +261,11 @@ def mock_order_tracker():
 
 
 @pytest.fixture
-def client(
-    async_session, mock_grid_manager, mock_bingx_client, mock_macd_strategy, mock_grid_calculator
-):
+def client(session, mock_grid_manager, mock_bingx_client, mock_macd_strategy, mock_grid_calculator):
     """Create test client with all mocked dependencies."""
 
-    async def override_get_db():
-        yield async_session
+    def override_get_db():
+        yield session
 
     def override_get_grid_manager():
         return mock_grid_manager
@@ -557,7 +556,7 @@ class TestWebSocketIntegration:
         # Mock authenticate_websocket to return the test user's email
         with patch(
             "src.api.websocket.dashboard_ws.authenticate_websocket",
-            new=AsyncMock(return_value=test_user.email),
+            new=MagicMock(return_value=test_user.email),
         ):
             # Connect to WebSocket with valid token (path is /ws/dashboard, not /api/v1/ws/dashboard)
             with client.websocket_connect(f"/ws/dashboard?token={auth_token}") as websocket:
@@ -583,7 +582,7 @@ class TestWebSocketIntegration:
         # Mock authenticate_websocket to return None (auth failure)
         with patch(
             "src.api.websocket.dashboard_ws.authenticate_websocket",
-            new=AsyncMock(return_value=None),
+            new=MagicMock(return_value=None),
         ):
             with pytest.raises(WebSocketDisconnect):
                 with client.websocket_connect("/ws/dashboard?token=invalid_token") as websocket:
@@ -593,7 +592,7 @@ class TestWebSocketIntegration:
         """Test WebSocket event subscription flow."""
         with patch(
             "src.api.websocket.dashboard_ws.authenticate_websocket",
-            new=AsyncMock(return_value=test_user.email),
+            new=MagicMock(return_value=test_user.email),
         ):
             with client.websocket_connect(f"/ws/dashboard?token={auth_token}") as websocket:
                 # Receive connection established
@@ -614,7 +613,7 @@ class TestErrorHandling:
         headers = {"Authorization": f"Bearer {auth_token}"}
 
         # Simulate BingX API failure
-        mock_bingx_client.get_ticker_24h = AsyncMock(side_effect=Exception("BingX API unavailable"))
+        mock_bingx_client.get_ticker_24h = MagicMock(side_effect=Exception("BingX API unavailable"))
 
         response = client.get("/api/v1/market/price", headers=headers)
         assert response.status_code == 500

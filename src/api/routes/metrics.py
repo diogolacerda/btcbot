@@ -187,8 +187,8 @@ async def get_performance_metrics_current(
         period_start, period_end = _calculate_period_dates(period, start_date, end_date)
 
         # Fetch period trades and all trades in parallel
-        period_trades = await trade_repo.get_trades_by_period(account_id, period_start, period_end)
-        all_trades = await trade_repo.get_trades_by_account(account_id, limit=100000, offset=0)
+        period_trades = trade_repo.get_trades_by_period(account_id, period_start, period_end)
+        all_trades = trade_repo.get_trades_by_account(account_id, limit=100000, offset=0)
 
         # Calculate metrics
         period_metrics = _calculate_metrics_from_trades(
@@ -250,8 +250,8 @@ async def get_performance_metrics(
         period_start, period_end = _calculate_period_dates(period, start_date, end_date)
 
         # Fetch period trades and all trades in parallel
-        period_trades = await trade_repo.get_trades_by_period(account_id, period_start, period_end)
-        all_trades = await trade_repo.get_trades_by_account(account_id, limit=100000, offset=0)
+        period_trades = trade_repo.get_trades_by_period(account_id, period_start, period_end)
+        all_trades = trade_repo.get_trades_by_account(account_id, limit=100000, offset=0)
 
         # Calculate metrics
         period_metrics = _calculate_metrics_from_trades(
