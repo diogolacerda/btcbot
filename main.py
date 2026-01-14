@@ -5,6 +5,7 @@ BTC Grid Bot - Sistema de Grid Trading para BingX
 Grid trading com estratégia MACD para futuros perpétuos BTC-USDT.
 """
 
+import asyncio
 import sys
 import time
 from decimal import Decimal
@@ -23,13 +24,13 @@ from src.database.repositories.macd_filter_config_repository import MACDFilterCo
 from src.database.repositories.strategy_repository import StrategyRepository
 from src.database.repositories.tp_adjustment_repository import TPAdjustmentRepository
 from src.grid.grid_manager import GridManager
-from src.health.health_server import HealthServer
+from src.health.health_server import HealthServer  # type: ignore
 from src.strategy.macd_strategy import GridState
 from src.ui.alerts import AudioAlerts
 from src.utils.logger import main_logger
 
 
-def run_api_server() -> None:
+async def run_api_server() -> None:
     """Run FastAPI server on port 8081."""
     config = uvicorn.Config(
         "src.api.main:app",
@@ -41,7 +42,7 @@ def run_api_server() -> None:
     server = uvicorn.Server(config)
     main_logger.info("FastAPI server starting on http://0.0.0.0:8081")
     main_logger.info("API docs available at http://localhost:8081/docs")
-    server.serve()
+    await server.serve()
 
 
 def run_bot() -> None:
@@ -432,8 +433,8 @@ def run_bot() -> None:
     # This enables GridManager to receive prices via WebSocket instead of REST API polling
     price_streamer.set_price_callback(grid_manager.update_price_from_websocket)
 
-    # Start price streamer for real-time dashboard updates
-    price_streamer.start()
+    # Start price streamer for real-time dashboard updates (async service)
+    asyncio.run(price_streamer.start())
 
     main_logger.info("Bot iniciado. Pressione Ctrl+C para encerrar.")
 
@@ -466,7 +467,7 @@ def run_bot() -> None:
         pass
     finally:
         main_logger.info("Encerrando bot...")
-        price_streamer.stop()
+        asyncio.run(price_streamer.stop())
         grid_manager.stop()
         health_server.stop()
         client.close()

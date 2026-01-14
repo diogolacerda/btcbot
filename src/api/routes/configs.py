@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_account_id, get_current_active_user
 from src.api.schemas.config import (
@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/v1/configs", tags=["configs"])
 
 # Dependency functions
 async def get_trading_config_repo(
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: Annotated[Session, Depends(get_session)],
 ) -> TradingConfigRepository:
     """Get trading config repository instance.
 
@@ -39,7 +39,7 @@ async def get_trading_config_repo(
 
 
 async def get_grid_config_repo(
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: Annotated[Session, Depends(get_session)],
 ) -> GridConfigRepository:
     """Get grid config repository instance.
 

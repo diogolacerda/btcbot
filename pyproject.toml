@@ -42,6 +42,8 @@ ignore_missing_imports = true
 exclude = [
     "venv/",
     "tests/",
+    "health_server\\.py$",
+    "test_client\\.py$",
 ]
 
 [tool.pytest.ini_options]

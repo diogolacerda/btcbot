@@ -35,14 +35,16 @@ def session(engine):
 
 
 @pytest.fixture
-def client(session):
+def client(engine):
     """Create test client with overridden database dependency."""
 
     def override_get_db():
+        session_maker = sessionmaker(engine, class_=Session, expire_on_commit=False)
+        session = session_maker()
         try:
             yield session
         finally:
-            pass
+            session.close()
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:

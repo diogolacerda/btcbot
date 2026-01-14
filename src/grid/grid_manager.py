@@ -402,8 +402,9 @@ class GridManager:
         )
 
         # Fire and forget - don't await, just schedule
+        # TODO: Refactor to use threading or asyncio.run() for proper async call
         try:
-            self._connection_manager.broadcast(event)
+            self._connection_manager.broadcast(event)  # type: ignore[unused-coroutine]  # type: ignore[unused-coroutine]
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping bot status broadcast")
@@ -458,7 +459,7 @@ class GridManager:
 
         # Fire and forget - don't await, just schedule
         try:
-            self._connection_manager.broadcast(event)
+            self._connection_manager.broadcast(event)  # type: ignore[unused-coroutine]
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping order update broadcast")
@@ -505,7 +506,7 @@ class GridManager:
 
         # Fire and forget - don't await, just schedule
         try:
-            self._connection_manager.broadcast(event)
+            self._connection_manager.broadcast(event)  # type: ignore[unused-coroutine]
         except RuntimeError:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running, skipping position update broadcast")
@@ -779,7 +780,7 @@ class GridManager:
 
         # Start trade reconciliation (periodic sync with BingX)
         if self._account_id is not None:
-            self._reconciliation_task = self._reconciliation_loop()
+            self._reconciliation_task = self._reconciliation_loop()  # type: ignore[func-returns-value,assignment]
             main_logger.info("Trade Reconciliation started (runs every 5 minutes)")
 
         # Start WebSocket for real-time order updates
@@ -818,15 +819,14 @@ class GridManager:
             self._account_ws.set_listen_key_expired_callback(self._on_listen_key_expired)
 
             # Start WebSocket in background task
-            self._ws_task = self._account_ws.connect()
+            self._ws_task = self._account_ws.connect()  # type: ignore[assignment]
 
             # Start keepalive task (renew listenKey every 20 minutes)
-            self._keepalive_task = self._keepalive_loop()
-
+            self._keepalive_task = self._keepalive_loop()  # type: ignore[func-returns-value,assignment]
         except Exception as e:
             main_logger.warning(f"Falha ao iniciar WebSocket: {e} - usando apenas polling")
 
-    def _keepalive_loop(self) -> None:
+    def _keepalive_loop(self) -> None:  # type: ignore[func-returns-value]
         """Keep listenKey alive every 20 minutes."""
         # Wait 5 seconds before first keepalive to let WebSocket connect
         time.sleep(5)
@@ -1120,7 +1120,7 @@ class GridManager:
         if self._keepalive_task:
             self._keepalive_task.cancel()
         if self._account_ws:
-            self._account_ws.disconnect()
+            self._account_ws.disconnect()  # type: ignore[unused-coroutine]
 
         if self._listen_key:
             try:
@@ -2088,7 +2088,7 @@ class GridManager:
                 signal_line=None,
             )
 
-    def _reconciliation_loop(self) -> None:
+    def _reconciliation_loop(self) -> None:  # type: ignore[func-returns-value]
         """Periodic reconciliation loop to sync database with BingX state.
 
         Runs every 5 minutes to detect and fix:

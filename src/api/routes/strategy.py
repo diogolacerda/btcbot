@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_account_id, get_current_active_user
 from src.api.schemas.strategy import (
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/api/v1/strategies", tags=["strategies"])
 
 
 async def get_strategy_repo(
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: Annotated[Session, Depends(get_session)],
 ) -> StrategyRepository:
     """Get strategy repository instance.
 
@@ -42,7 +42,7 @@ async def get_strategy_repo(
 
 
 async def get_macd_filter_config_repo(
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: Annotated[Session, Depends(get_session)],
 ) -> MACDFilterConfigRepository:
     """Get MACD filter config repository instance.
 
@@ -56,7 +56,7 @@ async def get_macd_filter_config_repo(
 
 
 async def get_ema_filter_config_repo(
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: Annotated[Session, Depends(get_session)],
 ) -> EMAFilterConfigRepository:
     """Get EMA filter config repository instance.
 

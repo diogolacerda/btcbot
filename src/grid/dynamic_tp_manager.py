@@ -1,5 +1,6 @@
 """Dynamic Take Profit Manager based on funding rate."""
 
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -60,6 +61,7 @@ class DynamicTPManager:
         self._account_id = account_id
         self._activity_event_repository = activity_event_repository
         self._running = False
+        self._thread: threading.Thread | None = None
         self._last_update: dict[str, datetime] = {}  # order_id -> last update time
         self._update_history: list[PositionTPUpdate] = []
 
@@ -116,7 +118,8 @@ class DynamicTPManager:
             return
 
         self._running = True
-        self._task = self._monitor_loop()
+        self._thread = threading.Thread(target=self._monitor_loop, daemon=True)
+        self._thread.start()
         orders_logger.info(
             f"Dynamic TP Manager started (check every {self.config.check_interval_minutes}min)"
         )
@@ -124,9 +127,9 @@ class DynamicTPManager:
     def stop(self) -> None:
         """Stop the dynamic TP monitoring task."""
         self._running = False
-        if self._task:
-            self._task.cancel()
-            self._task = None
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5)
+            self._thread = None
         orders_logger.info("Dynamic TP Manager stopped")
 
     def _monitor_loop(self) -> None:

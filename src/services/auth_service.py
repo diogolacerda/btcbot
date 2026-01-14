@@ -45,11 +45,12 @@ class AuthService:
             ValueError: If jwt_secret is not provided and JWT_SECRET_KEY env var is not set.
         """
         self.user_repository = UserRepository(session)
-        self.jwt_secret = jwt_secret or os.getenv("JWT_SECRET_KEY")
-        if not self.jwt_secret:
+        secret_key = jwt_secret or os.getenv("JWT_SECRET_KEY")
+        if not secret_key:
             raise ValueError(
                 "JWT secret key is required. Set JWT_SECRET_KEY environment variable or pass jwt_secret parameter."
             )
+        self.jwt_secret: str = secret_key  # Type narrowed after validation
         self.jwt_algorithm = jwt_algorithm
         self.jwt_expiration_hours = jwt_expiration_hours
 

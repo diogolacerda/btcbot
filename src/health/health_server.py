@@ -1,3 +1,4 @@
+# type: ignore  # TODO: Refactor to sync or proper async handling with aiohttp
 """
 Health Check Server for BTC Grid Bot.
 

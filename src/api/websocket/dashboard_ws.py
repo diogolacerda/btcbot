@@ -49,8 +49,8 @@ async def authenticate_websocket(token: str) -> str | None:
 
         # Verify user exists and is active
         session_maker = get_session_maker()
-        async with session_maker() as session:
-            result = await session.execute(select(User).where(User.email == email))
+        with session_maker() as session:
+            result = session.execute(select(User).where(User.email == email))
             user = result.scalar_one_or_none()
 
             if user is None:

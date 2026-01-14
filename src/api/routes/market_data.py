@@ -149,7 +149,7 @@ async def get_price(
                 )
 
                 # Broadcast to all connected clients
-                connection_manager.broadcast(WebSocketEvent.price_update(price_event))
+                await connection_manager.broadcast(WebSocketEvent.price_update(price_event))
                 logger.debug(f"Price update broadcast: {symbol} @ ${current_price}")
             else:
                 # Log throttle reason for debugging
