@@ -86,7 +86,7 @@ class TestDynamicTPManagerBasic:
         manager.start()
 
         assert manager._running is False
-        assert manager._task is None
+        assert manager._thread is None
 
     def test_start_when_enabled(self):
         """Test that start creates monitoring task when enabled."""
@@ -95,7 +95,7 @@ class TestDynamicTPManagerBasic:
         manager.start()
 
         assert manager._running is True
-        assert manager._task is not None
+        assert manager._thread is not None
 
         # Cleanup
         manager.stop()
@@ -109,19 +109,19 @@ class TestDynamicTPManagerBasic:
 
         manager.stop()
         assert manager._running is False
-        assert manager._task is None
+        assert manager._thread is None
 
     def test_double_start(self):
         """Test that starting twice doesn't create multiple tasks."""
         manager = self._create_manager(enabled=True)
 
         manager.start()
-        task1 = manager._task
+        thread1 = manager._thread
 
         manager.start()
-        task2 = manager._task
+        thread2 = manager._thread
 
-        assert task1 is task2
+        assert thread1 is thread2
 
         manager.stop()
 
