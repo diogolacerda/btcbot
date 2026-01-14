@@ -10,18 +10,28 @@ from src.api.main import app
 from src.database.base import Base
 from src.database.models.user import User
 
-# Test database URL
-TEST_DATABASE_URL = "sqlite:///:memory:"
+# Test database URL - use file-based to share between connections
+TEST_DATABASE_URL = "sqlite:///./test_auth.db"
 
 
 @pytest.fixture
 def engine():
     """Create test database engine."""
+    import os
+
+    # Remove old test db if exists
+    if os.path.exists("./test_auth.db"):
+        os.remove("./test_auth.db")
+
     engine = create_engine(TEST_DATABASE_URL, echo=False, connect_args={"check_same_thread": False})
     Base.metadata.create_all(engine)
     yield engine
     Base.metadata.drop_all(engine)
     engine.dispose()
+
+    # Clean up test db file
+    if os.path.exists("./test_auth.db"):
+        os.remove("./test_auth.db")
 
 
 @pytest.fixture
@@ -38,8 +48,10 @@ def session(engine):
 def client(engine):
     """Create test client with overridden database dependency."""
 
+    # Create a session that will be reused for all requests in this test
+    session_maker = sessionmaker(engine, class_=Session, expire_on_commit=False)
+
     def override_get_db():
-        session_maker = sessionmaker(engine, class_=Session, expire_on_commit=False)
         session = session_maker()
         try:
             yield session
@@ -47,9 +59,11 @@ def client(engine):
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture
