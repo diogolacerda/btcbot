@@ -135,7 +135,7 @@ class TestWebSocketConnection:
     @pytest.mark.skip(
         reason="Session isolation issue with SQLite in-memory DB - works in production"
     )
-    async def test_connect_with_valid_token(self, client, test_user, valid_token):
+    def test_connect_with_valid_token(self, client, test_user, valid_token):
         """Test successful WebSocket connection with valid JWT."""
         with client.websocket_connect(f"/ws/dashboard?token={valid_token}") as ws:
             # Should receive connection_established message
@@ -143,20 +143,20 @@ class TestWebSocketConnection:
             assert data["type"] == "connection_established"
             assert data["data"]["user"] == test_user.email
 
-    async def test_connect_without_token(self, client):
+    def test_connect_without_token(self, client):
         """Test WebSocket connection without token fails."""
         # WebSocket requires token query param - missing param causes validation error
         with pytest.raises((WebSocketDisconnect, ValueError, KeyError)):
             with client.websocket_connect("/ws/dashboard"):
                 pass
 
-    async def test_connect_with_invalid_token(self, client):
+    def test_connect_with_invalid_token(self, client):
         """Test WebSocket connection with invalid token is rejected."""
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect("/ws/dashboard?token=invalid-token"):
                 pass
 
-    async def test_connect_with_expired_token(self, client, expired_token):
+    def test_connect_with_expired_token(self, client, expired_token):
         """Test WebSocket connection with expired token is rejected."""
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect(f"/ws/dashboard?token={expired_token}"):
@@ -166,7 +166,7 @@ class TestWebSocketConnection:
 class TestWebSocketEvents:
     """Tests for WebSocket event types."""
 
-    async def test_bot_status_event_creation(self):
+    def test_bot_status_event_creation(self):
         """Test creating a bot status event."""
         status = BotStatusEvent(
             state="ACTIVE",
@@ -182,7 +182,7 @@ class TestWebSocketEvents:
         assert event.data.state == "ACTIVE"
         assert event.data.is_running is True
 
-    async def test_position_update_event_creation(self):
+    def test_position_update_event_creation(self):
         """Test creating a position update event."""
         position = PositionUpdateEvent(
             symbol="BTC-USDT",
@@ -199,7 +199,7 @@ class TestWebSocketEvents:
         assert event.type == WebSocketEventType.POSITION_UPDATE
         assert event.data.symbol == "BTC-USDT"
 
-    async def test_order_update_event_creation(self):
+    def test_order_update_event_creation(self):
         """Test creating an order update event."""
         now = datetime.now()
         order = OrderUpdateEvent(
@@ -225,7 +225,7 @@ class TestWebSocketEvents:
         assert event.data.side == "LONG"
         assert event.data.tp_price == "50500.00"
 
-    async def test_price_update_event_creation(self):
+    def test_price_update_event_creation(self):
         """Test creating a price update event."""
         price = PriceUpdateEvent(
             symbol="BTC-USDT",
@@ -239,20 +239,20 @@ class TestWebSocketEvents:
         assert event.type == WebSocketEventType.PRICE_UPDATE
         assert event.data.price == "50000.00"
 
-    async def test_heartbeat_event_creation(self):
+    def test_heartbeat_event_creation(self):
         """Test creating a heartbeat event."""
         event = WebSocketEvent.heartbeat()
         assert event.type == WebSocketEventType.HEARTBEAT
         assert event.timestamp is not None
 
-    async def test_error_event_creation(self):
+    def test_error_event_creation(self):
         """Test creating an error event."""
         event = WebSocketEvent.error("test_error", "Test error message")
         assert event.type == WebSocketEventType.ERROR
         assert event.data.code == "test_error"
         assert event.data.message == "Test error message"
 
-    async def test_event_json_serialization(self):
+    def test_event_json_serialization(self):
         """Test that events can be serialized to JSON."""
         status = BotStatusEvent(
             state="ACTIVE",
@@ -272,7 +272,7 @@ class TestWebSocketEvents:
 class TestConnectionManager:
     """Tests for ConnectionManager functionality."""
 
-    async def test_connection_manager_singleton(self):
+    def test_connection_manager_singleton(self):
         """Test that ConnectionManager is a singleton."""
         # Reset singleton
         ConnectionManager._instance = None
@@ -282,11 +282,11 @@ class TestConnectionManager:
         manager2 = get_connection_manager()
         assert manager1 is manager2
 
-    async def test_initial_connection_count(self, connection_manager):
+    def test_initial_connection_count(self, connection_manager):
         """Test that initial connection count is zero."""
         assert connection_manager.active_connections_count == 0
 
-    async def test_get_connection_stats_empty(self, connection_manager):
+    def test_get_connection_stats_empty(self, connection_manager):
         """Test connection stats with no connections."""
         stats = connection_manager.get_connection_stats()
         assert stats["total_connections"] == 0
@@ -299,7 +299,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.skip(
         reason="Session isolation issue with SQLite in-memory DB - works in production"
     )
-    async def test_ping_pong(self, client, test_user, valid_token):
+    def test_ping_pong(self, client, test_user, valid_token):
         """Test ping/pong message handling."""
         with client.websocket_connect(f"/ws/dashboard?token={valid_token}") as ws:
             # Skip connection message
@@ -316,7 +316,7 @@ class TestWebSocketMessageHandling:
     @pytest.mark.skip(
         reason="Session isolation issue with SQLite in-memory DB - works in production"
     )
-    async def test_subscribe_to_events(self, client, test_user, valid_token):
+    def test_subscribe_to_events(self, client, test_user, valid_token):
         """Test subscribing to specific event types."""
         with client.websocket_connect(f"/ws/dashboard?token={valid_token}") as ws:
             # Skip connection message
@@ -335,7 +335,7 @@ class TestWebSocketMessageHandling:
 class TestActivityEventCreation:
     """Tests for activity event creation."""
 
-    async def test_activity_event_creation(self):
+    def test_activity_event_creation(self):
         """Test creating an activity event."""
         activity = ActivityEventData(
             event_type="order_placed",
@@ -352,7 +352,7 @@ class TestActivityEventCreation:
         assert event.data.metadata is not None
         assert event.data.metadata["order_id"] == "12345"
 
-    async def test_activity_event_without_metadata(self):
+    def test_activity_event_without_metadata(self):
         """Test activity event without optional metadata."""
         activity = ActivityEventData(
             event_type="grid_activated",
@@ -365,7 +365,7 @@ class TestActivityEventCreation:
         assert event.type == WebSocketEventType.ACTIVITY_EVENT
         assert event.data.metadata is None
 
-    async def test_activity_event_all_severity_levels(self):
+    def test_activity_event_all_severity_levels(self):
         """Test activity events with all severity levels."""
         severities = ["info", "warning", "error", "success"]
 
@@ -716,7 +716,7 @@ class TestHeartbeatFunctionality:
 class TestEventSerialization:
     """Tests for complete event serialization."""
 
-    async def test_all_event_types_serialize_to_json(self):
+    def test_all_event_types_serialize_to_json(self):
         """Test that all event types can be serialized to JSON."""
         events = [
             WebSocketEvent.bot_status(
@@ -785,13 +785,13 @@ class TestEventSerialization:
             event_type = event.type if isinstance(event.type, str) else event.type.value
             assert event_type in json_str
 
-    async def test_event_timestamp_is_present(self):
+    def test_event_timestamp_is_present(self):
         """Test that all events have a timestamp."""
         event = WebSocketEvent.heartbeat()
         assert event.timestamp is not None
         assert isinstance(event.timestamp, datetime)
 
-    async def test_connection_established_event(self):
+    def test_connection_established_event(self):
         """Test creating a connection established event."""
         event = WebSocketEvent(
             type=WebSocketEventType.CONNECTION_ESTABLISHED,
@@ -803,7 +803,7 @@ class TestEventSerialization:
         assert "connection_established" in json_str
         assert "test@example.com" in json_str
 
-    async def test_subscription_confirmed_event(self):
+    def test_subscription_confirmed_event(self):
         """Test creating a subscription confirmed event."""
         event = WebSocketEvent(
             type=WebSocketEventType.SUBSCRIPTION_CONFIRMED,
@@ -815,7 +815,7 @@ class TestEventSerialization:
         assert "subscription_confirmed" in json_str
         assert "bot_status" in json_str
 
-    async def test_pong_event(self):
+    def test_pong_event(self):
         """Test creating a pong event."""
         event = WebSocketEvent(
             type=WebSocketEventType.PONG,

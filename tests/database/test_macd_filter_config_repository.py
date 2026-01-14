@@ -216,7 +216,8 @@ class TestMACDFilterConfigRepository:
         assert repository.exists(uuid4()) is False
 
         # Test delete
-        assert repository.delete(config.id) is True
+        result = repository.delete(config.id)
+        assert result is True
         assert repository.get_by_id(config.id) is None
 
     def test_create_config_disabled(
