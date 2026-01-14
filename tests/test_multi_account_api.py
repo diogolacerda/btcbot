@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 from uuid import uuid4
 
 from aiohttp import web
-from aiohttp.test_utils import AioHTTPTestCase, unittest_run_loop
+from aiohttp.test_utils import AioHTTPTestCase
 
 from src.database.models.grid_config import GridConfig
 from src.database.models.trading_config import TradingConfig
@@ -20,7 +20,7 @@ from src.health.health_server import HealthServer
 class TestMultiAccountTradingConfigAPI(AioHTTPTestCase):
     """Test multi-account trading config API endpoints."""
 
-    def get_application(self):
+    async def get_application(self):
         """Create test application with HealthServer routes."""
         # Create mock repository
         self.trading_config_repo_mock = MagicMock()
@@ -89,55 +89,50 @@ class TestMultiAccountTradingConfigAPI(AioHTTPTestCase):
 
         return app
 
-    @unittest_run_loop
-    def test_get_trading_config_multi_account_1(self):
+    async def test_get_trading_config_multi_account_1(self):
         """Test GET with account_id returns correct config for account 1."""
-        resp = self.client.get(f"/api/accounts/{self.account_id_1}/configs/trading")
+        resp = await self.client.get(f"/api/accounts/{self.account_id_1}/configs/trading")
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["account_id"] == str(self.account_id_1)
         assert data["symbol"] == "BTC-USDT"
         assert data["leverage"] == 10
         assert data["order_size_usdt"] == 100.00
         assert data["take_profit_percent"] == 0.50
 
-    @unittest_run_loop
-    def test_get_trading_config_multi_account_2(self):
+    async def test_get_trading_config_multi_account_2(self):
         """Test GET with account_id returns correct config for account 2."""
-        resp = self.client.get(f"/api/accounts/{self.account_id_2}/configs/trading")
+        resp = await self.client.get(f"/api/accounts/{self.account_id_2}/configs/trading")
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["account_id"] == str(self.account_id_2)
         assert data["symbol"] == "ETH-USDT"
         assert data["leverage"] == 20
         assert data["order_size_usdt"] == 200.00
         assert data["take_profit_percent"] == 1.00
 
-    @unittest_run_loop
-    def test_get_trading_config_invalid_uuid(self):
+    async def test_get_trading_config_invalid_uuid(self):
         """Test GET with invalid UUID returns 400."""
-        resp = self.client.get("/api/accounts/invalid-uuid/configs/trading")
+        resp = await self.client.get("/api/accounts/invalid-uuid/configs/trading")
         assert resp.status == 400
 
-        data = resp.json()
+        data = await resp.json()
         assert "error" in data
         assert "Invalid account_id" in data["error"]
 
-    @unittest_run_loop
-    def test_get_trading_config_not_found(self):
+    async def test_get_trading_config_not_found(self):
         """Test GET with non-existent account returns 404."""
         non_existent_id = uuid4()
-        resp = self.client.get(f"/api/accounts/{non_existent_id}/configs/trading")
+        resp = await self.client.get(f"/api/accounts/{non_existent_id}/configs/trading")
         assert resp.status == 404
 
-        data = resp.json()
+        data = await resp.json()
         assert "error" in data
         assert "No trading configuration found" in data["error"]
 
-    @unittest_run_loop
-    def test_put_trading_config_multi_account(self):
+    async def test_put_trading_config_multi_account(self):
         """Test PUT with account_id updates config for specific account."""
         # Configure mock to return updated config
         from datetime import UTC, datetime
@@ -154,7 +149,7 @@ class TestMultiAccountTradingConfigAPI(AioHTTPTestCase):
         updated_config.updated_at = datetime.now(UTC)
         self.trading_config_repo_mock.create_or_update.return_value = updated_config
 
-        resp = self.client.put(
+        resp = await self.client.put(
             f"/api/accounts/{self.account_id_1}/configs/trading",
             json={
                 "symbol": "BTC-USDT",
@@ -166,13 +161,12 @@ class TestMultiAccountTradingConfigAPI(AioHTTPTestCase):
         )
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["message"] == "Trading configuration updated successfully"
         assert data["config"]["account_id"] == str(self.account_id_1)
         assert data["config"]["leverage"] == 15
 
-    @unittest_run_loop
-    def test_patch_trading_config_multi_account(self):
+    async def test_patch_trading_config_multi_account(self):
         """Test PATCH with account_id updates specific fields for account."""
         # Configure mock to return updated config
         from datetime import UTC, datetime
@@ -189,13 +183,13 @@ class TestMultiAccountTradingConfigAPI(AioHTTPTestCase):
         updated_config.updated_at = datetime.now(UTC)
         self.trading_config_repo_mock.create_or_update.return_value = updated_config
 
-        resp = self.client.patch(
+        resp = await self.client.patch(
             f"/api/accounts/{self.account_id_2}/configs/trading",
             json={"leverage": 25},
         )
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["message"] == "Trading configuration updated successfully"
         assert "updated_fields" in data
         assert "leverage" in data["updated_fields"]
@@ -206,7 +200,7 @@ class TestMultiAccountTradingConfigAPI(AioHTTPTestCase):
 class TestMultiAccountGridConfigAPI(AioHTTPTestCase):
     """Test multi-account grid config API endpoints."""
 
-    def get_application(self):
+    async def get_application(self):
         """Create test application with HealthServer routes."""
         # Create mock repository
         self.grid_config_repo_mock = MagicMock()
@@ -283,42 +277,38 @@ class TestMultiAccountGridConfigAPI(AioHTTPTestCase):
 
         return app
 
-    @unittest_run_loop
-    def test_get_grid_config_multi_account_1(self):
+    async def test_get_grid_config_multi_account_1(self):
         """Test GET with account_id returns correct config for account 1."""
-        resp = self.client.get(f"/api/accounts/{self.account_id_1}/configs/grid")
+        resp = await self.client.get(f"/api/accounts/{self.account_id_1}/configs/grid")
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["spacing_type"] == "fixed"
         assert data["spacing_value"] == 100.0
         assert data["range_percent"] == 5.0
         assert data["max_total_orders"] == 10
 
-    @unittest_run_loop
-    def test_get_grid_config_multi_account_2(self):
+    async def test_get_grid_config_multi_account_2(self):
         """Test GET with account_id returns correct config for account 2."""
-        resp = self.client.get(f"/api/accounts/{self.account_id_2}/configs/grid")
+        resp = await self.client.get(f"/api/accounts/{self.account_id_2}/configs/grid")
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["spacing_type"] == "percentage"
         assert data["spacing_value"] == 2.5
         assert data["range_percent"] == 10.0
         assert data["max_total_orders"] == 20
 
-    @unittest_run_loop
-    def test_get_grid_config_invalid_uuid(self):
+    async def test_get_grid_config_invalid_uuid(self):
         """Test GET with invalid UUID returns 400."""
-        resp = self.client.get("/api/accounts/not-a-uuid/configs/grid")
+        resp = await self.client.get("/api/accounts/not-a-uuid/configs/grid")
         assert resp.status == 400
 
-        data = resp.json()
+        data = await resp.json()
         assert "error" in data
         assert "Invalid account_id" in data["error"]
 
-    @unittest_run_loop
-    def test_put_grid_config_multi_account(self):
+    async def test_put_grid_config_multi_account(self):
         """Test PUT with account_id updates config for specific account."""
         # Configure mock to return updated config
         updated_config = GridConfig(
@@ -332,7 +322,7 @@ class TestMultiAccountGridConfigAPI(AioHTTPTestCase):
         )
         self.grid_config_repo_mock.save_config.return_value = updated_config
 
-        resp = self.client.put(
+        resp = await self.client.put(
             f"/api/accounts/{self.account_id_1}/configs/grid",
             json={
                 "spacing_type": "percentage",
@@ -345,11 +335,10 @@ class TestMultiAccountGridConfigAPI(AioHTTPTestCase):
         )
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["message"] == "Grid configuration updated successfully"
 
-    @unittest_run_loop
-    def test_patch_grid_config_multi_account(self):
+    async def test_patch_grid_config_multi_account(self):
         """Test PATCH with account_id updates specific fields."""
         # Configure mock to return updated config
         updated_config = GridConfig(
@@ -363,21 +352,20 @@ class TestMultiAccountGridConfigAPI(AioHTTPTestCase):
         )
         self.grid_config_repo_mock.save_config.return_value = updated_config
 
-        resp = self.client.patch(
+        resp = await self.client.patch(
             f"/api/accounts/{self.account_id_2}/configs/grid",
             json={"range_percent": 12.0},
         )
         assert resp.status == 200
 
-        data = resp.json()
+        data = await resp.json()
         assert data["message"] == "Grid configuration updated successfully"
         assert "updated_fields" in data
         assert "range_percent" in data["updated_fields"]
 
-    @unittest_run_loop
-    def test_put_grid_config_invalid_account_id(self):
+    async def test_put_grid_config_invalid_account_id(self):
         """Test PUT with invalid account_id returns 400."""
-        resp = self.client.put(
+        resp = await self.client.put(
             "/api/accounts/bad-id/configs/grid",
             json={
                 "spacing_type": "fixed",
@@ -390,6 +378,6 @@ class TestMultiAccountGridConfigAPI(AioHTTPTestCase):
         )
         assert resp.status == 400
 
-        data = resp.json()
+        data = await resp.json()
         assert "error" in data
         assert "Invalid account_id" in data["error"]
