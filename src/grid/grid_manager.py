@@ -263,16 +263,16 @@ class GridManager:
             )
         return self.config.dynamic_tp
 
-    def _log_activity_event(
+    async def _log_activity_event(
         self,
         event_type: EventType,
         description: str,
         event_data: dict | None = None,
     ) -> None:
-        """Log an activity event to the database and broadcast via WebSocket (fire-and-forget).
+        """Log an activity event to the database and broadcast via WebSocket sequentially.
 
-        This method is non-blocking and failures will not crash the bot.
-        Uses asyncio.create_task for fire-and-forget behavior.
+        This method executes database persistence and broadcasting sequentially (not fire-and-forget).
+        Failures will be logged but won't crash the bot.
 
         Args:
             event_type: EventType enum value (e.g., EventType.BOT_STARTED)
@@ -282,57 +282,44 @@ class GridManager:
         if not self._activity_event_repository or not self._account_id:
             return
 
-        # Capture values for closure (type narrowing)
-        repo = self._activity_event_repository
-        account_id = self._account_id
-        connection_manager = self._connection_manager
-
-        async def _do_log():
-            try:
-                # Persist to database
-                await repo.create_event(
-                    account_id=account_id,
-                    event_type=event_type,
-                    description=description,
-                    event_data=event_data,
-                )
-                main_logger.debug(f"Activity event logged: {event_type}")
-
-                # Broadcast via WebSocket if clients are connected
-                if connection_manager and connection_manager.active_connections_count > 0:
-                    from datetime import datetime
-
-                    # Determine severity based on event type
-                    severity = "info"
-                    if event_type == EventType.ERROR_OCCURRED:
-                        severity = "error"
-                    elif event_type in (EventType.TRADE_CLOSED, EventType.ORDER_FILLED):
-                        severity = "success"
-                    elif event_type in (EventType.STRATEGY_PAUSED, EventType.BOT_STOPPED):
-                        severity = "warning"
-
-                    # Create WebSocket event
-                    activity_data = ActivityEventData(
-                        event_type=event_type.value,
-                        message=description,
-                        severity=severity,
-                        metadata=event_data,
-                        timestamp=datetime.now(),
-                    )
-
-                    ws_event = WebSocketEvent.activity_event(activity_data)
-                    await connection_manager.broadcast(ws_event)
-                    main_logger.debug(f"Activity event broadcast: {event_type}")
-
-            except Exception as e:
-                main_logger.warning(f"Failed to log/broadcast activity event: {e}")
-
-        # Fire and forget - don't await, just schedule
         try:
-            asyncio.create_task(_do_log())
-        except RuntimeError:
-            # No event loop running (e.g., during tests without async context)
-            main_logger.debug("No event loop running, skipping activity event logging")
+            # Persist to database
+            await self._activity_event_repository.create_event(
+                account_id=self._account_id,
+                event_type=event_type,
+                description=description,
+                event_data=event_data,
+            )
+            main_logger.debug(f"Activity event logged: {event_type}")
+
+            # Broadcast via WebSocket if clients are connected
+            if self._connection_manager and self._connection_manager.active_connections_count > 0:
+                from datetime import datetime
+
+                # Determine severity based on event type
+                severity = "info"
+                if event_type == EventType.ERROR_OCCURRED:
+                    severity = "error"
+                elif event_type in (EventType.TRADE_CLOSED, EventType.ORDER_FILLED):
+                    severity = "success"
+                elif event_type in (EventType.STRATEGY_PAUSED, EventType.BOT_STOPPED):
+                    severity = "warning"
+
+                # Create WebSocket event
+                activity_data = ActivityEventData(
+                    event_type=event_type.value,
+                    message=description,
+                    severity=severity,
+                    metadata=event_data,
+                    timestamp=datetime.now(),
+                )
+
+                ws_event = WebSocketEvent.activity_event(activity_data)
+                await self._connection_manager.broadcast(ws_event)
+                main_logger.debug(f"Activity event broadcast: {event_type}")
+
+        except Exception as e:
+            main_logger.warning(f"Failed to log/broadcast activity event: {e}")
 
     def _broadcast_bot_status(
         self,
@@ -655,7 +642,7 @@ class GridManager:
         main_logger.info("Grid Manager iniciando...")
 
         # Log BOT_STARTED event
-        self._log_activity_event(
+        await self._log_activity_event(
             EventType.BOT_STARTED,
             "Bot started",
             {
@@ -847,10 +834,10 @@ class GridManager:
             # Wait 20 minutes before next keepalive
             await asyncio.sleep(20 * 60)
 
-    def _on_listen_key_expired(self) -> None:
-        """Handle listenKey expiration - schedule renewal."""
-        main_logger.warning("ListenKey expirado! Agendando renovação...")
-        asyncio.create_task(self._renew_listen_key_with_retry())
+    async def _on_listen_key_expired(self) -> None:
+        """Handle listenKey expiration - renew sequentially."""
+        main_logger.warning("ListenKey expirado! Renovando...")
+        await self._renew_listen_key_with_retry()
 
     async def _renew_listen_key_with_retry(self, max_retries: int = 3) -> bool:
         """Generate new listenKey with retry logic."""
@@ -907,7 +894,7 @@ class GridManager:
             main_logger.error(f"Erro ao renovar listenKey: {e}")
             return False
 
-    def _on_ws_order_update(self, order_data: dict) -> None:
+    async def _on_ws_order_update(self, order_data: dict) -> None:
         """Handle order update from WebSocket."""
         order_id = str(order_data.get("i", ""))
         status = order_data.get("X", "")  # NEW, FILLED, CANCELED, etc.
@@ -919,8 +906,8 @@ class GridManager:
         if status == "FILLED":
             order = self.tracker.get_order(order_id)
             if order:
-                # Schedule async order_filled (persists trade to DB)
-                asyncio.create_task(self._handle_order_filled_ws(order_id, order))
+                # Handle order filled sequentially (persists trade to DB)
+                await self._handle_order_filled_ws(order_id, order)
 
         # Order canceled
         elif status == "CANCELED":
@@ -957,7 +944,7 @@ class GridManager:
         orders_logger.info(f"WS: Ordem executada em tempo real: {order_id}")
 
         # Log ORDER_FILLED event
-        self._log_activity_event(
+        await self._log_activity_event(
             EventType.ORDER_FILLED,
             f"Order filled at ${order.entry_price:,.2f}",
             {
@@ -1063,7 +1050,7 @@ class GridManager:
         except Exception as e:
             orders_logger.warning(f"Failed to update TP order ID in database: {e}")
 
-    def _on_ws_position_update(self, pos_data: dict) -> None:
+    async def _on_ws_position_update(self, pos_data: dict) -> None:
         """Handle position update from WebSocket."""
         symbol = pos_data.get("s", "")
         position_amt = float(pos_data.get("pa", 0))
@@ -1072,8 +1059,8 @@ class GridManager:
 
         # If position closed (amt = 0), mark as TP hit
         if position_amt == 0 and self.tracker.filled_orders:
-            # Schedule async handling for all TP hits
-            asyncio.create_task(self._handle_position_closed_ws())
+            # Handle position closed sequentially
+            await self._handle_position_closed_ws()
 
     async def _handle_position_closed_ws(self) -> None:
         """Handle position closed event from WebSocket (async wrapper)."""
@@ -1103,7 +1090,7 @@ class GridManager:
             orders_logger.info(f"WS: TP detectado em tempo real: {order.order_id}")
 
             # Log TRADE_CLOSED event
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.TRADE_CLOSED,
                 f"Trade closed at ${exit_price:,.2f} (+${pnl:,.2f})",
                 {
@@ -1164,7 +1151,7 @@ class GridManager:
         main_logger.info("Grid Manager encerrando...")
 
         # Log BOT_STOPPED event (capture state before clearing)
-        self._log_activity_event(
+        await self._log_activity_event(
             EventType.BOT_STOPPED,
             "Bot stopped",
             {
@@ -1262,7 +1249,7 @@ class GridManager:
             new_state = self.strategy.get_state(klines)
 
             # Update MACD filter with current state
-            self._macd_filter.set_current_state(new_state)
+            await self._macd_filter.set_current_state(new_state)
 
             # Update EMA filter with klines data
             # EMAFilter expects list format with close at index 4: [timestamp, open, high, low, close, volume]
@@ -1310,7 +1297,7 @@ class GridManager:
         except Exception as e:
             main_logger.error(f"Erro no update: {e}", exc_info=True)
             # Log ERROR_OCCURRED event for main loop errors
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.ERROR_OCCURRED,
                 f"Error in update cycle: {str(e)[:100]}",
                 {
@@ -1331,7 +1318,7 @@ class GridManager:
         # Log activity events for state changes
         if new_state == GridState.ACTIVE and old_state != GridState.ACTIVE:
             # CYCLE_ACTIVATED - entering ACTIVE state
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.CYCLE_ACTIVATED,
                 "Grid cycle activated (MACD bullish)",
                 {
@@ -1343,7 +1330,7 @@ class GridManager:
             )
         elif new_state in (GridState.PAUSE, GridState.INACTIVE) and old_state == GridState.ACTIVE:
             # STRATEGY_PAUSED - leaving ACTIVE state
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.STRATEGY_PAUSED,
                 "Grid cycle paused (MACD bearish)",
                 {
@@ -1584,7 +1571,7 @@ class GridManager:
                         "Margem insuficiente - pausando criação de ordens por 5 min"
                     )
                     # Log ERROR_OCCURRED event for margin error
-                    self._log_activity_event(
+                    await self._log_activity_event(
                         EventType.ERROR_OCCURRED,
                         "Insufficient margin - pausing order creation",
                         {
@@ -1600,7 +1587,7 @@ class GridManager:
                     self._rate_limited_until = time.time() + 480
                     main_logger.warning("Rate limit atingido - pausando por 8 min")
                     # Log ERROR_OCCURRED event for rate limit
-                    self._log_activity_event(
+                    await self._log_activity_event(
                         EventType.ERROR_OCCURRED,
                         "Rate limit reached - pausing for 8 minutes",
                         {
@@ -1780,7 +1767,7 @@ class GridManager:
                         orders_logger.info(f"Ordem detectada como EXECUTADA: {order.order_id}")
 
                         # Log ORDER_FILLED event (polling detection)
-                        self._log_activity_event(
+                        await self._log_activity_event(
                             EventType.ORDER_FILLED,
                             f"Order filled at ${order.entry_price:,.2f}",
                             {
@@ -1852,7 +1839,7 @@ class GridManager:
                     orders_logger.info(f"Posição fechada detectada: {order.order_id}")
 
                     # Log TRADE_CLOSED event (polling detection)
-                    self._log_activity_event(
+                    await self._log_activity_event(
                         EventType.TRADE_CLOSED,
                         f"Trade closed at ${exit_price:,.2f}",
                         {
@@ -1922,7 +1909,7 @@ class GridManager:
                         orders_logger.info(f"Posição parcial fechada: {order.order_id}")
 
                         # Log TRADE_CLOSED event (partial close via polling)
-                        self._log_activity_event(
+                        await self._log_activity_event(
                             EventType.TRADE_CLOSED,
                             f"Trade closed (partial) at ${exit_price:,.2f}",
                             {
@@ -1976,7 +1963,7 @@ class GridManager:
             # No event loop running (e.g., during tests without async context)
             main_logger.debug("No event loop running - skipping async cancellation")
 
-    def _on_macd_state_change(self, old_state: GridState, new_state: GridState) -> None:
+    async def _on_macd_state_change(self, old_state: GridState, new_state: GridState) -> None:
         """
         Callback when MACD state changes.
 
@@ -1995,14 +1982,10 @@ class GridManager:
         # Cancel orders if transitioning from active to inactive
         if old_state in active_states and new_state in inactive_states:
             main_logger.info(
-                f"MACD state change {old_state.value} -> {new_state.value} - scheduling order cancellation"
+                f"MACD state change {old_state.value} -> {new_state.value} - canceling orders"
             )
-            # Schedule cancellation in event loop (only if running)
-            try:
-                asyncio.create_task(self._cancel_all_limit_orders(reason=f"MACD {new_state.value}"))
-            except RuntimeError:
-                # No event loop running (e.g., during tests without async context)
-                main_logger.debug("No event loop running - skipping async cancellation")
+            # Cancel orders sequentially
+            await self._cancel_all_limit_orders(reason=f"MACD {new_state.value}")
 
         # Log activity events for state transitions
         event_data = {
@@ -2016,7 +1999,7 @@ class GridManager:
 
         # CYCLE_ACTIVATED: when transitioning TO ACTIVATE state (cycle begins)
         if new_state == GridState.ACTIVATE and old_state != GridState.ACTIVATE:
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.CYCLE_ACTIVATED,
                 f"Cycle activated ({old_state.value} -> {new_state.value})",
                 event_data,
@@ -2036,7 +2019,7 @@ class GridManager:
 
         # CYCLE_DEACTIVATED: when transitioning TO INACTIVE state (cycle ends)
         if new_state == GridState.INACTIVE and old_state != GridState.INACTIVE:
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.CYCLE_DEACTIVATED,
                 f"Cycle deactivated ({old_state.value} -> {new_state.value})",
                 event_data,
@@ -2056,7 +2039,7 @@ class GridManager:
 
         # STRATEGY_PAUSED: when transitioning TO PAUSE state
         if new_state == GridState.PAUSE and old_state != GridState.PAUSE:
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.STRATEGY_PAUSED,
                 f"Strategy paused ({old_state.value} -> PAUSE)",
                 event_data,
@@ -2076,7 +2059,7 @@ class GridManager:
 
         # STRATEGY_RESUMED: when transitioning FROM PAUSE to ACTIVE/ACTIVATE
         if old_state == GridState.PAUSE and new_state in active_states:
-            self._log_activity_event(
+            await self._log_activity_event(
                 EventType.STRATEGY_RESUMED,
                 f"Strategy resumed (PAUSE -> {new_state.value})",
                 event_data,

@@ -69,16 +69,15 @@ class DynamicTPManager:
         """Check if dynamic TP is enabled."""
         return self.config.enabled
 
-    def _log_activity_event(
+    async def _log_activity_event(
         self,
         event_type: str,
         description: str,
         event_data: dict | None = None,
     ) -> None:
-        """Log an activity event to the database (non-blocking).
+        """Log an activity event to the database sequentially.
 
         Creates an activity event record for the dashboard timeline.
-        Runs asynchronously to avoid blocking the monitoring loop.
 
         Args:
             event_type: Type of event (from EventType enum).
@@ -88,27 +87,15 @@ class DynamicTPManager:
         if not self._activity_event_repository or not self._account_id:
             return
 
-        # Capture values for closure (type narrowing)
-        repo = self._activity_event_repository
-        account_id = self._account_id
-
-        async def _persist_event() -> None:
-            try:
-                await repo.create_event(
-                    account_id=account_id,
-                    event_type=event_type,
-                    description=description,
-                    event_data=event_data,
-                )
-            except Exception as e:
-                orders_logger.warning(f"Failed to log activity event: {e}")
-
-        # Schedule task in background (fire and forget)
         try:
-            loop = asyncio.get_event_loop()
-            loop.create_task(_persist_event())
-        except RuntimeError:
-            orders_logger.debug("No event loop, skipping activity event logging")
+            await self._activity_event_repository.create_event(
+                account_id=self._account_id,
+                event_type=event_type,
+                description=description,
+                event_data=event_data,
+            )
+        except Exception as e:
+            orders_logger.warning(f"Failed to log activity event: {e}")
 
     async def start(self) -> None:
         """Start the dynamic TP monitoring task."""
@@ -189,6 +176,16 @@ class DynamicTPManager:
             return
 
         hours_open = (datetime.now() - order.filled_at).total_seconds() / 3600
+
+        # CRITICAL: Only adjust TP after position has been open for at least 8 hours
+        # This ensures the position has experienced at least one funding settlement
+        # and prevents premature TP adjustments on newly opened positions
+        if hours_open < 8.0:
+            orders_logger.debug(
+                f"Position {order.order_id[:8]}: {hours_open:.1f}h open, "
+                f"skipping TP adjustment (minimum 8h required)"
+            )
+            return
 
         # Calculate accumulated funding cost
         # Funding is charged every 8 hours
@@ -281,7 +278,7 @@ class DynamicTPManager:
             )
 
             # Log TP_ADJUSTED activity event
-            self._log_activity_event(
+            await self._log_activity_event(
                 event_type="TP_ADJUSTED",
                 description=(
                     f"Take profit adjusted: {current_tp_percent:.2f}% → {new_tp_percent:.2f}% "

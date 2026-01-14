@@ -68,6 +68,11 @@ def mock_grid_manager():
     mock.strategy = MagicMock()
     mock.strategy.is_cycle_activated = True
 
+    # Configure tracker with count properties
+    mock.tracker = MagicMock()
+    mock.tracker.pending_count = 5
+    mock.tracker.position_count = 3
+
     # Configure get_status return value
     mock_status = MagicMock()
     mock_status.state = GridState.ACTIVE
@@ -86,6 +91,10 @@ def mock_grid_manager():
     # Configure async methods
     mock.start = AsyncMock()
     mock.stop = AsyncMock()
+    mock._log_activity_event = AsyncMock()
+
+    # Configure sync methods
+    mock._broadcast_bot_status = MagicMock()
 
     return mock
 

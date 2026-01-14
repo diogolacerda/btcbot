@@ -4,7 +4,7 @@ import asyncio
 import gzip
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 import websockets
@@ -243,11 +243,13 @@ class BingXAccountWebSocket:
         self._listen_key_expired = False
         self._renewal_in_progress = False  # Prevent duplicate renewal calls
 
-        # Callbacks
-        self._on_order_update: Callable[[dict[str, Any]], None] | None = None
-        self._on_position_update: Callable[[dict[str, Any]], None] | None = None
-        self._on_account_update: Callable[[dict[str, Any]], None] | None = None
-        self._on_listen_key_expired: Callable[[], None] | None = None
+        # Callbacks (all async)
+        self._on_order_update: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None
+        self._on_position_update: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = (
+            None
+        )
+        self._on_account_update: Callable[[dict[str, Any]], Coroutine[Any, Any, None]] | None = None
+        self._on_listen_key_expired: Callable[[], Coroutine[Any, Any, None]] | None = None
 
     @property
     def ws_url(self) -> str:
@@ -260,19 +262,21 @@ class BingXAccountWebSocket:
         self._renewal_in_progress = False  # Reset flag to allow future renewals
         main_logger.info("ListenKey atualizado no WebSocket client")
 
-    def set_listen_key_expired_callback(self, callback: Callable[[], None]) -> None:
+    def set_listen_key_expired_callback(
+        self, callback: Callable[[], Coroutine[Any, Any, None]]
+    ) -> None:
         """Set callback for when listenKey expires."""
         self._on_listen_key_expired = callback
 
-    def set_order_callback(self, callback: Callable[[dict], None]) -> None:
+    def set_order_callback(self, callback: Callable[[dict], Coroutine[Any, Any, None]]) -> None:
         """Set callback for order updates."""
         self._on_order_update = callback
 
-    def set_position_callback(self, callback: Callable[[dict], None]) -> None:
+    def set_position_callback(self, callback: Callable[[dict], Coroutine[Any, Any, None]]) -> None:
         """Set callback for position updates."""
         self._on_position_update = callback
 
-    def set_account_callback(self, callback: Callable[[dict], None]) -> None:
+    def set_account_callback(self, callback: Callable[[dict], Coroutine[Any, Any, None]]) -> None:
         """Set callback for account/balance updates."""
         self._on_account_update = callback
 
@@ -367,7 +371,7 @@ class BingXAccountWebSocket:
             orders_logger.info(f"WS Order Update: {order_data.get('X')} - {order_data.get('i')}")
 
             if self._on_order_update:
-                self._on_order_update(order_data)
+                await self._on_order_update(order_data)
 
         # Account/Position update event
         elif event_type == "ACCOUNT_UPDATE":
@@ -377,13 +381,13 @@ class BingXAccountWebSocket:
             positions = update_data.get("P", [])
             if positions and self._on_position_update:
                 for pos in positions:
-                    self._on_position_update(pos)
+                    await self._on_position_update(pos)
 
             # Balance updates
             balances = update_data.get("B", [])
             if balances and self._on_account_update:
                 for bal in balances:
-                    self._on_account_update(bal)
+                    await self._on_account_update(bal)
 
         # Listen key expired (can come in different formats)
         elif event_type == "listenKeyExpired" or data.get("dataType") == "public.listenKeyExpired":
@@ -393,7 +397,7 @@ class BingXAccountWebSocket:
                 self._listen_key_expired = True
                 main_logger.warning("ListenKey expirado detectado pelo WebSocket")
                 if self._on_listen_key_expired:
-                    self._on_listen_key_expired()
+                    await self._on_listen_key_expired()
 
     async def _send(self, data: dict) -> None:
         """Send message to WebSocket."""
