@@ -8,7 +8,6 @@ This module provides comprehensive tests for:
 - Ping/pong message handling
 """
 
-import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -514,10 +513,9 @@ class TestConcurrentConnections:
             ws.send_text = MagicMock()
             websockets.append(ws)
 
-        # Connect all simultaneously using asyncio.gather
-        asyncio.gather(
-            *[fresh_manager.connect(ws, f"user{i}@example.com") for i, ws in enumerate(websockets)]
-        )
+        # Connect all websockets
+        for i, ws in enumerate(websockets):
+            fresh_manager.connect(ws, f"user{i}@example.com")
 
         assert fresh_manager.active_connections_count == 10
 
@@ -665,9 +663,6 @@ class TestHeartbeatFunctionality:
         # Get initial heartbeat time
         initial_time = fresh_manager._active_connections[ws].last_heartbeat
 
-        # Wait a tiny bit to ensure time difference
-        asyncio.sleep(0.01)
-
         # Update heartbeat
         fresh_manager.update_heartbeat(ws)
 
@@ -700,9 +695,6 @@ class TestHeartbeatFunctionality:
 
         fresh_manager.disconnect(ws)
 
-        # Give the cancel time to process
-        asyncio.sleep(0.01)
-
         # Heartbeat task should be cancelled/done
         assert fresh_manager._heartbeat_task is None or fresh_manager._heartbeat_task.done()
 
@@ -715,7 +707,6 @@ class TestHeartbeatFunctionality:
 
         # Manually stop heartbeat
         fresh_manager.stop_heartbeat()
-        asyncio.sleep(0.01)  # Give time for cancellation
 
         assert fresh_manager._heartbeat_task.done()
 
@@ -734,9 +725,6 @@ class TestHeartbeatFunctionality:
 
         fresh_manager.connect(ws1, "user1@example.com")
         fresh_manager.connect(ws2, "user2@example.com")
-
-        # Wait for at least one heartbeat
-        asyncio.sleep(0.15)
 
         # Both clients should have received at least one heartbeat
         assert ws1.send_text.called

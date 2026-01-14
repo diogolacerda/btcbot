@@ -10,7 +10,6 @@ IMPORTANT: Orders are NOT cancelled when:
 - Filter is ENABLED but indicator is in positive state (ACTIVE/ACTIVATE)
 """
 
-import asyncio
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -83,9 +82,6 @@ def test_macd_state_change_active_to_pause_cancels_orders(grid_manager, mock_cli
     grid_manager._macd_filter._current_state = GridState.ACTIVE
     grid_manager._macd_filter.set_current_state(GridState.PAUSE)
 
-    # Wait for async task to complete
-    asyncio.sleep(0.1)
-
     # Verify LIMIT orders were cancelled (2 calls)
     assert mock_client.cancel_order.call_count == 2
     mock_client.cancel_order.assert_any_call("BTC-USDT", "1")
@@ -105,7 +101,6 @@ def test_macd_state_change_active_to_inactive_cancels_orders(grid_manager, mock_
     grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify order was cancelled
     assert mock_client.cancel_order.call_count == 1
@@ -125,7 +120,6 @@ def test_macd_state_change_activate_to_wait_cancels_orders(grid_manager, mock_cl
     grid_manager._macd_filter.set_current_state(GridState.WAIT)
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify order was cancelled
     assert mock_client.cancel_order.call_count == 1
@@ -144,7 +138,6 @@ def test_macd_state_change_pause_to_active_does_not_cancel(grid_manager, mock_cl
     grid_manager._macd_filter.set_current_state(GridState.ACTIVE)
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify NO orders were cancelled
     assert mock_client.cancel_order.call_count == 0
@@ -165,7 +158,6 @@ def test_filter_disabled_via_api_does_not_cancel_orders(grid_manager, mock_clien
     grid_manager._filter_registry.disable_filter("macd")
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify NO orders were cancelled (disabling doesn't cancel)
     assert mock_client.cancel_order.call_count == 0
@@ -175,7 +167,6 @@ def test_filter_enabled_when_negative_cancels_orders(grid_manager, mock_client):
     """Test that orders are cancelled when filter is enabled AND indicator is in negative state."""
     # Setup: disable filter first
     grid_manager._filter_registry.disable_filter("macd")
-    asyncio.sleep(0.1)
     mock_client.cancel_order.reset_mock()
 
     # Setup: Set MACD to PAUSE (negative state)
@@ -191,7 +182,6 @@ def test_filter_enabled_when_negative_cancels_orders(grid_manager, mock_client):
     grid_manager._filter_registry.enable_filter("macd")
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify order was cancelled (enabled with negative state)
     assert mock_client.cancel_order.call_count == 1
@@ -206,7 +196,6 @@ def test_filter_enabled_when_positive_does_not_cancel(grid_manager, mock_client)
 
     # Setup: disable filter (state remains ACTIVE)
     grid_manager._filter_registry.disable_filter("macd")
-    asyncio.sleep(0.1)
     mock_client.cancel_order.reset_mock()
 
     # Setup: create mock open orders
@@ -219,7 +208,6 @@ def test_filter_enabled_when_positive_does_not_cancel(grid_manager, mock_client)
     grid_manager._filter_registry.enable_filter("macd")
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify NO orders were cancelled (positive state)
     assert mock_client.cancel_order.call_count == 0
@@ -240,7 +228,6 @@ def test_disable_all_filters_does_not_cancel_orders(grid_manager, mock_client):
     grid_manager._filter_registry.disable_all()
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify NO orders were cancelled
     assert mock_client.cancel_order.call_count == 0
@@ -250,7 +237,6 @@ def test_enable_all_filters_when_negative_cancels_orders(grid_manager, mock_clie
     """Test that orders are cancelled when all filters enabled AND at least one is negative."""
     # Setup: disable all first
     grid_manager._filter_registry.disable_all()
-    asyncio.sleep(0.1)
     mock_client.cancel_order.reset_mock()
 
     # Setup: Set MACD to PAUSE (negative state)
@@ -266,7 +252,6 @@ def test_enable_all_filters_when_negative_cancels_orders(grid_manager, mock_clie
     grid_manager._filter_registry.enable_all()
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify order was cancelled
     assert mock_client.cancel_order.call_count == 1
@@ -281,7 +266,6 @@ def test_enable_all_filters_when_positive_does_not_cancel(grid_manager, mock_cli
 
     # Setup: disable all (state remains ACTIVE)
     grid_manager._filter_registry.disable_all()
-    asyncio.sleep(0.1)
     mock_client.cancel_order.reset_mock()
 
     # Setup: create mock open orders
@@ -294,7 +278,6 @@ def test_enable_all_filters_when_positive_does_not_cancel(grid_manager, mock_cli
     grid_manager._filter_registry.enable_all()
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify NO orders were cancelled
     assert mock_client.cancel_order.call_count == 0
@@ -317,7 +300,6 @@ def test_take_profit_orders_are_preserved(grid_manager, mock_client):
     grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify only LIMIT order was cancelled
     assert mock_client.cancel_order.call_count == 1
@@ -336,7 +318,6 @@ def test_no_orders_does_not_fail(grid_manager, mock_client):
     grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify no errors and no cancel calls (no orders to cancel)
     assert mock_client.cancel_order.call_count == 0
@@ -354,7 +335,6 @@ def test_filter_state_unchanged_does_not_cancel(grid_manager, mock_client):
     grid_manager._filter_registry.enable_filter("macd")
 
     # Wait for async task to complete
-    asyncio.sleep(0.1)
 
     # Verify NO orders were cancelled (state didn't change)
     assert mock_client.cancel_order.call_count == 0
