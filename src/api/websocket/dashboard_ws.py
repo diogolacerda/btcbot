@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 router = APIRouter()
 
 
-async def authenticate_websocket(token: str) -> str | None:
+def authenticate_websocket(token: str) -> str | None:
     """Authenticate WebSocket connection using JWT token.
 
     Args:
@@ -101,7 +101,7 @@ async def dashboard_websocket(
         token: JWT authentication token from query parameter.
     """
     # Authenticate before accepting connection
-    user_email = await authenticate_websocket(token)
+    user_email = authenticate_websocket(token)
 
     if user_email is None:
         # Close connection with authentication error

@@ -689,6 +689,8 @@ class TestHeartbeatFunctionality:
 
     async def test_heartbeat_broadcasts_to_all_clients(self, fresh_manager):
         """Test that heartbeat broadcasts to all connected clients."""
+        import asyncio
+
         # Set a very short heartbeat interval for testing
         fresh_manager._heartbeat_interval = 0.1  # 100ms
 
@@ -698,6 +700,9 @@ class TestHeartbeatFunctionality:
 
         await fresh_manager.connect(ws1, "user1@example.com")
         await fresh_manager.connect(ws2, "user2@example.com")
+
+        # Wait for heartbeat to execute
+        await asyncio.sleep(0.2)
 
         # Both clients should have received at least one heartbeat
         assert ws1.send_text.called
@@ -843,19 +848,19 @@ class TestWebSocketAuthentication:
 
             mock_session_instance = MagicMock()
             mock_session_instance.execute = MagicMock(return_value=mock_result)
-            mock_session_instance.__aenter__ = MagicMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = MagicMock(return_value=None)
+            mock_session_instance.__enter__ = MagicMock(return_value=mock_session_instance)
+            mock_session_instance.__exit__ = MagicMock(return_value=None)
 
             mock_session.return_value = MagicMock(return_value=mock_session_instance)
 
-            result = await authenticate_websocket(token)
+            result = authenticate_websocket(token)
             assert result == "auth_test@example.com"
 
     async def test_authenticate_with_invalid_token(self):
         """Test authentication with an invalid JWT token."""
         from src.api.websocket.dashboard_ws import authenticate_websocket
 
-        result = await authenticate_websocket("invalid.token.here")
+        result = authenticate_websocket("invalid.token.here")
         assert result is None
 
     async def test_authenticate_with_expired_token(self):
@@ -868,7 +873,7 @@ class TestWebSocketAuthentication:
             expires_delta=timedelta(minutes=-1),
         )
 
-        result = await authenticate_websocket(token)
+        result = authenticate_websocket(token)
         assert result is None
 
     async def test_authenticate_with_missing_subject(self):
@@ -883,7 +888,7 @@ class TestWebSocketAuthentication:
             {"exp": datetime.now() + timedelta(hours=1)}, SECRET_KEY, algorithm=ALGORITHM
         )
 
-        result = await authenticate_websocket(token)
+        result = authenticate_websocket(token)
         assert result is None
 
     async def test_authenticate_with_inactive_user(self):
@@ -902,12 +907,12 @@ class TestWebSocketAuthentication:
 
             mock_session_instance = MagicMock()
             mock_session_instance.execute = MagicMock(return_value=mock_result)
-            mock_session_instance.__aenter__ = MagicMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = MagicMock(return_value=None)
+            mock_session_instance.__enter__ = MagicMock(return_value=mock_session_instance)
+            mock_session_instance.__exit__ = MagicMock(return_value=None)
 
             mock_session.return_value = MagicMock(return_value=mock_session_instance)
 
-            result = await authenticate_websocket(token)
+            result = authenticate_websocket(token)
             assert result is None
 
     async def test_authenticate_with_nonexistent_user(self):
@@ -922,10 +927,10 @@ class TestWebSocketAuthentication:
 
             mock_session_instance = MagicMock()
             mock_session_instance.execute = MagicMock(return_value=mock_result)
-            mock_session_instance.__aenter__ = MagicMock(return_value=mock_session_instance)
-            mock_session_instance.__aexit__ = MagicMock(return_value=None)
+            mock_session_instance.__enter__ = MagicMock(return_value=mock_session_instance)
+            mock_session_instance.__exit__ = MagicMock(return_value=None)
 
             mock_session.return_value = MagicMock(return_value=mock_session_instance)
 
-            result = await authenticate_websocket(token)
+            result = authenticate_websocket(token)
             assert result is None
