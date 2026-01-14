@@ -140,9 +140,18 @@ def mock_grid_manager():
     mock._margin_error = False
     mock._margin_error_time = 0.0
 
+    # Configure tracker with count properties
+    mock.tracker = MagicMock()
+    mock.tracker.pending_count = 5
+    mock.tracker.position_count = 3
+
     # Configure async methods
     mock.start = AsyncMock()
     mock.stop = AsyncMock()
+    mock._log_activity_event = AsyncMock()
+
+    # Configure sync methods
+    mock._broadcast_bot_status = MagicMock()
 
     return mock
 

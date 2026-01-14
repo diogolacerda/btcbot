@@ -107,7 +107,7 @@ class TestSyncEMAFilter:
 class TestFilterRegistryShouldAllowTrade:
     """Test combined filter logic in FilterRegistry."""
 
-    def test_both_filters_enabled_both_allow(self):
+    async def test_both_filters_enabled_both_allow(self):
         """Test trade allowed when both filters allow."""
         registry = FilterRegistry()
         registry.clear()
@@ -125,7 +125,7 @@ class TestFilterRegistryShouldAllowTrade:
         strategy.set_trigger(True)
 
         # Set MACD to allow trades
-        macd_filter.set_current_state(GridState.ACTIVE)
+        await macd_filter.set_current_state(GridState.ACTIVE)
 
         # Set EMA to rising (allow)
         rising_klines = [[0, 0, 0, 0, float(100 + i * 2), 0] for i in range(20)]
@@ -133,7 +133,7 @@ class TestFilterRegistryShouldAllowTrade:
 
         assert registry.should_allow_trade() is True
 
-    def test_macd_allows_ema_blocks(self):
+    async def test_macd_allows_ema_blocks(self):
         """Test trade blocked when EMA filter blocks."""
         registry = FilterRegistry()
         registry.clear()
@@ -151,7 +151,7 @@ class TestFilterRegistryShouldAllowTrade:
         strategy.set_trigger(True)
 
         # Set MACD to allow trades
-        macd_filter.set_current_state(GridState.ACTIVE)
+        await macd_filter.set_current_state(GridState.ACTIVE)
 
         # Set EMA to falling (block)
         falling_klines = [[0, 0, 0, 0, float(120 - i * 2), 0] for i in range(20)]
@@ -160,7 +160,7 @@ class TestFilterRegistryShouldAllowTrade:
         assert ema_filter.direction == EMADirection.FALLING
         assert registry.should_allow_trade() is False
 
-    def test_ema_disabled_allows_trade(self):
+    async def test_ema_disabled_allows_trade(self):
         """Test trade allowed when EMA filter is disabled."""
         registry = FilterRegistry()
         registry.clear()
@@ -178,7 +178,7 @@ class TestFilterRegistryShouldAllowTrade:
         strategy.set_trigger(True)
 
         # Set MACD to allow trades
-        macd_filter.set_current_state(GridState.ACTIVE)
+        await macd_filter.set_current_state(GridState.ACTIVE)
 
         # Even with falling EMA, disabled filter allows
         falling_klines = [[0, 0, 0, 0, float(120 - i * 2), 0] for i in range(20)]
@@ -318,33 +318,33 @@ class TestDecisionMatrix:
 
         return registry, macd_filter, ema_filter
 
-    def test_active_state_rising_ema_creates_orders(self, setup_filters):
+    async def test_active_state_rising_ema_creates_orders(self, setup_filters):
         """Test: ACTIVE + RISING EMA = Create orders."""
         registry, macd_filter, ema_filter = setup_filters
 
-        macd_filter.set_current_state(GridState.ACTIVE)
+        await macd_filter.set_current_state(GridState.ACTIVE)
         rising_klines = [[0, 0, 0, 0, float(100 + i * 2), 0] for i in range(20)]
         ema_filter.update(rising_klines)
 
         assert registry.should_allow_trade() is True
         assert ema_filter.should_protect_orders() is True
 
-    def test_active_state_falling_ema_blocks_orders(self, setup_filters):
+    async def test_active_state_falling_ema_blocks_orders(self, setup_filters):
         """Test: ACTIVE + FALLING EMA = Block order creation."""
         registry, macd_filter, ema_filter = setup_filters
 
-        macd_filter.set_current_state(GridState.ACTIVE)
+        await macd_filter.set_current_state(GridState.ACTIVE)
         falling_klines = [[0, 0, 0, 0, float(120 - i * 2), 0] for i in range(20)]
         ema_filter.update(falling_klines)
 
         assert registry.should_allow_trade() is False
         assert ema_filter.should_protect_orders() is False
 
-    def test_inactive_state_rising_ema_protects_orders(self, setup_filters):
+    async def test_inactive_state_rising_ema_protects_orders(self, setup_filters):
         """Test: INACTIVE + RISING EMA = Protect orders (no cancel)."""
         registry, macd_filter, ema_filter = setup_filters
 
-        macd_filter.set_current_state(GridState.INACTIVE)
+        await macd_filter.set_current_state(GridState.INACTIVE)
         rising_klines = [[0, 0, 0, 0, float(100 + i * 2), 0] for i in range(20)]
         ema_filter.update(rising_klines)
 
@@ -353,11 +353,11 @@ class TestDecisionMatrix:
         # But should protect orders (EMA rising)
         assert ema_filter.should_protect_orders() is True
 
-    def test_inactive_state_falling_ema_allows_cancel(self, setup_filters):
+    async def test_inactive_state_falling_ema_allows_cancel(self, setup_filters):
         """Test: INACTIVE + FALLING EMA = Cancel orders."""
         registry, macd_filter, ema_filter = setup_filters
 
-        macd_filter.set_current_state(GridState.INACTIVE)
+        await macd_filter.set_current_state(GridState.INACTIVE)
         falling_klines = [[0, 0, 0, 0, float(120 - i * 2), 0] for i in range(20)]
         ema_filter.update(falling_klines)
 
@@ -366,11 +366,11 @@ class TestDecisionMatrix:
         # Should NOT protect orders (EMA falling)
         assert ema_filter.should_protect_orders() is False
 
-    def test_pause_state_no_action(self, setup_filters):
+    async def test_pause_state_no_action(self, setup_filters):
         """Test: PAUSE state = No create, no cancel."""
         registry, macd_filter, ema_filter = setup_filters
 
-        macd_filter.set_current_state(GridState.PAUSE)
+        await macd_filter.set_current_state(GridState.PAUSE)
         # EMA direction doesn't matter for PAUSE state
         rising_klines = [[0, 0, 0, 0, float(100 + i * 2), 0] for i in range(20)]
         ema_filter.update(rising_klines)
@@ -379,11 +379,11 @@ class TestDecisionMatrix:
         assert macd_filter.should_allow_trade() is False
         assert registry.should_allow_trade() is False
 
-    def test_ema_disabled_ignores_direction(self, setup_filters):
+    async def test_ema_disabled_ignores_direction(self, setup_filters):
         """Test: EMA disabled = Ignore EMA direction."""
         registry, macd_filter, ema_filter = setup_filters
 
-        macd_filter.set_current_state(GridState.ACTIVE)
+        await macd_filter.set_current_state(GridState.ACTIVE)
         ema_filter.disable()
 
         # Even with falling EMA, disabled filter allows

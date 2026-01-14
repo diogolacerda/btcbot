@@ -82,7 +82,7 @@ async def test_macd_state_change_active_to_pause_cancels_orders(grid_manager, mo
 
     # Simulate MACD state change from ACTIVE to PAUSE
     grid_manager._macd_filter._current_state = GridState.ACTIVE
-    grid_manager._macd_filter.set_current_state(GridState.PAUSE)
+    await grid_manager._macd_filter.set_current_state(GridState.PAUSE)
 
     # Wait for async task to complete
     await asyncio.sleep(0.1)
@@ -104,7 +104,7 @@ async def test_macd_state_change_active_to_inactive_cancels_orders(grid_manager,
 
     # Simulate MACD state change from ACTIVE to INACTIVE
     grid_manager._macd_filter._current_state = GridState.ACTIVE
-    grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
+    await grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
 
     # Wait for async task to complete
     await asyncio.sleep(0.1)
@@ -125,7 +125,7 @@ async def test_macd_state_change_activate_to_wait_cancels_orders(grid_manager, m
 
     # Simulate MACD state change from ACTIVATE to WAIT
     grid_manager._macd_filter._current_state = GridState.ACTIVATE
-    grid_manager._macd_filter.set_current_state(GridState.WAIT)
+    await grid_manager._macd_filter.set_current_state(GridState.WAIT)
 
     # Wait for async task to complete
     await asyncio.sleep(0.1)
@@ -145,7 +145,7 @@ async def test_macd_state_change_pause_to_active_does_not_cancel(grid_manager, m
 
     # Simulate MACD state change from PAUSE to ACTIVE (should NOT cancel)
     grid_manager._macd_filter._current_state = GridState.PAUSE
-    grid_manager._macd_filter.set_current_state(GridState.ACTIVE)
+    await grid_manager._macd_filter.set_current_state(GridState.ACTIVE)
 
     # Wait for async task to complete
     await asyncio.sleep(0.1)
@@ -325,7 +325,7 @@ async def test_take_profit_orders_are_preserved(grid_manager, mock_client):
     mock_client.get_open_orders.return_value = mock_orders
 
     # Trigger MACD state change from ACTIVE to INACTIVE (should cancel LIMIT only)
-    grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
+    await grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
 
     # Wait for async task to complete
     await asyncio.sleep(0.1)
@@ -345,7 +345,7 @@ async def test_no_orders_does_not_fail(grid_manager, mock_client):
     mock_client.get_open_orders.return_value = []
 
     # Trigger MACD state change (should not fail even with no orders)
-    grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
+    await grid_manager._macd_filter.set_current_state(GridState.INACTIVE)
 
     # Wait for async task to complete
     await asyncio.sleep(0.1)

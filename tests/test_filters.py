@@ -329,45 +329,45 @@ class TestMACDFilter:
         assert macd_filter.enabled is True
         assert macd_filter._strategy is macd_strategy
 
-    def test_macd_filter_disabled_always_allows(self, macd_filter):
+    async def test_macd_filter_disabled_always_allows(self, macd_filter):
         """Test disabled MACDFilter always allows trades."""
         macd_filter.disable()
-        macd_filter.set_current_state(GridState.WAIT)
+        await macd_filter.set_current_state(GridState.WAIT)
 
         # Even in WAIT state, disabled filter allows
         assert macd_filter.should_allow_trade() is True
 
-        macd_filter.set_current_state(GridState.INACTIVE)
+        await macd_filter.set_current_state(GridState.INACTIVE)
         assert macd_filter.should_allow_trade() is True
 
-    def test_macd_filter_enabled_respects_state(self, macd_filter, macd_strategy):
+    async def test_macd_filter_enabled_respects_state(self, macd_filter, macd_strategy):
         """Test enabled MACDFilter respects MACD state."""
         # Manually activate cycle (required for orders)
         macd_strategy.manual_activate()
 
         # ACTIVATE state - should allow
-        macd_filter.set_current_state(GridState.ACTIVATE)
+        await macd_filter.set_current_state(GridState.ACTIVATE)
         assert macd_filter.should_allow_trade() is True
 
         # ACTIVE state - should allow
-        macd_filter.set_current_state(GridState.ACTIVE)
+        await macd_filter.set_current_state(GridState.ACTIVE)
         assert macd_filter.should_allow_trade() is True
 
         # PAUSE state - should not allow
-        macd_filter.set_current_state(GridState.PAUSE)
+        await macd_filter.set_current_state(GridState.PAUSE)
         assert macd_filter.should_allow_trade() is False
 
         # WAIT state - should not allow
-        macd_filter.set_current_state(GridState.WAIT)
+        await macd_filter.set_current_state(GridState.WAIT)
         assert macd_filter.should_allow_trade() is False
 
         # INACTIVE state - should not allow
-        macd_filter.set_current_state(GridState.INACTIVE)
+        await macd_filter.set_current_state(GridState.INACTIVE)
         assert macd_filter.should_allow_trade() is False
 
-    def test_macd_filter_get_state(self, macd_filter, macd_strategy):
+    async def test_macd_filter_get_state(self, macd_filter, macd_strategy):
         """Test get_state returns MACD details."""
-        macd_filter.set_current_state(GridState.ACTIVATE)
+        await macd_filter.set_current_state(GridState.ACTIVATE)
         macd_strategy.manual_activate()
 
         state = macd_filter.get_state()
@@ -407,7 +407,7 @@ class TestFilterRegistryIntegration:
         yield
         registry.clear()
 
-    def test_registry_with_macd_filter(self):
+    async def test_registry_with_macd_filter(self):
         """Test registering and using MACDFilter in registry."""
         config = MACDConfig(fast=12, slow=26, signal=9, timeframe="1h")
         strategy = MACDStrategy(config)
@@ -421,7 +421,7 @@ class TestFilterRegistryIntegration:
 
         # Manually activate cycle
         strategy.manual_activate()
-        macd_filter.set_current_state(GridState.ACTIVATE)
+        await macd_filter.set_current_state(GridState.ACTIVATE)
 
         # Now should allow
         assert registry.should_allow_trade() is True

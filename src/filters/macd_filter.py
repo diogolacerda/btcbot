@@ -52,7 +52,7 @@ class MACDFilter(Filter):
         """
         self._on_state_change_callback = callback
 
-    def set_current_state(self, state: GridState) -> None:
+    async def set_current_state(self, state: GridState) -> None:
         """
         Update current MACD state.
 
@@ -66,7 +66,7 @@ class MACDFilter(Filter):
 
         # Trigger callback on state change
         if old_state != state and self._on_state_change_callback:
-            self._on_state_change_callback(old_state, state)
+            await self._on_state_change_callback(old_state, state)
 
     def should_allow_trade(self) -> bool:
         """

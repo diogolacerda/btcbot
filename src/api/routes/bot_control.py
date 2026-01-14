@@ -126,7 +126,7 @@ async def pause_bot(
         main_logger.info("Bot paused via API")
 
         # Log STRATEGY_PAUSED event
-        grid_manager._log_activity_event(
+        await grid_manager._log_activity_event(
             EventType.STRATEGY_PAUSED,
             "Bot paused via dashboard",
             {
@@ -195,7 +195,7 @@ async def resume_bot(
         main_logger.info("Bot resumed via API")
 
         # Log STRATEGY_RESUMED event
-        grid_manager._log_activity_event(
+        await grid_manager._log_activity_event(
             EventType.STRATEGY_RESUMED,
             "Bot resumed via dashboard",
             {
