@@ -63,7 +63,7 @@ def run_bot() -> None:
     # Initialize health server (starts early for Docker healthcheck)
     health_server = HealthServer()
     health_server.set_bingx_client(client)
-    health_server.start()
+    asyncio.run(health_server.start())
 
     # Initialize database and restore state
     account_id = None
@@ -469,7 +469,7 @@ def run_bot() -> None:
         main_logger.info("Encerrando bot...")
         asyncio.run(price_streamer.stop())
         grid_manager.stop()
-        health_server.stop()
+        asyncio.run(health_server.stop())
         client.close()
         main_logger.info("Bot encerrado com sucesso.")
 

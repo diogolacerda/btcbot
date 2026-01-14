@@ -12,7 +12,6 @@ The server runs in parallel with the main bot loop using aiohttp.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import time
 from datetime import UTC, datetime
@@ -119,7 +118,7 @@ class HealthServer:
         """Get server uptime in seconds."""
         return time.time() - self._start_time
 
-    def start(self) -> None:
+    async def start(self) -> None:
         """Start the health check HTTP server."""
         if self._running:
             main_logger.warning("Health server already running")
@@ -169,26 +168,26 @@ class HealthServer:
         )
 
         self._runner = web.AppRunner(self._app, access_log=None)
-        self._runner.setup()
+        await self._runner.setup()
 
         self._site = web.TCPSite(self._runner, "0.0.0.0", self.port)
-        self._site.start()
+        await self._site.start()
 
         self._running = True
         main_logger.info(f"Health server started on port {self.port}")
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Stop the health check HTTP server."""
         if not self._running:
             return
 
         if self._runner:
-            self._runner.cleanup()
+            await self._runner.cleanup()
 
         self._running = False
         main_logger.info("Health server stopped")
 
-    def _handle_health(self, request: web.Request) -> web.Response:
+    async def _handle_health(self, request: web.Request) -> web.Response:
         """
         Handle GET /health request.
 
@@ -199,11 +198,8 @@ class HealthServer:
         main_logger.debug(f"Health check request from {request.remote}")
 
         try:
-            # Check all components with timeout
-            health_data = asyncio.wait_for(
-                self._get_health_status(),
-                timeout=self._check_timeout,
-            )
+            # Check all components
+            health_data = self._get_health_status()
 
             # Determine overall status
             is_healthy = health_data["status"] == "healthy"
@@ -374,7 +370,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_toggle_filter(self, request: web.Request) -> web.Response:
+    async def _handle_toggle_filter(self, request: web.Request) -> web.Response:
         """
         Handle POST /filters/{filter_name} request.
 
@@ -387,7 +383,7 @@ class HealthServer:
         try:
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": 'Invalid JSON body. Expected: {"enabled": true/false}'},
@@ -604,7 +600,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_macd_trigger(self, request: web.Request) -> web.Response:
+    async def _handle_macd_trigger(self, request: web.Request) -> web.Response:
         """
         Handle POST /filters/macd/trigger request.
 
@@ -616,7 +612,7 @@ class HealthServer:
         try:
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": 'Invalid JSON body. Expected: {"activated": true/false}'},
@@ -734,7 +730,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_put_trading_config(self, request: web.Request) -> web.Response:
+    async def _handle_put_trading_config(self, request: web.Request) -> web.Response:
         """
         Handle PUT /api/configs/trading request.
 
@@ -752,7 +748,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},
@@ -855,7 +851,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_patch_trading_config(self, request: web.Request) -> web.Response:
+    async def _handle_patch_trading_config(self, request: web.Request) -> web.Response:
         """
         Handle PATCH /api/configs/trading request.
 
@@ -873,7 +869,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},
@@ -1074,7 +1070,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_put_grid_config(self, request: web.Request) -> web.Response:
+    async def _handle_put_grid_config(self, request: web.Request) -> web.Response:
         """
         Handle PUT /api/configs/grid request.
 
@@ -1092,7 +1088,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},
@@ -1197,7 +1193,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_patch_grid_config(self, request: web.Request) -> web.Response:
+    async def _handle_patch_grid_config(self, request: web.Request) -> web.Response:
         """
         Handle PATCH /api/configs/grid request.
 
@@ -1215,7 +1211,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},
@@ -1369,7 +1365,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_put_trading_config_multi(self, request: web.Request) -> web.Response:
+    async def _handle_put_trading_config_multi(self, request: web.Request) -> web.Response:
         """
         Handle PUT /api/accounts/{account_id}/configs/trading request.
 
@@ -1397,7 +1393,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},
@@ -1494,7 +1490,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_patch_trading_config_multi(self, request: web.Request) -> web.Response:
+    async def _handle_patch_trading_config_multi(self, request: web.Request) -> web.Response:
         """
         Handle PATCH /api/accounts/{account_id}/configs/trading request.
 
@@ -1522,7 +1518,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},
@@ -1654,7 +1650,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_put_grid_config_multi(self, request: web.Request) -> web.Response:
+    async def _handle_put_grid_config_multi(self, request: web.Request) -> web.Response:
         """
         Handle PUT /api/accounts/{account_id}/configs/grid request.
 
@@ -1682,7 +1678,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},
@@ -1787,7 +1783,7 @@ class HealthServer:
                 status=500,
             )
 
-    def _handle_patch_grid_config_multi(self, request: web.Request) -> web.Response:
+    async def _handle_patch_grid_config_multi(self, request: web.Request) -> web.Response:
         """
         Handle PATCH /api/accounts/{account_id}/configs/grid request.
 
@@ -1815,7 +1811,7 @@ class HealthServer:
 
             # Parse request body
             try:
-                data = request.json()
+                data = await request.json()
             except Exception:
                 return web.json_response(
                     {"error": "Invalid JSON body"},

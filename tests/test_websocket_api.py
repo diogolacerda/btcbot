@@ -9,7 +9,7 @@ This module provides comprehensive tests for:
 """
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -34,6 +34,15 @@ from src.database.models.user import User
 
 # Test database URL
 TEST_DATABASE_URL = "sqlite:///:memory:"
+
+
+def create_mock_websocket():
+    """Create a mock WebSocket with async methods."""
+    ws = MagicMock()
+    ws.accept = AsyncMock()
+    ws.send_text = AsyncMock()
+    ws.send_json = AsyncMock()
+    return ws
 
 
 @pytest.fixture
@@ -388,11 +397,7 @@ class TestConnectionManagerBroadcast:
     @pytest.fixture
     def mock_websocket(self):
         """Create a mock WebSocket."""
-        ws = MagicMock()
-        ws.send_text = MagicMock()
-        ws.send_json = MagicMock()
-        ws.accept = MagicMock()
-        return ws
+        return create_mock_websocket()
 
     async def test_broadcast_to_single_client(self, fresh_manager, mock_websocket):
         """Test broadcasting event to a single connected client."""
@@ -420,17 +425,11 @@ class TestConnectionManagerBroadcast:
     async def test_broadcast_to_multiple_clients(self, fresh_manager):
         """Test broadcasting event to multiple connected clients."""
         # Create multiple mock websockets
-        ws1 = MagicMock()
-        ws1.send_text = MagicMock()
-        ws1.accept = MagicMock()
+        ws1 = create_mock_websocket()
 
-        ws2 = MagicMock()
-        ws2.send_text = MagicMock()
-        ws2.accept = MagicMock()
+        ws2 = create_mock_websocket()
 
-        ws3 = MagicMock()
-        ws3.send_text = MagicMock()
-        ws3.accept = MagicMock()
+        ws3 = create_mock_websocket()
 
         # Connect all clients
         await fresh_manager.connect(ws1, "user1@example.com")
@@ -460,20 +459,17 @@ class TestConnectionManagerBroadcast:
         await fresh_manager.connect(mock_websocket, "test@example.com")
 
         data = {"type": "custom", "data": {"value": 123}}
-        fresh_manager.broadcast_json(data)
+        await fresh_manager.broadcast_json(data)
 
         mock_websocket.send_json.assert_called_once_with(data)
 
     async def test_broadcast_handles_failed_send(self, fresh_manager):
         """Test that broadcast handles failed sends and disconnects dead clients."""
         # Create a healthy and a broken websocket
-        ws_healthy = MagicMock()
-        ws_healthy.send_text = MagicMock()
-        ws_healthy.accept = MagicMock()
+        ws_healthy = create_mock_websocket()
 
-        ws_broken = MagicMock()
-        ws_broken.send_text = MagicMock(side_effect=Exception("Connection lost"))
-        ws_broken.accept = MagicMock()
+        ws_broken = create_mock_websocket()
+        ws_broken.send_text = AsyncMock(side_effect=Exception("Connection lost"))
 
         await fresh_manager.connect(ws_healthy, "healthy@example.com")
         await fresh_manager.connect(ws_broken, "broken@example.com")
@@ -508,9 +504,7 @@ class TestConcurrentConnections:
         """Test handling multiple simultaneous connections."""
         websockets = []
         for _ in range(10):
-            ws = MagicMock()
-            ws.accept = MagicMock()
-            ws.send_text = MagicMock()
+            ws = create_mock_websocket()
             websockets.append(ws)
 
         # Connect all websockets
@@ -526,9 +520,7 @@ class TestConcurrentConnections:
 
     async def test_connection_stats_contain_user_info(self, fresh_manager):
         """Test that connection stats contain correct user information."""
-        ws = MagicMock()
-        ws.accept = MagicMock()
-        ws.send_text = MagicMock()
+        ws = create_mock_websocket()
 
         await fresh_manager.connect(ws, "detailed@example.com")
 
@@ -541,13 +533,9 @@ class TestConcurrentConnections:
 
     async def test_same_user_multiple_connections(self, fresh_manager):
         """Test that same user can have multiple connections."""
-        ws1 = MagicMock()
-        ws1.accept = MagicMock()
-        ws1.send_text = MagicMock()
+        ws1 = create_mock_websocket()
 
-        ws2 = MagicMock()
-        ws2.accept = MagicMock()
-        ws2.send_text = MagicMock()
+        ws2 = create_mock_websocket()
 
         # Same user connecting from different devices/tabs
         await fresh_manager.connect(ws1, "multidevice@example.com")
@@ -578,8 +566,7 @@ class TestConnectionCleanup:
 
     async def test_disconnect_removes_connection(self, fresh_manager):
         """Test that disconnect properly removes connection."""
-        ws = MagicMock()
-        ws.accept = MagicMock()
+        ws = create_mock_websocket()
 
         await fresh_manager.connect(ws, "disconnect@example.com")
         assert fresh_manager.active_connections_count == 1
@@ -589,7 +576,7 @@ class TestConnectionCleanup:
 
     async def test_disconnect_nonexistent_connection(self, fresh_manager):
         """Test disconnecting a non-existent connection doesn't raise."""
-        ws = MagicMock()
+        ws = create_mock_websocket()
 
         # Should not raise any exception
         await fresh_manager.disconnect(ws)
@@ -597,8 +584,7 @@ class TestConnectionCleanup:
 
     async def test_send_personal_disconnects_on_failure(self, fresh_manager):
         """Test that personal send disconnects client on failure."""
-        ws = MagicMock()
-        ws.accept = MagicMock()
+        ws = create_mock_websocket()
         ws.send_text = MagicMock(side_effect=Exception("Connection closed"))
 
         await fresh_manager.connect(ws, "failing@example.com")
@@ -612,17 +598,13 @@ class TestConnectionCleanup:
 
     async def test_broadcast_cleans_multiple_dead_connections(self, fresh_manager):
         """Test broadcast cleans up multiple dead connections."""
-        healthy = MagicMock()
-        healthy.accept = MagicMock()
-        healthy.send_text = MagicMock()
+        healthy = create_mock_websocket()
 
-        dead1 = MagicMock()
-        dead1.accept = MagicMock()
-        dead1.send_text = MagicMock(side_effect=Exception("Dead 1"))
+        dead1 = create_mock_websocket()
+        dead1.send_text = AsyncMock(side_effect=Exception("Dead 1"))
 
-        dead2 = MagicMock()
-        dead2.accept = MagicMock()
-        dead2.send_text = MagicMock(side_effect=Exception("Dead 2"))
+        dead2 = create_mock_websocket()
+        dead2.send_text = AsyncMock(side_effect=Exception("Dead 2"))
 
         await fresh_manager.connect(healthy, "healthy@example.com")
         await fresh_manager.connect(dead1, "dead1@example.com")
@@ -655,8 +637,7 @@ class TestHeartbeatFunctionality:
 
     async def test_update_heartbeat_timestamp(self, fresh_manager):
         """Test that update_heartbeat updates the timestamp."""
-        ws = MagicMock()
-        ws.accept = MagicMock()
+        ws = create_mock_websocket()
 
         await fresh_manager.connect(ws, "heartbeat@example.com")
 
@@ -674,9 +655,7 @@ class TestHeartbeatFunctionality:
         """Test that heartbeat task starts with first connection."""
         assert fresh_manager._heartbeat_task is None
 
-        ws = MagicMock()
-        ws.accept = MagicMock()
-        ws.send_text = MagicMock()
+        ws = create_mock_websocket()
 
         await fresh_manager.connect(ws, "first@example.com")
 
@@ -686,9 +665,7 @@ class TestHeartbeatFunctionality:
 
     async def test_heartbeat_stops_on_last_disconnect(self, fresh_manager):
         """Test that heartbeat task stops when last client disconnects."""
-        ws = MagicMock()
-        ws.accept = MagicMock()
-        ws.send_text = MagicMock()
+        ws = create_mock_websocket()
 
         await fresh_manager.connect(ws, "last@example.com")
         assert fresh_manager._heartbeat_task is not None
@@ -701,12 +678,12 @@ class TestHeartbeatFunctionality:
     async def test_manual_start_stop_heartbeat(self, fresh_manager):
         """Test manual start and stop of heartbeat."""
         # Manually start heartbeat
-        fresh_manager.start_heartbeat()
+        await fresh_manager.start_heartbeat()
         assert fresh_manager._heartbeat_task is not None
         assert not fresh_manager._heartbeat_task.done()
 
         # Manually stop heartbeat
-        fresh_manager.stop_heartbeat()
+        await fresh_manager.stop_heartbeat()
 
         assert fresh_manager._heartbeat_task.done()
 
@@ -715,13 +692,9 @@ class TestHeartbeatFunctionality:
         # Set a very short heartbeat interval for testing
         fresh_manager._heartbeat_interval = 0.1  # 100ms
 
-        ws1 = MagicMock()
-        ws1.accept = MagicMock()
-        ws1.send_text = MagicMock()
+        ws1 = create_mock_websocket()
 
-        ws2 = MagicMock()
-        ws2.accept = MagicMock()
-        ws2.send_text = MagicMock()
+        ws2 = create_mock_websocket()
 
         await fresh_manager.connect(ws1, "user1@example.com")
         await fresh_manager.connect(ws2, "user2@example.com")

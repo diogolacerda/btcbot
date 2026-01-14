@@ -111,7 +111,7 @@ class TestFilterAPI(AioHTTPTestCase):
     async def test_toggle_filter_enable(self):
         """Test POST /filters/{name} to enable a filter."""
         # First disable it
-        self.client.post("/filters/filter1", json={"enabled": False})
+        await self.client.post("/filters/filter1", json={"enabled": False})
 
         # Then enable it
         resp = await self.client.post(
@@ -188,7 +188,7 @@ class TestFilterAPI(AioHTTPTestCase):
     async def test_enable_all_filters(self):
         """Test POST /filters/enable-all."""
         # First disable all
-        self.client.post("/filters/disable-all")
+        await self.client.post("/filters/disable-all")
 
         # Then enable all
         resp = await self.client.post("/filters/enable-all")
@@ -213,7 +213,7 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["enabled_count"] == 2
 
         # Disable filter1
-        self.client.post("/filters/filter1", json={"enabled": False})
+        await self.client.post("/filters/filter1", json={"enabled": False})
         resp = await self.client.get("/filters")
         data = await resp.json()
         assert data["enabled_count"] == 1
@@ -221,13 +221,13 @@ class TestFilterAPI(AioHTTPTestCase):
         assert data["filters"]["filter2"]["enabled"] is True
 
         # Disable all
-        self.client.post("/filters/disable-all")
+        await self.client.post("/filters/disable-all")
         resp = await self.client.get("/filters")
         data = await resp.json()
         assert data["enabled_count"] == 0
 
         # Enable all (restores both to enabled)
-        self.client.post("/filters/enable-all")
+        await self.client.post("/filters/enable-all")
         resp = await self.client.get("/filters")
         data = await resp.json()
         assert data["enabled_count"] == 2
